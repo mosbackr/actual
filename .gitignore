@@ -27,3 +27,6 @@ Thumbs.db
 # Node
 node_modules/
 .next/
+
+# Worktrees
+.worktrees/
