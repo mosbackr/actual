@@ -57,7 +57,7 @@ class AcutalStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
 
-        # ECR Repositories
+        # ECR Repositories (for future image rebuilds)
         backend_repo = ecr.Repository(self, "BackendRepo",
             repository_name="acutal-backend",
             removal_policy=RemovalPolicy.DESTROY,
@@ -74,7 +74,7 @@ class AcutalStack(Stack):
         # ECS Cluster
         cluster = ecs.Cluster(self, "AcutalCluster", vpc=vpc)
 
-        # Backend Service
+        # Backend Service (built from local Dockerfile via CDK)
         backend_service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self, "BackendService",
             cluster=cluster,
@@ -82,7 +82,7 @@ class AcutalStack(Stack):
             memory_limit_mib=512,
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_ecr_repository(backend_repo, tag="latest"),
+                image=ecs.ContainerImage.from_asset("../backend"),
                 container_port=8000,
                 environment={
                     "ACUTAL_CORS_ORIGINS": '["*"]',
@@ -101,7 +101,7 @@ class AcutalStack(Stack):
         # Allow backend to connect to RDS
         db.connections.allow_default_port_from(backend_service.service)
 
-        # Frontend Service
+        # Frontend Service (initial build with placeholder API URL)
         frontend_service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self, "FrontendService",
             cluster=cluster,
@@ -109,18 +109,17 @@ class AcutalStack(Stack):
             memory_limit_mib=512,
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_ecr_repository(frontend_repo, tag="latest"),
+                image=ecs.ContainerImage.from_asset("../frontend",
+                    build_args={"NEXT_PUBLIC_API_URL": "http://placeholder"},
+                ),
                 container_port=3000,
-                environment={
-                    "NEXT_PUBLIC_API_URL": "PLACEHOLDER_SET_AT_BUILD",
-                },
                 secrets={
                     "NEXTAUTH_SECRET": ecs.Secret.from_secrets_manager(jwt_secret),
                 },
             ),
         )
 
-        # Admin Service
+        # Admin Service (initial build with placeholder API URL)
         admin_service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self, "AdminService",
             cluster=cluster,
@@ -128,11 +127,10 @@ class AcutalStack(Stack):
             memory_limit_mib=512,
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_ecr_repository(admin_repo, tag="latest"),
+                image=ecs.ContainerImage.from_asset("../admin",
+                    build_args={"NEXT_PUBLIC_API_URL": "http://placeholder"},
+                ),
                 container_port=3001,
-                environment={
-                    "NEXT_PUBLIC_API_URL": "PLACEHOLDER_SET_AT_BUILD",
-                },
                 secrets={
                     "NEXTAUTH_SECRET": ecs.Secret.from_secrets_manager(jwt_secret),
                 },
