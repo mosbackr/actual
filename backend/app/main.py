@@ -8,6 +8,7 @@ from app.api.startups import router as startups_router
 from app.api.industries import router as industries_router
 from app.api.experts import router as experts_router
 from app.api.auth_exchange import router as auth_exchange_router
+from app.api.admin_templates import router as admin_templates_router
 
 app = FastAPI(title="Acutal API", version="0.1.0")
 
@@ -25,6 +26,7 @@ app.include_router(startups_router)
 app.include_router(industries_router)
 app.include_router(experts_router)
 app.include_router(auth_exchange_router)
+app.include_router(admin_templates_router)
 
 
 @app.get("/api/health")
