@@ -1,8 +1,9 @@
 from aws_cdk import (
-    Duration,
+    CfnOutput,
     RemovalPolicy,
     Stack,
     aws_ec2 as ec2,
+    aws_ecr as ecr,
     aws_ecs as ecs,
     aws_ecs_patterns as ecs_patterns,
     aws_rds as rds,
@@ -56,6 +57,20 @@ class AcutalStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
 
+        # ECR Repositories
+        backend_repo = ecr.Repository(self, "BackendRepo",
+            repository_name="acutal-backend",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        frontend_repo = ecr.Repository(self, "FrontendRepo",
+            repository_name="acutal-frontend",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        admin_repo = ecr.Repository(self, "AdminRepo",
+            repository_name="acutal-admin",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         # ECS Cluster
         cluster = ecs.Cluster(self, "AcutalCluster", vpc=vpc)
 
@@ -67,13 +82,17 @@ class AcutalStack(Stack):
             memory_limit_mib=512,
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("../backend"),
+                image=ecs.ContainerImage.from_ecr_repository(backend_repo, tag="latest"),
                 container_port=8000,
                 environment={
                     "ACUTAL_CORS_ORIGINS": '["*"]',
+                    "DB_HOST": db.db_instance_endpoint_address,
+                    "DB_PORT": db.db_instance_endpoint_port,
+                    "DB_USER": "acutal",
+                    "DB_NAME": "acutal",
                 },
                 secrets={
-                    "ACUTAL_DATABASE_URL": ecs.Secret.from_secrets_manager(db_secret),
+                    "DB_PASSWORD": ecs.Secret.from_secrets_manager(db_secret, "password"),
                     "ACUTAL_JWT_SECRET": ecs.Secret.from_secrets_manager(jwt_secret),
                 },
             ),
@@ -90,11 +109,13 @@ class AcutalStack(Stack):
             memory_limit_mib=512,
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("../frontend"),
+                image=ecs.ContainerImage.from_ecr_repository(frontend_repo, tag="latest"),
                 container_port=3000,
                 environment={
-                    "NEXT_PUBLIC_API_URL": f"http://{backend_service.load_balancer.load_balancer_dns_name}",
-                    "NEXTAUTH_SECRET": "REPLACE_WITH_REAL_SECRET",
+                    "NEXT_PUBLIC_API_URL": "PLACEHOLDER_SET_AT_BUILD",
+                },
+                secrets={
+                    "NEXTAUTH_SECRET": ecs.Secret.from_secrets_manager(jwt_secret),
                 },
             ),
         )
@@ -107,11 +128,24 @@ class AcutalStack(Stack):
             memory_limit_mib=512,
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("../admin"),
+                image=ecs.ContainerImage.from_ecr_repository(admin_repo, tag="latest"),
                 container_port=3001,
                 environment={
-                    "NEXT_PUBLIC_API_URL": f"http://{backend_service.load_balancer.load_balancer_dns_name}",
-                    "NEXTAUTH_SECRET": "REPLACE_WITH_REAL_SECRET",
+                    "NEXT_PUBLIC_API_URL": "PLACEHOLDER_SET_AT_BUILD",
+                },
+                secrets={
+                    "NEXTAUTH_SECRET": ecs.Secret.from_secrets_manager(jwt_secret),
                 },
             ),
         )
+
+        # Outputs
+        CfnOutput(self, "BackendUrl",
+            value=f"http://{backend_service.load_balancer.load_balancer_dns_name}")
+        CfnOutput(self, "FrontendUrl",
+            value=f"http://{frontend_service.load_balancer.load_balancer_dns_name}")
+        CfnOutput(self, "AdminUrl",
+            value=f"http://{admin_service.load_balancer.load_balancer_dns_name}")
+        CfnOutput(self, "DbEndpoint", value=db.db_instance_endpoint_address)
+        CfnOutput(self, "DbSecretArn", value=db_secret.secret_arn)
+        CfnOutput(self, "JwtSecretArn", value=jwt_secret.secret_arn)
