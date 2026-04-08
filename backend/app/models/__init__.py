@@ -5,6 +5,9 @@ from app.models.industry import Industry
 from app.models.skill import Skill
 from app.models.media import StartupMedia
 from app.models.score import StartupScoreHistory
+from app.models.template import DueDiligenceTemplate, TemplateDimension
+from app.models.assignment import StartupAssignment
+from app.models.dimension import StartupDimension
 
 __all__ = [
     "User",
@@ -17,4 +20,8 @@ __all__ = [
     "Skill",
     "StartupMedia",
     "StartupScoreHistory",
+    "DueDiligenceTemplate",
+    "TemplateDimension",
+    "StartupAssignment",
+    "StartupDimension",
 ]

@@ -51,6 +51,9 @@ class Startup(Base):
     ai_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     expert_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     user_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("due_diligence_templates.id"), nullable=True
+    )
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
