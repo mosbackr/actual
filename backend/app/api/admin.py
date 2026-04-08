@@ -17,10 +17,14 @@ router = APIRouter()
 
 @router.get("/api/admin/users")
 async def list_users(
+    role: str | None = None,
     _user: User = Depends(require_role("superadmin")),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    query = select(User).order_by(User.created_at.desc())
+    if role is not None:
+        query = query.where(User.role == UserRole(role))
+    result = await db.execute(query)
     users = result.scalars().all()
     return [
         {"id": str(u.id), "email": u.email, "name": u.name, "role": u.role.value}
@@ -33,24 +37,37 @@ async def startup_pipeline(
     _user: User = Depends(require_role("superadmin")),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy.orm import selectinload
+    from app.models.assignment import StartupAssignment
+    from app.models.dimension import StartupDimension
+
     result = await db.execute(
         select(Startup)
+        .options(selectinload(Startup.industries))
         .where(Startup.status == StartupStatus.pending)
         .order_by(Startup.created_at.desc())
     )
     startups = result.scalars().all()
-    return [
-        {
-            "id": str(s.id),
-            "name": s.name,
-            "slug": s.slug,
-            "description": s.description,
-            "stage": s.stage.value,
-            "status": s.status.value,
-            "created_at": s.created_at.isoformat(),
-        }
-        for s in startups
-    ]
+
+    response = []
+    for s in startups:
+        assign_result = await db.execute(
+            select(StartupAssignment).where(StartupAssignment.startup_id == s.id)
+        )
+        assignment_count = len(assign_result.scalars().all())
+        dim_result = await db.execute(
+            select(StartupDimension).where(StartupDimension.startup_id == s.id).limit(1)
+        )
+        dimensions_configured = dim_result.scalar_one_or_none() is not None
+        response.append({
+            "id": str(s.id), "name": s.name, "slug": s.slug,
+            "description": s.description, "stage": s.stage.value,
+            "status": s.status.value, "created_at": s.created_at.isoformat(),
+            "industries": [{"id": str(i.id), "name": i.name, "slug": i.slug} for i in s.industries],
+            "assignment_count": assignment_count,
+            "dimensions_configured": dimensions_configured,
+        })
+    return response
 
 
 class StartupUpdateIn(BaseModel):
