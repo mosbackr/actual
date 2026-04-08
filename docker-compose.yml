@@ -44,5 +44,20 @@ services:
       - /app/node_modules
     command: npm run dev
 
+  admin:
+    build: ./admin
+    ports:
+      - "3001:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: dev-secret-change-in-production
+    depends_on:
+      - backend
+    volumes:
+      - ./admin:/app
+      - /app/node_modules
+    command: npm run dev
+
 volumes:
   pgdata:

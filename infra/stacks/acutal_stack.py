@@ -98,3 +98,20 @@ class AcutalStack(Stack):
                 },
             ),
         )
+
+        # Admin Service
+        admin_service = ecs_patterns.ApplicationLoadBalancedFargateService(
+            self, "AdminService",
+            cluster=cluster,
+            cpu=256,
+            memory_limit_mib=512,
+            desired_count=1,
+            task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
+                image=ecs.ContainerImage.from_asset("../admin"),
+                container_port=3001,
+                environment={
+                    "NEXT_PUBLIC_API_URL": f"http://{backend_service.load_balancer.load_balancer_dns_name}",
+                    "NEXTAUTH_SECRET": "REPLACE_WITH_REAL_SECRET",
+                },
+            ),
+        )
