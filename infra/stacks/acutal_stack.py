@@ -4,6 +4,7 @@ from aws_cdk import (
     Stack,
     aws_ec2 as ec2,
     aws_ecr as ecr,
+    aws_ecr_assets as ecr_assets,
     aws_ecs as ecs,
     aws_ecs_patterns as ecs_patterns,
     aws_rds as rds,
@@ -96,7 +97,9 @@ class AcutalStack(Stack):
             assign_public_ip=True,
             task_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("../backend"),
+                image=ecs.ContainerImage.from_asset("../backend",
+                    platform=ecr_assets.Platform.LINUX_AMD64,
+                ),
                 container_port=8000,
                 environment={
                     "ACUTAL_CORS_ORIGINS": '["*"]',
@@ -126,6 +129,7 @@ class AcutalStack(Stack):
             task_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
                 image=ecs.ContainerImage.from_asset("../frontend",
+                    platform=ecr_assets.Platform.LINUX_AMD64,
                     build_args={"NEXT_PUBLIC_API_URL": "http://placeholder"},
                 ),
                 container_port=3000,
@@ -146,6 +150,7 @@ class AcutalStack(Stack):
             task_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
                 image=ecs.ContainerImage.from_asset("../admin",
+                    platform=ecr_assets.Platform.LINUX_AMD64,
                     build_args={"NEXT_PUBLIC_API_URL": "http://placeholder"},
                 ),
                 container_port=3001,
