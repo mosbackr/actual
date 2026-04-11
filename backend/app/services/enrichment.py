@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import delete, select
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.db.session import async_session
@@ -236,8 +237,11 @@ async def _ensure_dimensions(startup_id: uuid.UUID, db) -> list[dict]:
         ]
 
     # No dimensions yet — try to find a matching template.
-    # First, load the startup and its industries.
-    startup = await db.get(Startup, startup_id)
+    # Load the startup with industries eagerly (async requires explicit loading).
+    result = await db.execute(
+        select(Startup).where(Startup.id == startup_id).options(selectinload(Startup.industries))
+    )
+    startup = result.scalars().first()
     template = None
 
     if startup and startup.industries:
