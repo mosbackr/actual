@@ -39,6 +39,7 @@ following fields.  Use null for any field you cannot determine.
 
 {
   "tagline": "one-line description",
+  "website_url": "https://example.com",
   "description": "2-3 paragraph detailed description",
   "founded_date": "YYYY or YYYY-MM-DD",
   "founders": [
@@ -361,6 +362,8 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             )
 
             # Update scalar fields on startup
+            if enriched.get("website_url") and not startup.website_url:
+                startup.website_url = enriched["website_url"][:500]
             if enriched.get("tagline"):
                 startup.tagline = enriched["tagline"][:500]
             if enriched.get("description"):
