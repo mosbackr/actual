@@ -11,6 +11,19 @@ const stageLabels: Record<string, string> = {
   series_b: "Series B", series_c: "Series C", growth: "Growth",
 };
 
+function ScoreBar({ score, label }: { score: number; label: string }) {
+  const color = score >= 70 ? "bg-score-high" : score >= 40 ? "bg-score-mid" : "bg-score-low";
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm text-text-secondary w-48 shrink-0">{label}</span>
+      <div className="flex-1 h-2.5 bg-background rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${score}%` }} />
+      </div>
+      <span className="text-sm font-medium text-text-primary w-8 text-right tabular-nums">{score}</span>
+    </div>
+  );
+}
+
 async function getStartup(slug: string): Promise<StartupDetail | null> {
   const res = await fetch(`${API_URL}/api/startups/${slug}`, { cache: "no-store" });
   if (!res.ok) return null;
@@ -22,31 +35,66 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
   const startup = await getStartup(slug);
   if (!startup) notFound();
 
+  const hasScoreHistory = startup.score_history && startup.score_history.length > 0;
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Hero */}
-      <div className="flex items-start gap-6 mb-8">
+      <div className="flex items-start gap-6 mb-12">
         {startup.logo_url ? (
-          <img src={startup.logo_url} alt={startup.name} className="h-20 w-20 rounded-xl object-cover" />
+          <img src={startup.logo_url} alt={startup.name} className="h-20 w-20 rounded object-cover" />
         ) : (
-          <div className="h-20 w-20 rounded-xl bg-gray-800 flex items-center justify-center text-2xl font-bold text-gray-500">
+          <div className="h-20 w-20 rounded bg-background border border-border flex items-center justify-center font-serif text-2xl text-text-tertiary">
             {startup.name[0]}
           </div>
         )}
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">{startup.name}</h1>
-          <p className="text-gray-400 mt-2">{startup.description}</p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <span className="rounded-full bg-indigo-900/40 px-3 py-1 text-xs font-medium text-indigo-300 border border-indigo-800">
+          <h1 className="font-serif text-3xl text-text-primary">{startup.name}</h1>
+          {startup.tagline && (
+            <p className="text-text-tertiary mt-1 text-sm">{startup.tagline}</p>
+          )}
+          <p className="text-text-secondary mt-2">{startup.description}</p>
+          <div className="flex flex-wrap gap-2 mt-3 items-center">
+            <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
               {stageLabels[startup.stage] || startup.stage}
             </span>
+            {startup.total_funding && (
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+                {startup.total_funding} raised
+              </span>
+            )}
+            {startup.employee_count && (
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+                {startup.employee_count} employees
+              </span>
+            )}
             {startup.industries.map((ind) => (
-              <span key={ind.id} className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-400">{ind.name}</span>
+              <span key={ind.id} className="rounded px-3 py-1 text-xs text-text-tertiary">{ind.name}</span>
             ))}
+          </div>
+          <div className="flex flex-wrap gap-3 mt-3 items-center">
             {startup.website_url && (
               <a href={startup.website_url} target="_blank" rel="noopener noreferrer"
-                className="rounded-full bg-gray-800 px-3 py-1 text-xs text-indigo-400 hover:text-indigo-300">
-                Visit Website &rarr;
+                className="text-xs text-accent hover:text-accent-hover transition">
+                Website &rarr;
+              </a>
+            )}
+            {startup.linkedin_url && (
+              <a href={startup.linkedin_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-accent hover:text-accent-hover transition">
+                LinkedIn &rarr;
+              </a>
+            )}
+            {startup.twitter_url && (
+              <a href={startup.twitter_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-accent hover:text-accent-hover transition">
+                Twitter &rarr;
+              </a>
+            )}
+            {startup.crunchbase_url && (
+              <a href={startup.crunchbase_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-accent hover:text-accent-hover transition">
+                Crunchbase &rarr;
               </a>
             )}
           </div>
@@ -54,42 +102,168 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
       </div>
 
       {/* Scores Overview */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">Scores Overview</h2>
+      <section className="mb-12">
+        <h2 className="font-serif text-xl text-text-primary mb-6">Scores Overview</h2>
         <ScoreComparison aiScore={startup.ai_score} expertScore={startup.expert_score} userScore={startup.user_score} />
       </section>
 
-      {/* Score Timeline */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">Score History</h2>
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-          <ScoreTimeline history={startup.score_history} />
-        </div>
-      </section>
+      {/* AI Analysis */}
+      {startup.ai_review && (
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">AI Analysis</h2>
+          <div className="rounded border border-border bg-surface p-6 space-y-6">
+            {/* Investment Thesis */}
+            <div>
+              <h3 className="text-sm font-medium text-text-primary mb-2">Investment Thesis</h3>
+              <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.ai_review.investment_thesis}</p>
+            </div>
 
-      {/* Dimension Breakdown */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">Dimension Breakdown</h2>
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-          <DimensionRadar history={startup.score_history} />
-        </div>
-      </section>
+            {/* Dimension Breakdown */}
+            {startup.ai_review.dimension_scores.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-text-primary mb-3">Dimension Breakdown</h3>
+                <div className="space-y-4">
+                  {startup.ai_review.dimension_scores.map((ds) => (
+                    <div key={ds.dimension_name}>
+                      <ScoreBar score={ds.score} label={ds.dimension_name} />
+                      <p className="text-xs text-text-tertiary mt-1 ml-[12.75rem]">{ds.reasoning}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Key Risks */}
+            <div>
+              <h3 className="text-sm font-medium text-text-primary mb-2">Key Risks</h3>
+              <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.ai_review.key_risks}</p>
+            </div>
+
+            {/* Verdict */}
+            <div>
+              <h3 className="text-sm font-medium text-text-primary mb-2">Verdict</h3>
+              <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.ai_review.verdict}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Score Timeline */}
+      {hasScoreHistory && (
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">Score History</h2>
+          <div className="rounded border border-border bg-surface p-6">
+            <ScoreTimeline history={startup.score_history} />
+          </div>
+        </section>
+      )}
+
+      {/* Dimension Breakdown Radar */}
+      {hasScoreHistory && (
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">Dimension Breakdown</h2>
+          <div className="rounded border border-border bg-surface p-6">
+            <DimensionRadar history={startup.score_history} />
+          </div>
+        </section>
+      )}
+
+      {/* Founders */}
+      {startup.founders && startup.founders.length > 0 && (
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">Founders</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {startup.founders.map((f) => (
+              <div key={f.name} className="rounded border border-border bg-surface p-4">
+                <p className="text-sm font-medium text-text-primary">{f.name}</p>
+                {f.title && <p className="text-xs text-text-tertiary mt-0.5">{f.title}</p>}
+                {f.linkedin_url && (
+                  <a
+                    href={f.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-accent hover:text-accent-hover transition mt-2 inline-block"
+                  >
+                    LinkedIn &rarr;
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Funding History */}
+      {startup.funding_rounds && startup.funding_rounds.length > 0 && (
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">Funding History</h2>
+          <div className="rounded border border-border bg-surface overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-background">
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Round</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Amount</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Date</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Lead Investor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {startup.funding_rounds.map((fr, i) => (
+                  <tr key={i} className="border-b border-border last:border-b-0">
+                    <td className="px-4 py-2.5 text-text-primary font-medium">{fr.round_name}</td>
+                    <td className="px-4 py-2.5 text-text-secondary">{fr.amount || "—"}</td>
+                    <td className="px-4 py-2.5 text-text-secondary">{fr.date || "—"}</td>
+                    <td className="px-4 py-2.5 text-text-secondary">{fr.lead_investor || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Company Intel */}
+      {(startup.key_metrics || startup.competitors || startup.tech_stack) && (
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">Company Intel</h2>
+          <div className="rounded border border-border bg-surface p-6 space-y-5">
+            {startup.key_metrics && (
+              <div>
+                <h3 className="text-sm font-medium text-text-primary mb-1">Key Metrics</h3>
+                <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.key_metrics}</p>
+              </div>
+            )}
+            {startup.competitors && (
+              <div>
+                <h3 className="text-sm font-medium text-text-primary mb-1">Competitors</h3>
+                <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.competitors}</p>
+              </div>
+            )}
+            {startup.tech_stack && (
+              <div>
+                <h3 className="text-sm font-medium text-text-primary mb-1">Tech Stack</h3>
+                <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.tech_stack}</p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Media */}
       {startup.media.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold mb-4">Media Coverage</h2>
+        <section className="mb-12">
+          <h2 className="font-serif text-xl text-text-primary mb-6">Media Coverage</h2>
           <div className="space-y-3">
             {startup.media.map((m) => (
               <a key={m.id} href={m.url} target="_blank" rel="noopener noreferrer"
-                className="block rounded-lg border border-gray-800 bg-gray-900 p-4 hover:border-gray-600 transition">
+                className="block rounded border border-border bg-surface p-4 hover:border-text-tertiary transition">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">{m.title}</p>
-                    <p className="text-xs text-gray-500 mt-1">{m.source} &middot; {m.media_type.replace("_", " ")}</p>
+                    <p className="text-sm font-medium text-text-primary">{m.title}</p>
+                    <p className="text-xs text-text-tertiary mt-1">{m.source} &middot; {m.media_type.replace("_", " ")}</p>
                   </div>
                   {m.published_at && (
-                    <span className="text-xs text-gray-500">{new Date(m.published_at).toLocaleDateString()}</span>
+                    <span className="text-xs text-text-tertiary">{new Date(m.published_at).toLocaleDateString()}</span>
                   )}
                 </div>
               </a>
@@ -98,14 +272,14 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
         </section>
       )}
 
-      {/* Reviews placeholder */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">Expert Reviews</h2>
-        <p className="text-gray-500 text-sm">No expert reviews yet.</p>
+      {/* Reviews */}
+      <section className="mb-12">
+        <h2 className="font-serif text-xl text-text-primary mb-6">Expert Reviews</h2>
+        <p className="text-text-tertiary text-sm">No expert reviews yet.</p>
       </section>
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">Community Reviews</h2>
-        <p className="text-gray-500 text-sm">No community reviews yet.</p>
+      <section className="mb-12">
+        <h2 className="font-serif text-xl text-text-primary mb-6">Community Reviews</h2>
+        <p className="text-text-tertiary text-sm">No community reviews yet.</p>
       </section>
     </div>
   );

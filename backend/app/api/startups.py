@@ -4,6 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
+from app.models.ai_review import StartupAIReview
+from app.models.founder import StartupFounder
+from app.models.funding_round import StartupFundingRound
 from app.models.industry import Industry
 from app.models.media import StartupMedia
 from app.models.score import StartupScoreHistory
@@ -77,6 +80,7 @@ async def list_startups(
                 "ai_score": s.ai_score,
                 "expert_score": s.expert_score,
                 "user_score": s.user_score,
+                "tagline": s.tagline,
                 "industries": [{"id": str(i.id), "name": i.name, "slug": i.slug} for i in s.industries],
             }
             for s in startups
@@ -110,6 +114,24 @@ async def get_startup(slug: str, db: AsyncSession = Depends(get_db)):
     )
     scores = scores_result.scalars().all()
 
+    # Fetch founders
+    founders_result = await db.execute(
+        select(StartupFounder).where(StartupFounder.startup_id == startup.id).order_by(StartupFounder.sort_order)
+    )
+    founders = founders_result.scalars().all()
+
+    # Fetch funding rounds
+    funding_result = await db.execute(
+        select(StartupFundingRound).where(StartupFundingRound.startup_id == startup.id).order_by(StartupFundingRound.sort_order)
+    )
+    funding_rounds = funding_result.scalars().all()
+
+    # Fetch AI review
+    review_result = await db.execute(
+        select(StartupAIReview).where(StartupAIReview.startup_id == startup.id)
+    )
+    ai_review = review_result.scalar_one_or_none()
+
     return {
         "id": str(startup.id),
         "name": startup.name,
@@ -126,6 +148,31 @@ async def get_startup(slug: str, db: AsyncSession = Depends(get_db)):
         "expert_score": startup.expert_score,
         "user_score": startup.user_score,
         "industries": [{"id": str(i.id), "name": i.name, "slug": i.slug} for i in startup.industries],
+        "tagline": startup.tagline,
+        "total_funding": startup.total_funding,
+        "employee_count": startup.employee_count,
+        "linkedin_url": startup.linkedin_url,
+        "twitter_url": startup.twitter_url,
+        "crunchbase_url": startup.crunchbase_url,
+        "competitors": startup.competitors,
+        "tech_stack": startup.tech_stack,
+        "key_metrics": startup.key_metrics,
+        "founders": [
+            {"name": f.name, "title": f.title, "linkedin_url": f.linkedin_url}
+            for f in founders
+        ],
+        "funding_rounds": [
+            {"round_name": fr.round_name, "amount": fr.amount, "date": fr.date, "lead_investor": fr.lead_investor}
+            for fr in funding_rounds
+        ],
+        "ai_review": {
+            "overall_score": ai_review.overall_score,
+            "investment_thesis": ai_review.investment_thesis,
+            "key_risks": ai_review.key_risks,
+            "verdict": ai_review.verdict,
+            "dimension_scores": ai_review.dimension_scores,
+            "created_at": ai_review.created_at.isoformat(),
+        } if ai_review else None,
         "media": [
             {
                 "id": str(m.id),

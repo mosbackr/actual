@@ -9,6 +9,7 @@ export interface StartupCard {
   name: string;
   slug: string;
   description: string;
+  tagline: string | null;
   website_url: string | null;
   logo_url: string | null;
   stage: string;
@@ -39,6 +40,17 @@ export interface ScoreHistory {
 
 export interface StartupDetail extends StartupCard {
   founded_date: string | null;
+  total_funding: string | null;
+  employee_count: string | null;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+  crunchbase_url: string | null;
+  competitors: string | null;
+  tech_stack: string | null;
+  key_metrics: string | null;
+  founders: Founder[];
+  funding_rounds: FundingRound[];
+  ai_review: AIReview | null;
   media: MediaItem[];
   score_history: ScoreHistory[];
 }
@@ -54,6 +66,34 @@ export interface PaginatedStartups {
 export interface Stage {
   value: string;
   label: string;
+}
+
+export interface Founder {
+  name: string;
+  title: string | null;
+  linkedin_url: string | null;
+}
+
+export interface FundingRound {
+  round_name: string;
+  amount: string | null;
+  date: string | null;
+  lead_investor: string | null;
+}
+
+export interface DimensionScore {
+  dimension_name: string;
+  score: number;
+  reasoning: string;
+}
+
+export interface AIReview {
+  overall_score: number;
+  investment_thesis: string;
+  key_risks: string;
+  verdict: string;
+  dimension_scores: DimensionScore[];
+  created_at: string;
 }
 
 export interface ExpertApplication {

@@ -8,6 +8,9 @@ from app.models.score import StartupScoreHistory
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 from app.models.assignment import StartupAssignment
 from app.models.dimension import StartupDimension
+from app.models.founder import StartupFounder
+from app.models.funding_round import StartupFundingRound
+from app.models.ai_review import StartupAIReview
 
 __all__ = [
     "User",
@@ -24,4 +27,7 @@ __all__ = [
     "TemplateDimension",
     "StartupAssignment",
     "StartupDimension",
+    "StartupFounder",
+    "StartupFundingRound",
+    "StartupAIReview",
 ]

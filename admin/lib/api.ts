@@ -1,12 +1,20 @@
 import type {
+  AdminStartup,
   AdminUser,
+  AIReview,
   ApprovedExpert,
   Assignment,
+  CreateStartupInput,
   DDTemplate,
   Dimension,
+  EnrichmentStatusResponse,
   ExpertApplication,
   PipelineStartup,
+  ScoutAddResponse,
+  ScoutChatResponse,
+  StartupCandidate,
   StartupDetail,
+  StartupFullDetail,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -32,11 +40,28 @@ export const adminApi = {
   getPipeline: (token: string) =>
     apiFetch<PipelineStartup[]>("/api/admin/startups/pipeline", token),
 
+  getAllStartups: (token: string, status?: string) =>
+    apiFetch<AdminStartup[]>(`/api/admin/startups${status ? `?status=${status}` : ""}`, token),
+
+  createStartup: (token: string, body: CreateStartupInput) =>
+    apiFetch<StartupDetail>("/api/admin/startups", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   updateStartup: (token: string, id: string, body: Record<string, unknown>) =>
     apiFetch<StartupDetail>(`/api/admin/startups/${id}`, token, {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  fetchLogo: (token: string, startupId: string) =>
+    apiFetch<{ logo_url: string; domain: string }>(`/api/admin/startups/${startupId}/fetch-logo`, token, {
+      method: "POST",
+    }),
+
+  getIndustries: (token: string) =>
+    apiFetch<{ id: string; name: string; slug: string }[]>("/api/industries", token),
 
   // Expert applications
   getApplications: (token: string) =>
@@ -116,4 +141,32 @@ export const adminApi = {
   // Users
   getUsers: (token: string, role?: string) =>
     apiFetch<AdminUser[]>(`/api/admin/users${role ? `?role=${role}` : ""}`, token),
+
+  // Scout
+  scoutChat: (token: string, message: string, history: { role: string; content: string }[]) =>
+    apiFetch<ScoutChatResponse>("/api/admin/scout/chat", token, {
+      method: "POST",
+      body: JSON.stringify({ message, history }),
+    }),
+
+  scoutAdd: (token: string, startups: StartupCandidate[]) =>
+    apiFetch<ScoutAddResponse>("/api/admin/scout/add", token, {
+      method: "POST",
+      body: JSON.stringify({ startups }),
+    }),
+
+  // Enrichment
+  triggerEnrichment: (token: string, startupId: string) =>
+    apiFetch<{ status: string }>(`/api/admin/startups/${startupId}/enrich`, token, {
+      method: "POST",
+    }),
+
+  getEnrichmentStatus: (token: string, startupId: string) =>
+    apiFetch<EnrichmentStatusResponse>(`/api/admin/startups/${startupId}/enrichment-status`, token),
+
+  getAIReview: (token: string, startupId: string) =>
+    apiFetch<AIReview>(`/api/admin/startups/${startupId}/ai-review`, token),
+
+  getStartupFullDetail: (token: string, startupId: string) =>
+    apiFetch<StartupFullDetail>(`/api/admin/startups/${startupId}/full-detail`, token),
 };

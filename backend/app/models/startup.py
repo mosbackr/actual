@@ -25,6 +25,13 @@ class StartupStatus(str, enum.Enum):
     featured = "featured"
 
 
+class EnrichmentStatus(str, enum.Enum):
+    none = "none"
+    running = "running"
+    complete = "complete"
+    failed = "failed"
+
+
 startup_industries = Table(
     "startup_industries",
     Base.metadata,
@@ -57,5 +64,22 @@ class Startup(Base):
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tagline: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    total_funding: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    employee_count: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    twitter_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    crunchbase_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    competitors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tech_stack: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hiring_signals: Mapped[str | None] = mapped_column(Text, nullable=True)
+    patents: Mapped[str | None] = mapped_column(Text, nullable=True)
+    key_metrics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enrichment_status: Mapped[EnrichmentStatus] = mapped_column(
+        Enum(EnrichmentStatus), nullable=False, default=EnrichmentStatus.none, server_default="none"
+    )
+    enrichment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     industries = relationship("Industry", secondary=startup_industries)
