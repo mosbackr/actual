@@ -137,28 +137,45 @@ async def scout_chat(
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": body.message})
 
-    # Call Perplexity Sonar Pro
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            "https://api.perplexity.ai/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.perplexity_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "sonar-pro",
-                "messages": messages,
-                "temperature": 0.1,
-                "max_tokens": 4096,
-            },
-        )
-        if resp.status_code != 200:
-            error_text = resp.text
-            raise HTTPException(
-                status_code=502,
-                detail=f"Perplexity API error ({resp.status_code}): {error_text[:200]}",
-            )
-        data = resp.json()
+    # Limit history to last 6 messages to avoid exceeding token limits
+    if len(body.history) > 6:
+        messages = [{"role": "system", "content": SCOUT_SYSTEM_PROMPT}]
+        for msg in body.history[-6:]:
+            messages.append({"role": msg.role, "content": msg.content})
+        messages.append({"role": "user", "content": body.message})
+
+    # Call Perplexity Sonar Pro with retry
+    last_error = None
+    data = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                resp = await client.post(
+                    "https://api.perplexity.ai/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.perplexity_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "sonar-pro",
+                        "messages": messages,
+                        "temperature": 0.1,
+                        "max_tokens": 4096,
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    break
+                last_error = f"Perplexity API error ({resp.status_code}): {resp.text[:200]}"
+                if resp.status_code < 500:
+                    break  # Don't retry client errors
+        except httpx.TimeoutException:
+            last_error = "Perplexity API timed out"
+        except Exception as e:
+            last_error = str(e)
+
+    if data is None:
+        raise HTTPException(status_code=502, detail=last_error or "Perplexity API failed")
 
     raw_content = data["choices"][0]["message"]["content"]
     citations = data.get("citations", [])
@@ -260,8 +277,8 @@ async def scout_add_startups(
                 if domain:
                     logo_url = f"https://img.logo.dev/{domain}?token={settings.logo_dev_token}&format=png&size=128"
                     async with httpx.AsyncClient(timeout=10.0) as client:
-                        head_resp = await client.head(logo_url, follow_redirects=True)
-                        if head_resp.status_code == 200:
+                        logo_resp = await client.get(logo_url, follow_redirects=True)
+                        if logo_resp.status_code == 200 and "image" in (logo_resp.headers.get("content-type") or ""):
                             startup.logo_url = logo_url
             except Exception:
                 pass
