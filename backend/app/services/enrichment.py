@@ -210,10 +210,10 @@ async def _fetch_logo_if_needed(startup: Startup, db) -> None:
 
         logo_url = f"https://img.logo.dev/{domain}?token={settings.logo_dev_token}&size=200&format=png"
 
-        # Verify the logo actually resolves (HEAD request)
+        # Verify the logo actually resolves (GET — Logo.dev returns 404 for HEAD)
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.head(logo_url, follow_redirects=True)
-            if resp.status_code == 200:
+            resp = await client.get(logo_url, follow_redirects=True)
+            if resp.status_code == 200 and "image" in (resp.headers.get("content-type") or ""):
                 startup.logo_url = logo_url
                 await db.flush()
     except Exception:
