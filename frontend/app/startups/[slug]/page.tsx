@@ -58,6 +58,11 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
             <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
               {stageLabels[startup.stage] || startup.stage}
             </span>
+            {(startup.location_city || startup.location_country) && (
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+                {[startup.location_city, startup.location_state, startup.location_country].filter(Boolean).join(", ")}
+              </span>
+            )}
             {startup.total_funding && (
               <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
                 {startup.total_funding} raised
