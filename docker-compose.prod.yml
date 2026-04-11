@@ -24,6 +24,8 @@ services:
       ACUTAL_DATABASE_URL: postgresql+asyncpg://acutal:${DB_PASSWORD}@db:5432/acutal
       ACUTAL_JWT_SECRET: ${JWT_SECRET}
       ACUTAL_CORS_ORIGINS: '["*"]'
+      ACUTAL_PERPLEXITY_API_KEY: ${ACUTAL_PERPLEXITY_API_KEY:-}
+      ACUTAL_LOGO_DEV_TOKEN: ${ACUTAL_LOGO_DEV_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
