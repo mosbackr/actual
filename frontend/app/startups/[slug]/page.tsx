@@ -3,6 +3,7 @@ import type { StartupDetail } from "@/lib/types";
 import { ScoreComparison } from "@/components/ScoreComparison";
 import { ScoreTimeline } from "@/components/ScoreTimeline";
 import { DimensionRadar } from "@/components/DimensionRadar";
+import { ReviewSection } from "@/components/ReviewSection";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -350,15 +351,15 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
         </section>
       )}
 
-      {/* Reviews */}
-      <section className="mb-12">
-        <h2 className="font-serif text-xl text-text-primary mb-6">Contributor Reviews</h2>
-        <p className="text-text-tertiary text-sm">No contributor reviews yet.</p>
-      </section>
-      <section className="mb-12">
-        <h2 className="font-serif text-xl text-text-primary mb-6">Community Reviews</h2>
-        <p className="text-text-tertiary text-sm">No community reviews yet.</p>
-      </section>
+      {/* Reviews & Scoring */}
+      <ReviewSection
+        slug={startup.slug}
+        dimensions={
+          startup.ai_review
+            ? startup.ai_review.dimension_scores.map((d) => d.dimension_name)
+            : []
+        }
+      />
     </div>
   );
 }

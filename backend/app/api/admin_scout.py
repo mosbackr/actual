@@ -131,18 +131,11 @@ async def scout_chat(
     if not settings.perplexity_api_key:
         raise HTTPException(status_code=500, detail="ACUTAL_PERPLEXITY_API_KEY not configured")
 
-    # Build messages for Perplexity
-    messages = [{"role": "system", "content": SCOUT_SYSTEM_PROMPT}]
-    for msg in body.history:
-        messages.append({"role": msg.role, "content": msg.content})
-    messages.append({"role": "user", "content": body.message})
-
-    # Limit history to last 6 messages to avoid exceeding token limits
-    if len(body.history) > 6:
-        messages = [{"role": "system", "content": SCOUT_SYSTEM_PROMPT}]
-        for msg in body.history[-6:]:
-            messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": body.message})
+    # Build messages for Perplexity — no history, each request is standalone
+    messages = [
+        {"role": "system", "content": SCOUT_SYSTEM_PROMPT},
+        {"role": "user", "content": body.message},
+    ]
 
     # Call Perplexity Sonar Pro with retry
     last_error = None

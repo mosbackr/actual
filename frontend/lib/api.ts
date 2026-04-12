@@ -56,4 +56,30 @@ export const api = {
       "/api/expert/applications/mine",
       { headers: authHeaders(token) }
     ),
+
+  getReviews: (slug: string, reviewType?: string, token?: string) => {
+    const params = reviewType ? `?review_type=${reviewType}` : "";
+    return apiFetch<import("./types").Review[]>(
+      `/api/startups/${slug}/reviews${params}`,
+      token ? { headers: authHeaders(token) } : undefined,
+    );
+  },
+
+  createReview: (token: string, slug: string, body: {
+    overall_score: number;
+    dimension_scores?: Record<string, number>;
+    comment?: string;
+  }) =>
+    apiFetch<import("./types").Review>(`/api/startups/${slug}/reviews`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    }),
+
+  voteOnReview: (token: string, reviewId: string, voteType: "up" | "down") =>
+    apiFetch<import("./types").Review>(`/api/reviews/${reviewId}/vote`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ vote_type: voteType }),
+    }),
 };

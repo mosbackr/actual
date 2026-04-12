@@ -141,17 +141,42 @@ def _slugify(name: str) -> str:
 
 
 def _extract_json(text: str) -> dict:
-    """Extract JSON from ```json fences or bare JSON."""
-    # Try to find fenced JSON first
+    """Extract JSON from ```json fences or bare JSON, with repair."""
+    candidates = []
+
+    # Try fenced JSON first
     match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
     if match:
-        return json.loads(match.group(1).strip())
+        candidates.append(match.group(1).strip())
+
     # Try bare JSON (find first { ... last })
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
-        return json.loads(text[start : end + 1])
-    raise ValueError("No JSON found in response")
+        candidates.append(text[start : end + 1])
+
+    for raw in candidates:
+        # Attempt 1: parse as-is
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        # Attempt 2: fix trailing commas before } or ]
+        cleaned = re.sub(r",\s*([}\]])", r"\1", raw)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        # Attempt 3: fix unescaped control characters
+        cleaned2 = cleaned.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+        try:
+            return json.loads(cleaned2)
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError("No valid JSON found in response")
 
 
 async def _call_perplexity(messages: list[dict], timeout: int = 90) -> str:
@@ -183,19 +208,28 @@ async def _enrich_data(
     website_url: str | None,
     description: str,
 ) -> dict:
-    """Call Perplexity for startup data enrichment."""
+    """Call Perplexity for startup data enrichment with retry on JSON failure."""
     user_msg = f"Startup: {startup_name}\n"
     if website_url:
         user_msg += f"Website: {website_url}\n"
     user_msg += f"Description: {description}"
 
-    raw = await _call_perplexity(
-        [
-            {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ]
-    )
-    return _extract_json(raw)
+    messages = [
+        {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
+
+    for attempt in range(2):
+        raw = await _call_perplexity(messages)
+        try:
+            return _extract_json(raw)
+        except (ValueError, json.JSONDecodeError) as e:
+            if attempt == 0:
+                logger.warning("JSON parse failed for %s, retrying: %s", startup_name, e)
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({"role": "user", "content": "Your response was not valid JSON. Please respond with ONLY a valid JSON object, no extra text."})
+            else:
+                raise
 
 
 async def _score_startup(

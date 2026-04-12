@@ -68,6 +68,8 @@ export interface CreateStartupInput {
 export interface ExpertApplication {
   id: string;
   user_id: string;
+  user_name: string | null;
+  user_email: string | null;
   bio: string;
   years_experience: number;
   application_status: string;

@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_role
 from app.config import settings
@@ -279,6 +280,7 @@ async def list_expert_applications(
     result = await db.execute(
         select(ExpertProfile)
         .where(ExpertProfile.application_status == ApplicationStatus.pending)
+        .options(selectinload(ExpertProfile.user))
         .order_by(ExpertProfile.created_at.desc())
     )
     profiles = result.scalars().all()
@@ -286,6 +288,8 @@ async def list_expert_applications(
         {
             "id": str(p.id),
             "user_id": str(p.user_id),
+            "user_name": p.user.name if p.user else None,
+            "user_email": p.user.email if p.user else None,
             "bio": p.bio,
             "years_experience": p.years_experience,
             "application_status": p.application_status.value,

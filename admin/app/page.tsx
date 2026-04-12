@@ -8,7 +8,7 @@ import { TriageFeedCard } from "@/components/TriageFeedCard";
 import { adminApi } from "@/lib/api";
 import type { TriageItem } from "@/lib/types";
 
-type FilterTab = "all" | "startups" | "experts" | "assignments";
+type FilterTab = "all" | "startups";
 
 export default function TriagePage() {
   const { data: session, status } = useSession();
@@ -26,25 +26,14 @@ export default function TriagePage() {
     if (!session?.backendToken) return;
     setLoading(true);
     try {
-      const [startups, applications] = await Promise.all([
-        adminApi.getPipeline(session.backendToken),
-        adminApi.getApplications(session.backendToken),
-      ]);
+      const startups = await adminApi.getPipeline(session.backendToken);
 
-      const feed: TriageItem[] = [
-        ...startups.map((s): TriageItem => ({
-          type: "startup",
-          id: s.id,
-          timestamp: s.created_at,
-          data: s,
-        })),
-        ...applications.map((e): TriageItem => ({
-          type: "expert_application",
-          id: e.id,
-          timestamp: e.created_at,
-          data: e,
-        })),
-      ];
+      const feed: TriageItem[] = startups.map((s): TriageItem => ({
+        type: "startup",
+        id: s.id,
+        timestamp: s.created_at,
+        data: s,
+      }));
 
       feed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setItems(feed);
@@ -60,11 +49,7 @@ export default function TriagePage() {
 
   const filtered = filter === "all"
     ? items
-    : items.filter((i) =>
-        filter === "startups" ? i.type === "startup"
-        : filter === "experts" ? i.type === "expert_application"
-        : i.type === "assignment"
-      );
+    : items.filter((i) => i.type === "startup");
 
   async function handleApproveStartup(id: string) {
     if (!session?.backendToken) return;
@@ -78,23 +63,9 @@ export default function TriagePage() {
     loadFeed();
   }
 
-  async function handleApproveExpert(id: string) {
-    if (!session?.backendToken) return;
-    await adminApi.approveExpert(session.backendToken, id);
-    loadFeed();
-  }
-
-  async function handleRejectExpert(id: string) {
-    if (!session?.backendToken) return;
-    await adminApi.rejectExpert(session.backendToken, id);
-    loadFeed();
-  }
-
   const tabs: { key: FilterTab; label: string }[] = [
     { key: "all", label: "All" },
     { key: "startups", label: "Startups" },
-    { key: "experts", label: "Experts" },
-    { key: "assignments", label: "Assignments" },
   ];
 
   return (
@@ -127,8 +98,8 @@ export default function TriagePage() {
                 item={item}
                 onApproveStartup={handleApproveStartup}
                 onRejectStartup={handleRejectStartup}
-                onApproveExpert={handleApproveExpert}
-                onRejectExpert={handleRejectExpert}
+                onApproveExpert={() => {}}
+                onRejectExpert={() => {}}
               />
             ))}
             {filtered.length === 0 && (

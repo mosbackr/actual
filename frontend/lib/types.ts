@@ -105,6 +105,21 @@ export interface AIReview {
   created_at: string;
 }
 
+export interface Review {
+  id: string;
+  startup_id: string;
+  user_id: string;
+  user_name: string | null;
+  review_type: "contributor" | "community";
+  overall_score: number;
+  dimension_scores: Record<string, number> | null;
+  comment: string | null;
+  upvotes: number;
+  downvotes: number;
+  current_user_vote: "up" | "down" | null;
+  created_at: string;
+}
+
 export interface ExpertApplication {
   id: string;
   bio: string;

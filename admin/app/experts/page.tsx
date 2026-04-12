@@ -36,7 +36,7 @@ export default function ExpertsPage() {
               <div key={app.id} className="border border-border rounded p-4">
                 <div className="flex items-center justify-between mb-2">
                   <Link href={`/experts/${app.id}`} className="font-medium text-accent hover:text-accent-hover transition">
-                    Application {app.id.slice(0, 8)}...
+                    {app.user_name || `Application ${app.id.slice(0, 8)}...`}
                   </Link>
                   <StatusBadge status={app.application_status} />
                 </div>

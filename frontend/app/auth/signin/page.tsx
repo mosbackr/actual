@@ -9,7 +9,7 @@ import { Suspense } from "react";
 function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const callbackUrl = searchParams.get("callbackUrl") || "/startups";
   const registered = searchParams.get("registered");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,11 +29,10 @@ function SignInContent() {
 
     setLoading(false);
 
-    if (result?.error) {
+    if (!result?.ok) {
       setError("Invalid email or password");
     } else {
-      router.push(callbackUrl);
-      router.refresh();
+      window.location.href = callbackUrl;
     }
   }
 

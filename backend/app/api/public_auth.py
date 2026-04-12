@@ -62,7 +62,7 @@ def make_token(user: User) -> str:
     )
 
 
-@router.post("/api/auth/register")
+@router.post("/api/credentials/register")
 async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
     """Register a new user with email and password."""
     if len(body.password) < 8:
@@ -88,7 +88,7 @@ async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
     return {"token": make_token(user), "user": _user_dict(user)}
 
 
-@router.post("/api/auth/login")
+@router.post("/api/credentials/login")
 async def login(body: LoginIn, db: AsyncSession = Depends(get_db)):
     """Login with email and password."""
     result = await db.execute(select(User).where(User.email == body.email))
