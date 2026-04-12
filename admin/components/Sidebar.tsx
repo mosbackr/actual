@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { LogoIcon } from "./LogoIcon";
 
 const NAV_ITEMS = [
   { href: "/", label: "Triage" },
   { href: "/scout", label: "Scout" },
+  { href: "/batch", label: "Batch" },
   { href: "/startups", label: "Startups" },
   { href: "/experts", label: "Experts" },
   { href: "/templates", label: "Templates" },
@@ -20,7 +22,10 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-56 bg-surface border-r border-border flex flex-col">
       <div className="p-4 border-b border-border">
-        <h1 className="font-serif text-lg text-text-primary">Deep Thesis</h1>
+        <div className="flex items-center gap-2">
+          <LogoIcon size={24} />
+          <h1 className="font-serif text-lg text-text-primary">Deep Thesis</h1>
+        </div>
       </div>
       <nav className="flex-1 p-2 space-y-1">
         {NAV_ITEMS.map((item) => {

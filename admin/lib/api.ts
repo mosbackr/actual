@@ -177,4 +177,39 @@ export const adminApi = {
 
   getStartupFullDetail: (token: string, startupId: string) =>
     apiFetch<StartupFullDetail>(`/api/admin/startups/${startupId}/full-detail`, token),
+
+  // Batch pipeline
+  async startBatch(token: string, jobType: string, refreshDays?: number) {
+    return apiFetch<{ job_id: string; status: string; total_steps: number }>(
+      "/api/admin/batch/start",
+      token,
+      { method: "POST", body: JSON.stringify({ job_type: jobType, refresh_days: refreshDays || 30 }) }
+    );
+  },
+  async pauseBatch(token: string, jobId: string) {
+    return apiFetch<{ status: string }>(`/api/admin/batch/${jobId}/pause`, token, { method: "POST" });
+  },
+  async resumeBatch(token: string, jobId: string) {
+    return apiFetch<{ status: string }>(`/api/admin/batch/${jobId}/resume`, token, { method: "POST" });
+  },
+  async cancelBatch(token: string, jobId: string) {
+    return apiFetch<{ status: string }>(`/api/admin/batch/${jobId}/cancel`, token, { method: "POST" });
+  },
+  async getActiveBatch(token: string) {
+    return apiFetch<any>("/api/admin/batch/active", token);
+  },
+  async getBatchSteps(token: string, jobId: string, params?: string) {
+    const qs = params ? `?${params}` : "";
+    return apiFetch<any>(`/api/admin/batch/${jobId}/steps${qs}`, token);
+  },
+  async getBatchInvestors(token: string, jobId: string) {
+    return apiFetch<any>(`/api/admin/batch/${jobId}/investors`, token);
+  },
+  async getBatchStartups(token: string, jobId: string) {
+    return apiFetch<any>(`/api/admin/batch/${jobId}/startups`, token);
+  },
+  async getBatchLog(token: string, jobId: string, page?: number) {
+    const qs = page ? `?page=${page}` : "";
+    return apiFetch<any>(`/api/admin/batch/${jobId}/log${qs}`, token);
+  },
 };

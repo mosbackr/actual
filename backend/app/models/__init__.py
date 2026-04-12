@@ -11,6 +11,7 @@ from app.models.dimension import StartupDimension
 from app.models.founder import StartupFounder
 from app.models.funding_round import StartupFundingRound
 from app.models.ai_review import StartupAIReview
+from app.models.batch_job import BatchJob, BatchJobStep
 
 __all__ = [
     "User",
@@ -30,4 +31,6 @@ __all__ = [
     "StartupFounder",
     "StartupFundingRound",
     "StartupAIReview",
+    "BatchJob",
+    "BatchJobStep",
 ]
