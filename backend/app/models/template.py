@@ -15,6 +15,8 @@ class DueDiligenceTemplate(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    industry_slug: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     dimensions = relationship("TemplateDimension", back_populates="template", cascade="all, delete-orphan")

@@ -25,7 +25,7 @@ export function DimensionRadar({ history }: DimensionRadarProps) {
   }
 
   if (allDimensions.size === 0) {
-    return <div className="text-center py-8 text-gray-500 text-sm">No dimension breakdown available yet</div>;
+    return <div className="text-center py-8 text-text-tertiary text-sm">No dimension breakdown available yet</div>;
   }
 
   const data = Array.from(allDimensions).map((dim) => ({
@@ -38,12 +38,12 @@ export function DimensionRadar({ history }: DimensionRadarProps) {
   return (
     <ResponsiveContainer width="100%" height={350}>
       <RadarChart data={data}>
-        <PolarGrid stroke="#374151" />
-        <PolarAngleAxis dataKey="dimension" stroke="#9CA3AF" fontSize={11} />
-        <PolarRadiusAxis domain={[0, 100]} stroke="#4B5563" fontSize={10} />
-        <Radar name="AI" dataKey="ai" stroke="#818CF8" fill="#818CF8" fillOpacity={0.15} />
-        <Radar name="Expert" dataKey="expert" stroke="#34D399" fill="#34D399" fillOpacity={0.15} />
-        <Radar name="Community" dataKey="community" stroke="#FBBF24" fill="#FBBF24" fillOpacity={0.15} />
+        <PolarGrid stroke="#E8E6E3" />
+        <PolarAngleAxis dataKey="dimension" stroke="#6B6B6B" fontSize={11} />
+        <PolarRadiusAxis domain={[0, 100]} stroke="#E8E6E3" fontSize={10} />
+        <Radar name="AI" dataKey="ai" stroke="#B8553A" fill="#B8553A" fillOpacity={0.1} />
+        <Radar name="Contributor" dataKey="expert" stroke="#2D6A4F" fill="#2D6A4F" fillOpacity={0.1} />
+        <Radar name="Community" dataKey="community" stroke="#B8860B" fill="#B8860B" fillOpacity={0.1} />
         <Legend />
       </RadarChart>
     </ResponsiveContainer>

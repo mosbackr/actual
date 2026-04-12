@@ -1,5 +1,6 @@
 from aws_cdk import (
     CfnOutput,
+    Duration,
     RemovalPolicy,
     Stack,
     aws_ec2 as ec2,
@@ -7,6 +8,7 @@ from aws_cdk import (
     aws_ecr_assets as ecr_assets,
     aws_ecs as ecs,
     aws_ecs_patterns as ecs_patterns,
+    aws_elasticloadbalancingv2 as elbv2,
     aws_rds as rds,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
@@ -115,6 +117,11 @@ class AcutalStack(Stack):
             ),
         )
 
+        backend_service.target_group.configure_health_check(
+            path="/api/health",
+            healthy_http_codes="200",
+        )
+
         # Allow backend to connect to RDS
         db.connections.allow_default_port_from(backend_service.service)
 
@@ -139,6 +146,11 @@ class AcutalStack(Stack):
             ),
         )
 
+        frontend_service.target_group.configure_health_check(
+            path="/",
+            healthy_http_codes="200-499",
+        )
+
         # Admin Service
         admin_service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self, "AdminService",
@@ -158,6 +170,11 @@ class AcutalStack(Stack):
                     "NEXTAUTH_SECRET": ecs.Secret.from_secrets_manager(jwt_secret),
                 },
             ),
+        )
+
+        admin_service.target_group.configure_health_check(
+            path="/",
+            healthy_http_codes="200-499",
         )
 
         # Allow local machine to connect to RDS for migrations

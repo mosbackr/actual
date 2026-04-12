@@ -21,20 +21,20 @@ export function ScoreTimeline({ history }: ScoreTimelineProps) {
   const data = Array.from(dateMap.entries()).map(([date, scores]) => ({ date, ...scores }));
 
   if (data.length === 0) {
-    return <div className="text-center py-8 text-gray-500 text-sm">No scoring history yet</div>;
+    return <div className="text-center py-8 text-text-tertiary text-sm">No scoring history yet</div>;
   }
 
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-        <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
-        <YAxis domain={[0, 100]} stroke="#9CA3AF" fontSize={12} />
-        <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: "8px" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E3" />
+        <XAxis dataKey="date" stroke="#9B9B9B" fontSize={12} />
+        <YAxis domain={[0, 100]} stroke="#9B9B9B" fontSize={12} />
+        <Tooltip contentStyle={{ backgroundColor: "#FFFFFF", border: "1px solid #E8E6E3", borderRadius: "4px", color: "#1A1A1A" }} />
         <Legend />
-        <Line type="monotone" dataKey="ai" name="AI Score" stroke="#818CF8" strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="expert_aggregate" name="Expert Score" stroke="#34D399" strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="user_aggregate" name="Community Score" stroke="#FBBF24" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="ai" name="AI Score" stroke="#B8553A" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="expert_aggregate" name="Contributor Score" stroke="#2D6A4F" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="user_aggregate" name="Community Score" stroke="#B8860B" strokeWidth={2} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );

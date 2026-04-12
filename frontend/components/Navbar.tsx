@@ -11,11 +11,11 @@ export function Navbar() {
               Deep Thesis
             </Link>
             <div className="hidden md:flex items-center gap-6">
-              <Link href="/" className="text-sm text-text-secondary hover:text-text-primary transition">
-                Discover
+              <Link href="/startups" className="text-sm text-text-secondary hover:text-text-primary transition">
+                Companies
               </Link>
               <Link href="/experts/apply" className="text-sm text-text-secondary hover:text-text-primary transition">
-                Become an Expert
+                Become a Contributor
               </Link>
             </div>
           </div>

@@ -33,27 +33,27 @@ export default function ExpertDetailPage({ params }: { params: Promise<{ id: str
       <Sidebar />
       <main className="ml-56 flex-1 p-6">
         {loading ? (
-          <p className="text-gray-500">Loading...</p>
+          <p className="text-text-tertiary">Loading...</p>
         ) : !application ? (
-          <p className="text-gray-500">Application not found</p>
+          <p className="text-text-tertiary">Application not found</p>
         ) : (
           <div className="max-w-2xl">
             <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-xl font-bold">Expert Application</h2>
+              <h2 className="font-serif text-xl text-text-primary">Expert Application</h2>
               <StatusBadge status={application.application_status} />
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-400">Bio</label>
-                <p className="text-white mt-1">{application.bio}</p>
+                <label className="text-sm text-text-secondary">Bio</label>
+                <p className="text-text-primary mt-1">{application.bio}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-400">Years of Experience</label>
-                <p className="text-white mt-1">{application.years_experience}</p>
+                <label className="text-sm text-text-secondary">Years of Experience</label>
+                <p className="text-text-primary mt-1">{application.years_experience}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-400">Applied</label>
-                <p className="text-white mt-1">{new Date(application.created_at).toLocaleDateString()}</p>
+                <label className="text-sm text-text-secondary">Applied</label>
+                <p className="text-text-primary mt-1">{new Date(application.created_at).toLocaleDateString()}</p>
               </div>
             </div>
             {application.application_status === "pending" && (
@@ -63,7 +63,7 @@ export default function ExpertDetailPage({ params }: { params: Promise<{ id: str
                     await adminApi.approveExpert(session.backendToken!, id);
                     router.push("/experts");
                   }}
-                  className="px-4 py-2 bg-emerald-700 text-white rounded hover:bg-emerald-600"
+                  className="px-4 py-2 bg-score-high text-white rounded hover:opacity-90 transition"
                 >
                   Approve
                 </button>
@@ -72,7 +72,7 @@ export default function ExpertDetailPage({ params }: { params: Promise<{ id: str
                     await adminApi.rejectExpert(session.backendToken!, id);
                     router.push("/experts");
                   }}
-                  className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-600"
+                  className="px-4 py-2 bg-score-low text-white rounded hover:opacity-90 transition"
                 >
                   Reject
                 </button>

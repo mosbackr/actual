@@ -1,8 +1,8 @@
 function scoreColor(score: number | null): string {
-  if (score === null) return "bg-gray-700 text-gray-400";
-  if (score >= 70) return "bg-emerald-900/50 text-emerald-400 border border-emerald-700";
-  if (score >= 40) return "bg-yellow-900/50 text-yellow-400 border border-yellow-700";
-  return "bg-red-900/50 text-red-400 border border-red-700";
+  if (score === null) return "text-text-tertiary";
+  if (score >= 70) return "text-score-high";
+  if (score >= 40) return "text-score-mid";
+  return "text-score-low";
 }
 
 interface ScoreBadgeProps {
@@ -12,10 +12,10 @@ interface ScoreBadgeProps {
 
 export function ScoreBadge({ label, score }: ScoreBadgeProps) {
   return (
-    <div className={`rounded-lg px-3 py-2 text-center ${scoreColor(score)}`}>
-      <div className="text-xs uppercase tracking-wide opacity-70">{label}</div>
-      <div className="text-lg font-bold">
-        {score !== null ? Math.round(score) : "—"}
+    <div className="text-center">
+      <div className="text-xs uppercase tracking-wider text-text-tertiary font-medium mb-1">{label}</div>
+      <div className={`font-serif text-2xl tabular-nums ${scoreColor(score)}`}>
+        {score !== null ? Math.round(score) : "\u2014"}
       </div>
     </div>
   );

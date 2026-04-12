@@ -1,27 +1,44 @@
 "use client";
 
+import { signIn } from "next-auth/react";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Suspense } from "react";
-import { getProviders, signIn } from "next-auth/react";
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-
-const PROVIDER_NAMES: Record<string, string> = {
-  google: "Google",
-  linkedin: "LinkedIn",
-  github: "GitHub",
-};
 
 function SignInContent() {
-  const [providers, setProviders] = useState<Record<string, { id: string; name: string }>>({});
+  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
-  const error = searchParams.get("error");
+  const registered = searchParams.get("registered");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    getProviders().then((p) => {
-      if (p) setProviders(p);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
     });
-  }, []);
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError("Invalid email or password");
+    } else {
+      router.push(callbackUrl);
+      router.refresh();
+    }
+  }
+
+  const inputClasses =
+    "w-full rounded border border-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder-text-tertiary focus:border-accent focus:ring-1 focus:ring-accent outline-none";
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
@@ -29,35 +46,64 @@ function SignInContent() {
         <div className="text-center mb-10">
           <h1 className="font-serif text-3xl text-text-primary">Deep Thesis</h1>
           <p className="text-text-secondary mt-2 text-sm">
-            Startup investment intelligence
+            Sign in to your account
           </p>
         </div>
 
-        {error && (
-          <p className="text-score-low text-sm text-center mb-6">
-            {error === "OAuthSignin" ? "Could not start sign in. Try again." :
-             error === "OAuthCallback" ? "Sign in was not completed." :
-             "An error occurred during sign in."}
+        {registered && (
+          <p className="text-score-high text-sm text-center mb-6">
+            Account created successfully. Please sign in.
           </p>
         )}
 
-        <div className="space-y-3">
-          {Object.values(providers).map((provider) => (
-            <button
-              key={provider.id}
-              onClick={() => signIn(provider.id, { callbackUrl })}
-              className="w-full flex items-center justify-center gap-3 rounded border border-border bg-surface px-4 py-3 text-sm text-text-primary hover:border-text-tertiary hover:bg-hover-row transition"
-            >
-              Continue with {PROVIDER_NAMES[provider.id] || provider.name}
-            </button>
-          ))}
-        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              placeholder="you@example.com"
+              className={inputClasses}
+            />
+          </div>
 
-        {Object.keys(providers).length === 0 && (
-          <p className="text-text-tertiary text-sm text-center">
-            No sign-in providers configured.
-          </p>
-        )}
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className={inputClasses}
+            />
+          </div>
+
+          {error && (
+            <p className="text-score-low text-sm">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 transition"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+
+        <p className="text-center text-sm text-text-secondary mt-6">
+          Don&apos;t have an account?{" "}
+          <Link href="/auth/signup" className="text-accent hover:text-accent-hover transition">
+            Sign up
+          </Link>
+        </p>
       </div>
     </div>
   );

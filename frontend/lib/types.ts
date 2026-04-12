@@ -48,6 +48,9 @@ export interface StartupDetail extends StartupCard {
   competitors: string | null;
   tech_stack: string | null;
   key_metrics: string | null;
+  company_status: string | null;
+  revenue_estimate: string | null;
+  business_model: string | null;
   founders: Founder[];
   funding_rounds: FundingRound[];
   ai_review: AIReview | null;
@@ -72,6 +75,9 @@ export interface Founder {
   name: string;
   title: string | null;
   linkedin_url: string | null;
+  is_founder: boolean;
+  prior_experience: string | null;
+  education: string | null;
 }
 
 export interface FundingRound {
@@ -79,6 +85,9 @@ export interface FundingRound {
   amount: string | null;
   date: string | null;
   lead_investor: string | null;
+  other_investors: string | null;
+  pre_money_valuation: string | null;
+  post_money_valuation: string | null;
 }
 
 export interface DimensionScore {

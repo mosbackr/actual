@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +21,8 @@ async def list_startups(
     per_page: int = Query(20, ge=1, le=100),
     stage: str | None = None,
     industry: str | None = None,
+    region: str | None = None,
+    investor: str | None = None,
     q: str | None = None,
     sort: str = "newest",
     db: AsyncSession = Depends(get_db),
@@ -37,6 +39,20 @@ async def list_startups(
     if industry:
         query = query.join(startup_industries).join(Industry).where(Industry.slug == industry)
 
+    if region:
+        query = query.where(Startup.location_state == region)
+
+    if investor:
+        investor_pattern = f"%{investor}%"
+        query = query.where(
+            Startup.id.in_(
+                select(StartupFundingRound.startup_id).where(
+                    StartupFundingRound.lead_investor.ilike(investor_pattern)
+                    | StartupFundingRound.other_investors.ilike(investor_pattern)
+                )
+            )
+        )
+
     if q:
         query = query.where(Startup.name.ilike(f"%{q}%") | Startup.description.ilike(f"%{q}%"))
 
@@ -46,6 +62,14 @@ async def list_startups(
         query = query.order_by(Startup.expert_score.desc().nulls_last())
     elif sort == "user_score":
         query = query.order_by(Startup.user_score.desc().nulls_last())
+    elif sort == "trending":
+        # Trending = most community/expert activity: has scores, reviews, media
+        trending_score = (
+            case((Startup.ai_score.isnot(None), 1), else_=0)
+            + case((Startup.expert_score.isnot(None), 2), else_=0)
+            + case((Startup.user_score.isnot(None), 2), else_=0)
+        )
+        query = query.order_by(trending_score.desc(), Startup.created_at.desc())
     else:
         query = query.order_by(Startup.created_at.desc())
 
@@ -157,12 +181,23 @@ async def get_startup(slug: str, db: AsyncSession = Depends(get_db)):
         "competitors": startup.competitors,
         "tech_stack": startup.tech_stack,
         "key_metrics": startup.key_metrics,
+        "company_status": startup.company_status.value if startup.company_status else "unknown",
+        "revenue_estimate": startup.revenue_estimate,
+        "business_model": startup.business_model,
         "founders": [
-            {"name": f.name, "title": f.title, "linkedin_url": f.linkedin_url}
+            {
+                "name": f.name, "title": f.title, "linkedin_url": f.linkedin_url,
+                "is_founder": f.is_founder, "prior_experience": f.prior_experience,
+                "education": f.education,
+            }
             for f in founders
         ],
         "funding_rounds": [
-            {"round_name": fr.round_name, "amount": fr.amount, "date": fr.date, "lead_investor": fr.lead_investor}
+            {
+                "round_name": fr.round_name, "amount": fr.amount, "date": fr.date,
+                "lead_investor": fr.lead_investor, "other_investors": fr.other_investors,
+                "pre_money_valuation": fr.pre_money_valuation, "post_money_valuation": fr.post_money_valuation,
+            }
             for fr in funding_rounds
         ],
         "ai_review": {
@@ -206,3 +241,34 @@ async def list_stages():
         {"value": "series_c", "label": "Series C"},
         {"value": "growth", "label": "Growth"},
     ]
+
+
+@router.get("/api/filters")
+async def get_filter_options(db: AsyncSession = Depends(get_db)):
+    """Return unique regions and investors for filter dropdowns."""
+    approved = Startup.status.in_([StartupStatus.approved, StartupStatus.featured])
+
+    # Unique regions (location_state)
+    region_result = await db.execute(
+        select(Startup.location_state)
+        .where(approved)
+        .where(Startup.location_state.isnot(None))
+        .where(Startup.location_state != "")
+        .distinct()
+        .order_by(Startup.location_state)
+    )
+    regions = [r for (r,) in region_result.all()]
+
+    # Unique lead investors from funding rounds of approved startups
+    investor_result = await db.execute(
+        select(StartupFundingRound.lead_investor)
+        .join(Startup, StartupFundingRound.startup_id == Startup.id)
+        .where(approved)
+        .where(StartupFundingRound.lead_investor.isnot(None))
+        .where(StartupFundingRound.lead_investor != "")
+        .distinct()
+        .order_by(StartupFundingRound.lead_investor)
+    )
+    investors = [i for (i,) in investor_result.all()]
+
+    return {"regions": regions, "investors": investors}

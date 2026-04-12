@@ -18,4 +18,7 @@ class StartupFundingRound(Base):
     amount: Mapped[str | None] = mapped_column(String(50), nullable=True)
     date: Mapped[str | None] = mapped_column(String(20), nullable=True)
     lead_investor: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    other_investors: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    pre_money_valuation: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    post_money_valuation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

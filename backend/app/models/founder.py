@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,4 +17,7 @@ class StartupFounder(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_founder: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    prior_experience: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

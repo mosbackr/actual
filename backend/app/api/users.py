@@ -14,4 +14,6 @@ async def get_me(user: User = Depends(get_current_user)):
         "name": user.name,
         "avatar_url": user.avatar_url,
         "role": user.role.value,
+        "ecosystem_role": user.ecosystem_role,
+        "region": user.region,
     }

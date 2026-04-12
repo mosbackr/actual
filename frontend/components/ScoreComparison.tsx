@@ -8,9 +8,9 @@ interface ScoreComparisonProps {
 
 export function ScoreComparison({ aiScore, expertScore, userScore }: ScoreComparisonProps) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-4">
       <ScoreBadge label="AI" score={aiScore} />
-      <ScoreBadge label="Expert" score={expertScore} />
+      <ScoreBadge label="Contributor" score={expertScore} />
       <ScoreBadge label="Community" score={userScore} />
     </div>
   );

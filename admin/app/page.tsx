@@ -101,16 +101,16 @@ export default function TriagePage() {
     <div className="flex">
       <Sidebar />
       <main className="ml-56 flex-1 p-6">
-        <h2 className="text-xl font-bold mb-4">Triage Feed</h2>
+        <h2 className="font-serif text-xl text-text-primary mb-4">Triage Feed</h2>
         <div className="flex gap-2 mb-4">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key)}
-              className={`px-3 py-1 text-sm rounded ${
+              className={`px-3 py-1 text-sm rounded transition ${
                 filter === tab.key
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-white"
+                  ? "bg-accent text-white"
+                  : "border border-border text-text-secondary hover:text-text-primary hover:border-text-tertiary"
               }`}
             >
               {tab.label}
@@ -118,7 +118,7 @@ export default function TriagePage() {
           ))}
         </div>
         {loading ? (
-          <p className="text-gray-500">Loading...</p>
+          <p className="text-text-tertiary">Loading...</p>
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => (
@@ -132,7 +132,7 @@ export default function TriagePage() {
               />
             ))}
             {filtered.length === 0 && (
-              <p className="text-gray-500 text-center py-8">No items to review</p>
+              <p className="text-text-tertiary text-center py-8">No items to review</p>
             )}
           </div>
         )}

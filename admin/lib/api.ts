@@ -103,16 +103,24 @@ export const adminApi = {
   getTemplate: (token: string, id: string) =>
     apiFetch<DDTemplate>(`/api/admin/dd-templates/${id}`, token),
 
-  createTemplate: (token: string, body: { name: string; description?: string; dimensions: { dimension_name: string; weight: number; sort_order: number }[] }) =>
+  createTemplate: (token: string, body: { name: string; description?: string; industry_slug?: string; stage?: string; dimensions: { dimension_name: string; weight: number; sort_order: number }[] }) =>
     apiFetch<DDTemplate>("/api/admin/dd-templates", token, {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        industry_slug: body.industry_slug || null,
+        stage: body.stage || null,
+      }),
     }),
 
-  updateTemplate: (token: string, id: string, body: { name: string; description?: string; dimensions: { dimension_name: string; weight: number; sort_order: number }[] }) =>
+  updateTemplate: (token: string, id: string, body: { name: string; description?: string; industry_slug?: string; stage?: string; dimensions: { dimension_name: string; weight: number; sort_order: number }[] }) =>
     apiFetch<DDTemplate>(`/api/admin/dd-templates/${id}`, token, {
       method: "PUT",
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        industry_slug: body.industry_slug || null,
+        stage: body.stage || null,
+      }),
     }),
 
   deleteTemplate: (token: string, id: string) =>

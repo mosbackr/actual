@@ -18,11 +18,84 @@ const STAGE_LABELS: Record<string, string> = {
   growth: "Growth",
 };
 
-const SUGGESTIONS = [
-  "Find YC W25 batch AI startups",
-  "Search for climate tech startups that raised seed rounds in 2024",
-  "Find fintech startups in New York",
-  "What are the most promising AI infrastructure startups right now?",
+const SOURCE_CATEGORIES = [
+  {
+    label: "Accelerators",
+    prompts: [
+      { name: "YC Latest Batch", prompt: "Find all startups from the latest Y Combinator batch. List every company with their description, stage, funding, and founders." },
+      { name: "Techstars Latest", prompt: "Find all startups from the most recent Techstars accelerator cohorts across all programs. List every company with description, stage, funding, and founders." },
+      { name: "500 Global Latest", prompt: "Find all startups from the most recent 500 Global (formerly 500 Startups) batch. List every company with description, stage, funding, and founders." },
+      { name: "Antler Latest", prompt: "Find all startups from the most recent Antler cohorts globally. List every company with description, stage, funding, and founders." },
+    ],
+  },
+  {
+    label: "Funding Rounds",
+    prompts: [
+      { name: "Seed Rounds This Week", prompt: "Find all startup seed funding rounds announced in the past 7 days. List every company with their description, amount raised, investors, and founders." },
+      { name: "Series A This Week", prompt: "Find all Series A funding rounds announced in the past 7 days. List every company with their description, amount raised, lead investor, and founders." },
+      { name: "Series B+ This Week", prompt: "Find all Series B, Series C, and later funding rounds announced in the past 7 days. List every company with description, amount raised, valuation if known, and investors." },
+      { name: "Pre-Seed Rounds This Month", prompt: "Find all pre-seed funding rounds announced in the past 30 days. List every company with their description, amount raised, investors, and founders." },
+    ],
+  },
+  {
+    label: "By Sector",
+    prompts: [
+      { name: "AI/ML Funded", prompt: "Find AI and machine learning startups that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, and investors." },
+      { name: "Climate Tech Funded", prompt: "Find climate tech and clean energy startups that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, and investors." },
+      { name: "Fintech Funded", prompt: "Find fintech startups that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, and investors." },
+      { name: "Health Tech Funded", prompt: "Find health tech and biotech startups that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, and investors." },
+      { name: "Developer Tools Funded", prompt: "Find developer tools and infrastructure startups that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, and investors." },
+      { name: "Cybersecurity Funded", prompt: "Find cybersecurity startups that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, and investors." },
+    ],
+  },
+  {
+    label: "Launch Platforms",
+    prompts: [
+      { name: "Product Hunt Top", prompt: "Find the top launched startups on Product Hunt from the past 7 days that are venture-backed or have raised funding. List every company with description, stage, funding, and founders." },
+      { name: "Hacker News Launches", prompt: "Find startups that launched on Hacker News (Show HN or Launch HN) in the past 14 days that have raised venture funding. List every company with description, stage, funding, and founders." },
+    ],
+  },
+  {
+    label: "Top VC Portfolios",
+    prompts: [
+      { name: "a16z Recent", prompt: "Find the most recent investments and new portfolio companies announced by Andreessen Horowitz (a16z) in the past 60 days. List every company with description, stage, amount raised, and founders." },
+      { name: "Sequoia Recent", prompt: "Find the most recent investments and new portfolio companies announced by Sequoia Capital in the past 60 days. List every company with description, stage, amount raised, and founders." },
+      { name: "Founders Fund Recent", prompt: "Find the most recent investments and new portfolio companies announced by Founders Fund in the past 60 days. List every company with description, stage, amount raised, and founders." },
+      { name: "Lightspeed Recent", prompt: "Find the most recent investments and new portfolio companies announced by Lightspeed Venture Partners in the past 60 days. List every company with description, stage, amount raised, and founders." },
+      { name: "Benchmark Recent", prompt: "Find the most recent investments and new portfolio companies announced by Benchmark in the past 60 days. List every company with description, stage, amount raised, and founders." },
+    ],
+  },
+  {
+    label: "US Regions",
+    prompts: [
+      { name: "San Francisco / Bay Area", prompt: "Find startups based in San Francisco and the Bay Area that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "New York City", prompt: "Find startups based in New York City that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Austin / Texas", prompt: "Find startups based in Austin and Texas that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Boston / Cambridge", prompt: "Find startups based in the Boston and Cambridge area that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Los Angeles", prompt: "Find startups based in Los Angeles that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Seattle", prompt: "Find startups based in Seattle and Washington state that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Miami / Florida", prompt: "Find startups based in Miami and Florida that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Chicago / Midwest", prompt: "Find startups based in Chicago and the Midwest that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Denver / Colorado", prompt: "Find startups based in Denver and Colorado that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Ohio", prompt: "Find startups based in Ohio (Columbus, Cincinnati, Cleveland) that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+    ],
+  },
+  {
+    label: "International",
+    prompts: [
+      { name: "United Kingdom", prompt: "Find startups based in the United Kingdom that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Germany", prompt: "Find startups based in Germany that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "France", prompt: "Find startups based in France that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Israel", prompt: "Find startups based in Israel that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "India", prompt: "Find startups based in India that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Canada", prompt: "Find startups based in Canada that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Singapore / SEA", prompt: "Find startups based in Singapore and Southeast Asia that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Brazil / LatAm", prompt: "Find startups based in Brazil and Latin America that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Japan / Korea", prompt: "Find startups based in Japan and South Korea that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Australia / NZ", prompt: "Find startups based in Australia and New Zealand that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+      { name: "Africa", prompt: "Find startups based in Africa that announced funding rounds in the past 30 days. List every company with description, stage, amount raised, investors, and founders." },
+    ],
+  },
 ];
 
 function StartupCard({
@@ -329,7 +402,7 @@ export default function ScoutPage() {
           <div>
             <h2 className="font-serif text-xl text-text-primary">Scout</h2>
             <p className="text-sm text-text-tertiary mt-0.5">
-              Find startups with AI-powered web search. Results go to triage for review.
+              Find venture-backed companies with AI-powered web search. Results go to triage for review.
             </p>
           </div>
           {messages.length > 0 && (
@@ -350,23 +423,30 @@ export default function ScoutPage() {
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="font-serif text-2xl text-text-primary mb-2">What startups are you looking for?</div>
-              <p className="text-sm text-text-tertiary mb-8 max-w-md">
-                Ask me to find startups by batch (YC W25), sector (climate tech), geography, funding stage, or anything else.
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="font-serif text-2xl text-text-primary mb-2 text-center">Find venture-backed companies</div>
+              <p className="text-sm text-text-tertiary mb-8 max-w-md text-center">
+                Search by source, sector, funding stage, or ask anything. Results go to triage for review.
               </p>
-              <div className="grid grid-cols-2 gap-2 max-w-lg">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      setInput(s);
-                      inputRef.current?.focus();
-                    }}
-                    className="text-left text-xs px-3 py-2 rounded border border-border text-text-secondary hover:border-accent hover:text-accent transition"
-                  >
-                    {s}
-                  </button>
+              <div className="w-full max-w-2xl space-y-4">
+                {SOURCE_CATEGORIES.map((cat) => (
+                  <div key={cat.label}>
+                    <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wide mb-2">{cat.label}</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {cat.prompts.map((p) => (
+                        <button
+                          key={p.name}
+                          onClick={() => {
+                            setInput(p.prompt);
+                            inputRef.current?.focus();
+                          }}
+                          className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:border-accent hover:text-accent transition"
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -431,7 +511,7 @@ export default function ScoutPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Find YC W25 AI startups..."
+              placeholder="Search for companies, funding rounds, sectors..."
               rows={1}
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:ring-1 focus:ring-accent outline-none resize-none"
             />

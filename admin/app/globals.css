@@ -1,6 +1,28 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-instrument), Georgia, serif;
+
+  --color-background: #FAFAF8;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #6B6B6B;
+  --color-text-tertiary: #9B9B9B;
+  --color-border: #E8E6E3;
+  --color-accent: #B8553A;
+  --color-accent-hover: #9C4530;
+  --color-score-high: #2D6A4F;
+  --color-score-mid: #B8860B;
+  --color-score-low: #A23B3B;
+  --color-hover-row: #F5F5F3;
+}
+
 body {
-  background-color: #030712;
-  color: #ffffff;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

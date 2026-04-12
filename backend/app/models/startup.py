@@ -25,6 +25,14 @@ class StartupStatus(str, enum.Enum):
     featured = "featured"
 
 
+class CompanyStatus(str, enum.Enum):
+    active = "active"
+    acquired = "acquired"
+    ipo = "ipo"
+    defunct = "defunct"
+    unknown = "unknown"
+
+
 class EnrichmentStatus(str, enum.Enum):
     none = "none"
     running = "running"
@@ -76,6 +84,11 @@ class Startup(Base):
     hiring_signals: Mapped[str | None] = mapped_column(Text, nullable=True)
     patents: Mapped[str | None] = mapped_column(Text, nullable=True)
     key_metrics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_status: Mapped[CompanyStatus] = mapped_column(
+        Enum(CompanyStatus), nullable=False, default=CompanyStatus.unknown, server_default="unknown"
+    )
+    revenue_estimate: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    business_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     enrichment_status: Mapped[EnrichmentStatus] = mapped_column(
         Enum(EnrichmentStatus), nullable=False, default=EnrichmentStatus.none, server_default="none"
     )

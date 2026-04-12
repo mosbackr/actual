@@ -26,59 +26,59 @@ export default async function LandingPage() {
       {/* Hero */}
       <section className="px-6 lg:px-8 pt-24 pb-20 text-center">
         <h1 className="font-serif text-5xl md:text-6xl text-text-primary max-w-3xl mx-auto leading-tight">
-          Startup intelligence,<br />before the term sheet
+          Transparency into<br />venture-backed companies
         </h1>
         <p className="text-text-secondary text-lg mt-6 max-w-xl mx-auto">
-          AI-powered due diligence, expert scoring, and deep research on every startup — so you invest with conviction, not guesswork.
+          Comprehensive data, real-time news, and tracked AI and expert analysis on venture-backed companies — bringing transparency to deals after they close.
         </p>
         <div className="flex items-center justify-center gap-4 mt-10">
           <Link
             href="/startups"
             className="px-6 py-3 bg-accent text-white text-sm font-medium rounded hover:bg-accent-hover transition"
           >
-            Explore startups
+            Explore companies
           </Link>
           <Link
             href="/experts/apply"
             className="px-6 py-3 border border-border text-text-secondary text-sm font-medium rounded hover:border-text-tertiary hover:text-text-primary transition"
           >
-            Become an expert
+            Become a contributor
           </Link>
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* Three Pillars */}
       <section className="px-6 lg:px-8 py-20 border-t border-border">
         <div className="max-w-4xl mx-auto">
           <h2 className="font-serif text-2xl text-text-primary text-center mb-12">
-            Three layers of intelligence
+            Three pillars of venture intelligence
           </h2>
           <div className="grid md:grid-cols-3 gap-10">
             <div>
               <div className="w-10 h-10 rounded bg-accent/10 flex items-center justify-center mb-4">
                 <span className="font-serif text-accent text-lg">1</span>
               </div>
-              <h3 className="text-sm font-medium text-text-primary mb-2">AI Analysis</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-2">Company Data</h3>
               <p className="text-sm text-text-secondary">
-                Every startup is automatically enriched with web research — founders, funding, competitors, tech stack — then scored across 8 investment dimensions with a full written memo.
+                Comprehensive profiles on venture-backed companies — founders, funding rounds, investors, competitors, tech stack, and business model — structured like a PitchBook for every deal.
               </p>
             </div>
             <div>
               <div className="w-10 h-10 rounded bg-accent/10 flex items-center justify-center mb-4">
                 <span className="font-serif text-accent text-lg">2</span>
               </div>
-              <h3 className="text-sm font-medium text-text-primary mb-2">Expert Review</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-2">Media &amp; News</h3>
               <p className="text-sm text-text-secondary">
-                Domain experts with industry experience score each startup independently. Their assessments add nuance that AI alone can&apos;t capture — pattern recognition from decades of deals.
+                Aggregated press coverage, funding announcements, and industry news around each deal — stay current on the companies that matter without the noise.
               </p>
             </div>
             <div>
               <div className="w-10 h-10 rounded bg-accent/10 flex items-center justify-center mb-4">
                 <span className="font-serif text-accent text-lg">3</span>
               </div>
-              <h3 className="text-sm font-medium text-text-primary mb-2">Community Signal</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-2">Analysis Tracking</h3>
               <p className="text-sm text-text-secondary">
-                The broader community weighs in with their own assessments. Aggregate sentiment from founders, operators, and investors surfaces insights that formal analysis misses.
+                AI and expert evaluations scored across key dimensions — tracked over time so you can see how assessments evolve and measure who gets it right.
               </p>
             </div>
           </div>
@@ -89,16 +89,16 @@ export default async function LandingPage() {
       <section className="px-6 lg:px-8 py-20 border-t border-border bg-surface">
         <div className="max-w-4xl mx-auto">
           <h2 className="font-serif text-2xl text-text-primary text-center mb-12">
-            Deep research on every company
+            Everything you need on every deal
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
             {[
-              { title: "Investment Memo", desc: "AI-generated thesis, key risks, and verdict for every startup — the analysis a junior analyst would spend days writing." },
-              { title: "Founder Profiles", desc: "Backgrounds, LinkedIn profiles, and track records for every founding team member, automatically sourced." },
-              { title: "Funding History", desc: "Complete funding timeline with round sizes, lead investors, and valuations where available." },
-              { title: "Competitive Landscape", desc: "Key competitors, market positioning, and differentiation — understand where the company sits." },
-              { title: "Dimension Scoring", desc: "Scores across market opportunity, team, product, traction, business model, moat, financials, and timing." },
-              { title: "Media Coverage", desc: "Press mentions, articles, and notable coverage aggregated from across the web." },
+              { title: "Company Profiles", desc: "Founders, funding history, investors, tech stack, and business model — structured data on every venture-backed company." },
+              { title: "AI-Generated Analysis", desc: "Written memos covering thesis, risks, and verdict — the kind of analysis that takes an analyst days, generated automatically." },
+              { title: "Contributor Evaluations", desc: "Domain contributors independently score companies across key dimensions, adding the pattern recognition AI can't replicate." },
+              { title: "Funding & Investors", desc: "Complete funding timelines with round sizes, lead investors, and valuations where publicly available." },
+              { title: "News & Media", desc: "Press coverage, funding announcements, and notable mentions aggregated and updated continuously." },
+              { title: "Performance Tracking", desc: "AI and expert scores tracked over time — see how assessments evolve and which analysts have the best track record." },
             ].map((item) => (
               <div key={item.title} className="rounded border border-border bg-background p-5">
                 <h3 className="text-sm font-medium text-text-primary mb-1">{item.title}</h3>
@@ -164,10 +164,10 @@ export default async function LandingPage() {
       {/* CTA */}
       <section className="px-6 lg:px-8 py-20 border-t border-border text-center">
         <h2 className="font-serif text-2xl text-text-primary mb-4">
-          Built for investors who do the work
+          Transparency the market needs
         </h2>
         <p className="text-text-secondary text-sm max-w-md mx-auto mb-8">
-          Deep Thesis combines AI research, expert judgment, and community signal into one platform — so every investment decision starts with a real thesis.
+          Deep Thesis brings structured data, ongoing news coverage, and tracked AI and expert analysis together — so the story doesn&apos;t end at the press release.
         </p>
         <Link
           href="/startups"

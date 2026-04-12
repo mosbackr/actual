@@ -10,6 +10,9 @@ interface DimensionManagerProps {
   onSaveDimensions: (dims: { dimension_name: string; weight: number; sort_order: number }[]) => Promise<void>;
 }
 
+const inputClasses =
+  "bg-surface border border-border rounded px-2 py-1 text-sm text-text-primary focus:border-accent focus:ring-1 focus:ring-accent outline-none";
+
 export function DimensionManager({
   dimensions,
   templates,
@@ -49,7 +52,7 @@ export function DimensionManager({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h3 className="text-lg font-medium">Dimensions</h3>
+        <h3 className="text-lg font-medium text-text-primary">Dimensions</h3>
         <select
           onChange={async (e) => {
             if (e.target.value) {
@@ -57,7 +60,7 @@ export function DimensionManager({
               e.target.value = "";
             }
           }}
-          className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+          className={inputClasses}
         >
           <option value="">Apply template...</option>
           {templates.map((t) => (
@@ -73,18 +76,18 @@ export function DimensionManager({
               value={dim.dimension_name}
               onChange={(e) => updateDim(i, "dimension_name", e.target.value)}
               placeholder="Dimension name"
-              className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+              className={`flex-1 ${inputClasses}`}
             />
             <input
               type="number"
               step="0.1"
               value={dim.weight}
               onChange={(e) => updateDim(i, "weight", parseFloat(e.target.value) || 1.0)}
-              className="w-20 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+              className={`w-20 ${inputClasses}`}
             />
             <button
               onClick={() => removeDimension(i)}
-              className="text-red-400 hover:text-red-300 text-sm"
+              className="text-score-low hover:opacity-80 text-sm transition"
             >
               Remove
             </button>
@@ -95,14 +98,14 @@ export function DimensionManager({
       <div className="flex gap-2">
         <button
           onClick={addDimension}
-          className="px-3 py-1 text-sm bg-gray-800 text-gray-300 rounded hover:bg-gray-700"
+          className="px-3 py-1 text-sm border border-border text-text-secondary rounded hover:text-text-primary hover:border-text-tertiary transition"
         >
           + Add Dimension
         </button>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+          className="px-3 py-1 text-sm bg-accent text-white rounded hover:bg-accent-hover disabled:opacity-50 transition"
         >
           {saving ? "Saving..." : "Save Dimensions"}
         </button>

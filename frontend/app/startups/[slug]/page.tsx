@@ -58,6 +58,16 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
             <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
               {stageLabels[startup.stage] || startup.stage}
             </span>
+            {startup.company_status && startup.company_status !== "unknown" && (
+              <span className={`rounded border px-3 py-1 text-xs font-medium ${
+                startup.company_status === "active" ? "border-score-high/30 text-score-high" :
+                startup.company_status === "acquired" ? "border-accent/30 text-accent" :
+                startup.company_status === "ipo" ? "border-score-high/30 text-score-high" :
+                "border-score-low/30 text-score-low"
+              }`}>
+                {startup.company_status === "ipo" ? "IPO" : startup.company_status.charAt(0).toUpperCase() + startup.company_status.slice(1)}
+              </span>
+            )}
             {(startup.location_city || startup.location_country) && (
               <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
                 {[startup.location_city, startup.location_state, startup.location_country].filter(Boolean).join(", ")}
@@ -66,6 +76,16 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
             {startup.total_funding && (
               <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
                 {startup.total_funding} raised
+              </span>
+            )}
+            {startup.revenue_estimate && (
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+                {startup.revenue_estimate}
+              </span>
+            )}
+            {startup.business_model && (
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+                {startup.business_model}
               </span>
             )}
             {startup.employee_count && (
@@ -173,28 +193,70 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
         </section>
       )}
 
-      {/* Founders */}
+      {/* Team */}
       {startup.founders && startup.founders.length > 0 && (
         <section className="mb-12">
-          <h2 className="font-serif text-xl text-text-primary mb-6">Founders</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {startup.founders.map((f) => (
-              <div key={f.name} className="rounded border border-border bg-surface p-4">
-                <p className="text-sm font-medium text-text-primary">{f.name}</p>
-                {f.title && <p className="text-xs text-text-tertiary mt-0.5">{f.title}</p>}
-                {f.linkedin_url && (
-                  <a
-                    href={f.linkedin_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-accent hover:text-accent-hover transition mt-2 inline-block"
-                  >
-                    LinkedIn &rarr;
-                  </a>
-                )}
+          <h2 className="font-serif text-xl text-text-primary mb-6">Team</h2>
+          {/* Founders */}
+          {startup.founders.filter(f => f.is_founder !== false).length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wide mb-3">Founders</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {startup.founders.filter(f => f.is_founder !== false).map((f) => (
+                  <div key={f.name} className="rounded border border-border bg-surface p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">{f.name}</p>
+                        {f.title && <p className="text-xs text-text-tertiary mt-0.5">{f.title}</p>}
+                      </div>
+                      {f.linkedin_url && (
+                        <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-accent hover:text-accent-hover transition">
+                          LinkedIn &rarr;
+                        </a>
+                      )}
+                    </div>
+                    {f.prior_experience && (
+                      <p className="text-xs text-text-secondary mt-2">{f.prior_experience}</p>
+                    )}
+                    {f.education && (
+                      <p className="text-xs text-text-tertiary mt-1">{f.education}</p>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+          {/* Management Team */}
+          {startup.founders.filter(f => f.is_founder === false).length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wide mb-3">Management</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {startup.founders.filter(f => f.is_founder === false).map((f) => (
+                  <div key={f.name} className="rounded border border-border bg-surface p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">{f.name}</p>
+                        {f.title && <p className="text-xs text-text-tertiary mt-0.5">{f.title}</p>}
+                      </div>
+                      {f.linkedin_url && (
+                        <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-accent hover:text-accent-hover transition">
+                          LinkedIn &rarr;
+                        </a>
+                      )}
+                    </div>
+                    {f.prior_experience && (
+                      <p className="text-xs text-text-secondary mt-2">{f.prior_experience}</p>
+                    )}
+                    {f.education && (
+                      <p className="text-xs text-text-tertiary mt-1">{f.education}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -208,8 +270,9 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
                 <tr className="border-b border-border bg-background">
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Round</th>
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Amount</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Valuation</th>
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Date</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Lead Investor</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Investors</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,8 +280,18 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
                   <tr key={i} className="border-b border-border last:border-b-0">
                     <td className="px-4 py-2.5 text-text-primary font-medium">{fr.round_name}</td>
                     <td className="px-4 py-2.5 text-text-secondary">{fr.amount || "—"}</td>
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {fr.post_money_valuation || fr.pre_money_valuation
+                        ? `${fr.post_money_valuation ? fr.post_money_valuation + " post" : fr.pre_money_valuation + " pre"}`
+                        : "—"}
+                    </td>
                     <td className="px-4 py-2.5 text-text-secondary">{fr.date || "—"}</td>
-                    <td className="px-4 py-2.5 text-text-secondary">{fr.lead_investor || "—"}</td>
+                    <td className="px-4 py-2.5 text-text-secondary">
+                      {fr.lead_investor && <span className="font-medium">{fr.lead_investor}</span>}
+                      {fr.lead_investor && fr.other_investors && <span className="text-text-tertiary">, </span>}
+                      {fr.other_investors && <span className="text-text-tertiary">{fr.other_investors}</span>}
+                      {!fr.lead_investor && !fr.other_investors && "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -279,8 +352,8 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
 
       {/* Reviews */}
       <section className="mb-12">
-        <h2 className="font-serif text-xl text-text-primary mb-6">Expert Reviews</h2>
-        <p className="text-text-tertiary text-sm">No expert reviews yet.</p>
+        <h2 className="font-serif text-xl text-text-primary mb-6">Contributor Reviews</h2>
+        <p className="text-text-tertiary text-sm">No contributor reviews yet.</p>
       </section>
       <section className="mb-12">
         <h2 className="font-serif text-xl text-text-primary mb-6">Community Reviews</h2>

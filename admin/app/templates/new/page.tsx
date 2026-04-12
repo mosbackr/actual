@@ -18,7 +18,7 @@ export default function NewTemplatePage() {
     <div className="flex">
       <Sidebar />
       <main className="ml-56 flex-1 p-6">
-        <h2 className="text-xl font-bold mb-4">New Template</h2>
+        <h2 className="font-serif text-xl text-text-primary mb-4">New Template</h2>
         <TemplateEditor
           onSave={async (data) => {
             await adminApi.createTemplate(session.backendToken!, data);

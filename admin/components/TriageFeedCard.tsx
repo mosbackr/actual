@@ -12,12 +12,6 @@ interface TriageFeedCardProps {
   onRejectExpert?: (id: string) => void;
 }
 
-const TYPE_BADGES: Record<string, string> = {
-  startup: "bg-blue-900 text-blue-300",
-  expert_application: "bg-purple-900 text-purple-300",
-  assignment: "bg-orange-900 text-orange-300",
-};
-
 const TYPE_LABELS: Record<string, string> = {
   startup: "Startup",
   expert_application: "Expert App",
@@ -34,12 +28,12 @@ export function TriageFeedCard({
   const timeAgo = new Date(item.timestamp).toLocaleDateString();
 
   return (
-    <div className="border border-gray-800 rounded-lg p-4 hover:border-gray-700">
+    <div className="border border-border rounded p-4 hover:border-text-tertiary transition-colors">
       <div className="flex items-center gap-2 mb-2">
-        <span className={`text-xs px-2 py-0.5 rounded font-medium ${TYPE_BADGES[item.type]}`}>
+        <span className="text-xs px-2 py-0.5 rounded border border-border font-medium text-text-secondary">
           {TYPE_LABELS[item.type]}
         </span>
-        <span className="text-xs text-gray-500">{timeAgo}</span>
+        <span className="text-xs text-text-tertiary">{timeAgo}</span>
       </div>
 
       {item.type === "startup" && renderStartup(item.data as PipelineStartup, onApproveStartup, onRejectStartup)}
@@ -57,29 +51,29 @@ function renderStartup(
   return (
     <div>
       <div className="flex items-center justify-between">
-        <Link href={`/startups/${s.id}`} className="font-medium text-white hover:text-indigo-400">
+        <Link href={`/startups/${s.id}`} className="font-medium text-text-primary hover:text-accent transition">
           {s.name}
         </Link>
         <StatusBadge status={s.status} />
       </div>
-      <p className="text-sm text-gray-400 mt-1 line-clamp-2">{s.description}</p>
-      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+      <p className="text-sm text-text-secondary mt-1 line-clamp-2">{s.description}</p>
+      <div className="flex items-center gap-2 mt-2 text-xs text-text-tertiary">
         <span>{s.stage}</span>
         {s.industries.map((i) => (
-          <span key={i.id} className="bg-gray-800 px-1.5 py-0.5 rounded">{i.name}</span>
+          <span key={i.id} className="border border-border px-1.5 py-0.5 rounded">{i.name}</span>
         ))}
       </div>
       {s.status === "pending" && (
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => onApprove?.(s.id)}
-            className="px-3 py-1 text-xs bg-emerald-700 text-white rounded hover:bg-emerald-600"
+            className="px-3 py-1 text-xs bg-score-high text-white rounded hover:opacity-90 transition"
           >
             Approve
           </button>
           <button
             onClick={() => onReject?.(s.id)}
-            className="px-3 py-1 text-xs bg-red-700 text-white rounded hover:bg-red-600"
+            className="px-3 py-1 text-xs bg-score-low text-white rounded hover:opacity-90 transition"
           >
             Reject
           </button>
@@ -97,24 +91,24 @@ function renderExpert(
   return (
     <div>
       <div className="flex items-center justify-between">
-        <Link href={`/experts/${e.id}`} className="font-medium text-white hover:text-indigo-400">
+        <Link href={`/experts/${e.id}`} className="font-medium text-text-primary hover:text-accent transition">
           Expert Application
         </Link>
         <StatusBadge status={e.application_status} />
       </div>
-      <p className="text-sm text-gray-400 mt-1">{e.bio}</p>
-      <p className="text-xs text-gray-500 mt-1">{e.years_experience} years experience</p>
+      <p className="text-sm text-text-secondary mt-1">{e.bio}</p>
+      <p className="text-xs text-text-tertiary mt-1">{e.years_experience} years experience</p>
       {e.application_status === "pending" && (
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => onApprove?.(e.id)}
-            className="px-3 py-1 text-xs bg-emerald-700 text-white rounded hover:bg-emerald-600"
+            className="px-3 py-1 text-xs bg-score-high text-white rounded hover:opacity-90 transition"
           >
             Approve
           </button>
           <button
             onClick={() => onReject?.(e.id)}
-            className="px-3 py-1 text-xs bg-red-700 text-white rounded hover:bg-red-600"
+            className="px-3 py-1 text-xs bg-score-low text-white rounded hover:opacity-90 transition"
           >
             Reject
           </button>
@@ -127,10 +121,10 @@ function renderExpert(
 function renderAssignment(a: Assignment) {
   return (
     <div>
-      <p className="text-sm text-gray-300">
+      <p className="text-sm text-text-primary">
         Assignment <StatusBadge status={a.status} />
       </p>
-      <p className="text-xs text-gray-500 mt-1">
+      <p className="text-xs text-text-tertiary mt-1">
         Expert responded: {a.responded_at ? new Date(a.responded_at).toLocaleDateString() : "pending"}
       </p>
     </div>

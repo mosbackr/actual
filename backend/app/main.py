@@ -15,6 +15,7 @@ from app.api.expert_assignments import router as expert_assignments_router
 from app.api.admin_auth import router as admin_auth_router
 from app.api.admin_scout import router as admin_scout_router
 from app.api.admin_enrichment import router as admin_enrichment_router
+from app.api.public_auth import router as public_auth_router
 
 app = FastAPI(title="Acutal API", version="0.1.0")
 
@@ -39,6 +40,7 @@ app.include_router(expert_assignments_router)
 app.include_router(admin_auth_router)
 app.include_router(admin_scout_router)
 app.include_router(admin_enrichment_router)
+app.include_router(public_auth_router)
 
 
 @app.get("/api/health")

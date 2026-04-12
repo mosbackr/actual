@@ -30,3 +30,10 @@ node_modules/
 
 # Worktrees
 .worktrees/
+
+# CDK
+cdk.out/
+cdk-outputs.json
+
+# TypeScript build
+*.tsbuildinfo

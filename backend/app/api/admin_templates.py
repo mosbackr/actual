@@ -25,12 +25,16 @@ class DimensionIn(BaseModel):
 class TemplateCreateIn(BaseModel):
     name: str
     description: str | None = None
+    industry_slug: str | None = None
+    stage: str | None = None
     dimensions: list[DimensionIn] = []
 
 
 class TemplateUpdateIn(BaseModel):
     name: str
     description: str | None = None
+    industry_slug: str | None = None
+    stage: str | None = None
     dimensions: list[DimensionIn] = []
 
 
@@ -40,6 +44,8 @@ def _serialize_template(t: DueDiligenceTemplate) -> dict:
         "name": t.name,
         "slug": t.slug,
         "description": t.description,
+        "industry_slug": t.industry_slug,
+        "stage": t.stage,
         "created_at": t.created_at.isoformat(),
         "dimensions": [
             {
@@ -78,6 +84,8 @@ async def create_template(
         name=body.name,
         slug=slugify(body.name),
         description=body.description,
+        industry_slug=body.industry_slug,
+        stage=body.stage,
     )
     db.add(template)
     await db.flush()
@@ -137,6 +145,8 @@ async def update_template(
     template.name = body.name
     template.slug = slugify(body.name)
     template.description = body.description
+    template.industry_slug = body.industry_slug
+    template.stage = body.stage
 
     await db.execute(
         delete(TemplateDimension).where(TemplateDimension.template_id == template_id)

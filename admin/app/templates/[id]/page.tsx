@@ -30,16 +30,18 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
       <Sidebar />
       <main className="ml-56 flex-1 p-6">
         {loading ? (
-          <p className="text-gray-500">Loading...</p>
+          <p className="text-text-tertiary">Loading...</p>
         ) : !template ? (
-          <p className="text-gray-500">Template not found</p>
+          <p className="text-text-tertiary">Template not found</p>
         ) : (
           <>
-            <h2 className="text-xl font-bold mb-4">{template.name}</h2>
+            <h2 className="font-serif text-xl text-text-primary mb-4">{template.name}</h2>
             <TemplateEditor
               initial={{
                 name: template.name,
                 description: template.description || "",
+                industry_slug: template.industry_slug || "",
+                stage: template.stage || "",
                 dimensions: template.dimensions.map((d) => ({
                   dimension_name: d.dimension_name,
                   weight: d.weight,

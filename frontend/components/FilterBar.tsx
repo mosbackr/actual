@@ -36,21 +36,24 @@ export function FilterBar() {
     updateParams("q", search);
   };
 
+  const inputClasses =
+    "rounded border border-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder-text-tertiary focus:border-accent focus:ring-1 focus:ring-accent outline-none";
+
   return (
     <div className="flex flex-col sm:flex-row gap-3 mb-8">
       <form onSubmit={handleSearch} className="flex-1">
         <input
           type="text"
-          placeholder="Search startups..."
+          placeholder="Search companies..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+          className={`w-full ${inputClasses}`}
         />
       </form>
       <select
         value={searchParams.get("stage") || ""}
         onChange={(e) => updateParams("stage", e.target.value)}
-        className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white"
+        className={inputClasses}
       >
         <option value="">All Stages</option>
         {stages.map((s) => (
@@ -62,7 +65,7 @@ export function FilterBar() {
       <select
         value={searchParams.get("industry") || ""}
         onChange={(e) => updateParams("industry", e.target.value)}
-        className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white"
+        className={inputClasses}
       >
         <option value="">All Industries</option>
         {industries.map((i) => (
@@ -74,11 +77,11 @@ export function FilterBar() {
       <select
         value={searchParams.get("sort") || "newest"}
         onChange={(e) => updateParams("sort", e.target.value)}
-        className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white"
+        className={inputClasses}
       >
         <option value="newest">Newest</option>
         <option value="ai_score">AI Score</option>
-        <option value="expert_score">Expert Score</option>
+        <option value="expert_score">Contributor Score</option>
         <option value="user_score">Community Score</option>
       </select>
     </div>

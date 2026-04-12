@@ -55,45 +55,45 @@ export default function ExpertApplyPage() {
   if (!session) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20">
-        <h1 className="text-2xl font-bold mb-4">Become an Expert</h1>
-        <p className="text-gray-400">
-          Please sign in to apply as an expert reviewer.
+        <h1 className="font-serif text-3xl text-text-primary mb-4">Become a Contributor</h1>
+        <p className="text-text-secondary">
+          Please sign in to apply as a contributor.
         </p>
       </div>
     );
   }
 
   if (loading) {
-    return <div className="text-center py-20 text-gray-500">Loading...</div>;
+    return <div className="text-center py-20 text-text-tertiary">Loading...</div>;
   }
 
   if (existing) {
     const statusColors: Record<string, string> = {
-      pending: "text-yellow-400",
-      approved: "text-emerald-400",
-      rejected: "text-red-400",
+      pending: "text-score-mid",
+      approved: "text-score-high",
+      rejected: "text-score-low",
     };
     return (
       <div className="max-w-2xl mx-auto py-10">
-        <h1 className="text-2xl font-bold mb-6">Expert Application</h1>
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <p className="mb-2">
+        <h1 className="font-serif text-3xl text-text-primary mb-6">Contributor Application</h1>
+        <div className="rounded border border-border bg-surface p-6">
+          <p className="mb-2 text-text-primary">
             Status:{" "}
             <span
-              className={`font-semibold ${statusColors[existing.application_status] || ""}`}
+              className={`font-medium ${statusColors[existing.application_status] || ""}`}
             >
               {existing.application_status.charAt(0).toUpperCase() +
                 existing.application_status.slice(1)}
             </span>
           </p>
-          <p className="text-gray-400 text-sm">Bio: {existing.bio}</p>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-text-secondary text-sm">Bio: {existing.bio}</p>
+          <p className="text-text-secondary text-sm mt-1">
             Experience: {existing.years_experience} years
           </p>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-text-secondary text-sm mt-1">
             Industries: {existing.industries.join(", ")}
           </p>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-text-secondary text-sm mt-1">
             Skills: {existing.skills.join(", ")}
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function ExpertApplyPage() {
       });
       setExisting(result);
     } catch (err: any) {
-      setError(err.message || "Failed to submit application");
+      setError(err.message || "Could not submit application");
     } finally {
       setSubmitting(false);
     }
@@ -133,29 +133,32 @@ export default function ExpertApplyPage() {
     );
   };
 
+  const inputClasses =
+    "rounded border border-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder-text-tertiary focus:border-accent focus:ring-1 focus:ring-accent outline-none";
+
   return (
     <div className="max-w-2xl mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-2">Become an Expert</h1>
-      <p className="text-gray-400 mb-8">
-        Apply to become a verified expert reviewer. Your industry experience and
+      <h1 className="font-serif text-3xl text-text-primary mb-2">Become a Contributor</h1>
+      <p className="text-text-secondary mb-8">
+        Apply to become a verified contributor. Your industry experience and
         skills will be verified by our team.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-medium mb-2">Bio</label>
+          <label className="block text-sm font-medium text-text-primary mb-2">Bio</label>
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             required
             rows={4}
             placeholder="Describe your professional background and expertise..."
-            className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+            className={`w-full ${inputClasses} py-3`}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <label className="block text-sm font-medium text-text-primary mb-2">
             Years of Experience
           </label>
           <input
@@ -166,12 +169,12 @@ export default function ExpertApplyPage() {
             }
             required
             min={1}
-            className="w-32 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+            className={`w-32 ${inputClasses}`}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Industries</label>
+          <label className="block text-sm font-medium text-text-primary mb-2">Industries</label>
           <div className="flex flex-wrap gap-2">
             {industries.map((ind) => (
               <button
@@ -184,10 +187,10 @@ export default function ExpertApplyPage() {
                     setSelectedIndustries
                   )
                 }
-                className={`rounded-full px-3 py-1 text-xs transition ${
+                className={`rounded px-3 py-1 text-xs transition ${
                   selectedIndustries.includes(ind.id)
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                    ? "bg-accent text-white"
+                    : "border border-border text-text-secondary hover:border-text-tertiary hover:text-text-primary"
                 }`}
               >
                 {ind.name}
@@ -197,7 +200,7 @@ export default function ExpertApplyPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Skills</label>
+          <label className="block text-sm font-medium text-text-primary mb-2">Skills</label>
           <div className="flex flex-wrap gap-2">
             {skills.map((skill) => (
               <button
@@ -210,10 +213,10 @@ export default function ExpertApplyPage() {
                     setSelectedSkills
                   )
                 }
-                className={`rounded-full px-3 py-1 text-xs transition ${
+                className={`rounded px-3 py-1 text-xs transition ${
                   selectedSkills.includes(skill.id)
-                    ? "bg-emerald-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                    ? "bg-accent text-white"
+                    : "border border-border text-text-secondary hover:border-text-tertiary hover:text-text-primary"
                 }`}
               >
                 {skill.name}
@@ -222,12 +225,12 @@ export default function ExpertApplyPage() {
           </div>
         </div>
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && <p className="text-score-low text-sm">{error}</p>}
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition"
+          className="w-full rounded bg-accent px-4 py-3 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 transition"
         >
           {submitting ? "Submitting..." : "Submit Application"}
         </button>

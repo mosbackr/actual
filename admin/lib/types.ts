@@ -108,6 +108,8 @@ export interface DDTemplate {
   name: string;
   slug: string;
   description: string | null;
+  industry_slug: string | null;
+  stage: string | null;
   created_at: string;
   dimensions: Dimension[];
 }

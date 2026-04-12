@@ -41,16 +41,16 @@ export default function UsersPage() {
     <div className="flex">
       <Sidebar />
       <main className="ml-56 flex-1 p-6">
-        <h2 className="text-xl font-bold mb-4">Users</h2>
+        <h2 className="font-serif text-xl text-text-primary mb-4">Users</h2>
         <div className="flex gap-2 mb-4">
           {ROLES.map((r) => (
             <button
               key={r}
               onClick={() => { setRoleFilter(r); setLoading(true); }}
-              className={`px-3 py-1 text-sm rounded ${
+              className={`px-3 py-1 text-sm rounded transition ${
                 roleFilter === r
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-white"
+                  ? "bg-accent text-white"
+                  : "border border-border text-text-secondary hover:text-text-primary hover:border-text-tertiary"
               }`}
             >
               {r}
@@ -58,7 +58,7 @@ export default function UsersPage() {
           ))}
         </div>
         {loading ? (
-          <p className="text-gray-500">Loading...</p>
+          <p className="text-text-tertiary">Loading...</p>
         ) : (
           <DataTable columns={columns} data={users as unknown as Record<string, unknown>[]} keyField="id" />
         )}

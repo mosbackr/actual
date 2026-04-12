@@ -1,52 +1,51 @@
 import type { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import LinkedInProvider from "next-auth/providers/linkedin";
-import GitHubProvider from "next-auth/providers/github";
+import CredentialsProvider from "next-auth/providers/credentials";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    }),
-    LinkedInProvider({
-      clientId: process.env.LINKEDIN_CLIENT_ID || "",
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
-    }),
-  ],
-  callbacks: {
-    async jwt({ token, account, profile }) {
-      if (account && profile) {
-        token.provider = account.provider;
-        token.providerId = account.providerAccountId;
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
 
-        // Exchange OAuth credentials for a backend JWT
         try {
-          const res = await fetch(`${API_URL}/api/auth/token`, {
+          const res = await fetch(`${API_URL}/api/admin/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              email: token.email || profile.email,
-              name: token.name || profile.name || "",
-              provider: account.provider,
-              provider_id: account.providerAccountId,
+              email: credentials.email,
+              password: credentials.password,
             }),
           });
-          if (res.ok) {
-            const data = await res.json();
-            token.backendToken = data.token;
-            token.backendUserId = data.user.id;
-            token.backendRole = data.user.role;
-          }
+
+          if (!res.ok) return null;
+
+          const data = await res.json();
+          return {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            backendToken: data.token,
+            role: data.user.role,
+          };
         } catch {
-          // Backend unavailable — token will lack backend fields
+          return null;
         }
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.backendToken = (user as any).backendToken;
+        token.backendUserId = user.id;
+        token.backendRole = (user as any).role;
       }
       return token;
     },
@@ -58,6 +57,12 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+  },
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/auth/signin",
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

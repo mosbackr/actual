@@ -34,7 +34,7 @@ export const api = {
     apiFetch<import("./types").Stage[]>("/api/stages"),
 
   getMe: (token: string) =>
-    apiFetch<{ id: string; email: string; name: string; role: string }>(
+    apiFetch<{ id: string; email: string; name: string; role: string; avatar_url: string | null; ecosystem_role: string | null; region: string | null }>(
       "/api/me",
       { headers: authHeaders(token) }
     ),

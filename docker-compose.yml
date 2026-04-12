@@ -22,42 +22,38 @@ services:
     environment:
       ACUTAL_DATABASE_URL: postgresql+asyncpg://acutal:acutal@db:5432/acutal
       ACUTAL_JWT_SECRET: dev-secret-change-in-production
+      ACUTAL_LOGO_DEV_TOKEN: ${LOGO_DEV_TOKEN:-}
+      ACUTAL_PERPLEXITY_API_KEY: ${ACUTAL_PERPLEXITY_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://${HOST_IP:-localhost}:8000
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000
-      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL: http://${HOST_IP:-localhost}:3000
       NEXTAUTH_SECRET: dev-secret-change-in-production
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: npm run dev
 
   admin:
-    build: ./admin
+    build:
+      context: ./admin
+      args:
+        NEXT_PUBLIC_API_URL: http://${HOST_IP:-localhost}:8000
     ports:
       - "3001:3001"
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000
-      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_URL: http://${HOST_IP:-localhost}:3001
       NEXTAUTH_SECRET: dev-secret-change-in-production
     depends_on:
       - backend
-    volumes:
-      - ./admin:/app
-      - /app/node_modules
-    command: npm run dev
 
 volumes:
   pgdata:

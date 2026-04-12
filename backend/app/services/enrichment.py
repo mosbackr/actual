@@ -23,7 +23,7 @@ from app.models.founder import StartupFounder
 from app.models.funding_round import StartupFundingRound
 from app.models.media import MediaType, StartupMedia
 from app.models.score import ScoreType, StartupScoreHistory
-from app.models.startup import EnrichmentStatus, Startup
+from app.models.startup import CompanyStatus, EnrichmentStatus, Startup
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 
 logger = logging.getLogger(__name__)
@@ -42,11 +42,17 @@ following fields.  Use null for any field you cannot determine.
   "website_url": "https://example.com",
   "description": "2-3 paragraph detailed description",
   "founded_date": "YYYY or YYYY-MM-DD",
+  "company_status": "active | acquired | ipo | defunct",
+  "business_model": "SaaS | Marketplace | Hardware | Fintech | etc.",
+  "revenue_estimate": "$1M-$5M ARR (or whatever is reported/estimated)",
   "founders": [
-    {"name": "Full Name", "title": "CEO / CTO / etc.", "linkedin_url": "https://..."}
+    {"name": "Full Name", "title": "CEO / CTO / etc.", "linkedin_url": "https://...", "is_founder": true, "prior_experience": "Previously founded X (acquired by Y), VP Eng at Z", "education": "Stanford CS, MBA Wharton"}
+  ],
+  "management_team": [
+    {"name": "Full Name", "title": "CFO / VP Sales / etc.", "linkedin_url": "https://...", "prior_experience": "10 years at Google, CFO at startup X", "education": "Harvard MBA"}
   ],
   "funding_rounds": [
-    {"round_name": "Seed", "amount": "$2M", "date": "2023-01", "lead_investor": "Firm Name"}
+    {"round_name": "Seed", "amount": "$2M", "date": "2023-01", "lead_investor": "Firm Name", "other_investors": "Angel A, Fund B, Fund C", "pre_money_valuation": "$8M", "post_money_valuation": "$10M"}
   ],
   "total_funding": "$10M",
   "employee_count": "50-100",
@@ -63,12 +69,27 @@ following fields.  Use null for any field you cannot determine.
   ]
 }
 
+IMPORTANT: For funding_rounds, list ALL known investors per round (not just the lead). \
+Include valuations when publicly reported. For founders and management_team, include \
+prior work experience and education when available.
+
 Return ONLY valid JSON. No markdown, no extra commentary.\
 """
 
 SCORING_SYSTEM_PROMPT = """\
 You are a senior VC analyst performing due diligence. You will be given \
-enriched data about a startup and a list of scoring dimensions with weights.
+enriched data about a startup, its industry and funding stage, and a list \
+of scoring dimensions with weights.
+
+IMPORTANT: Calibrate your scoring to the company's industry and stage.
+- For pre-seed/seed companies, weight team, vision, and market signals more \
+heavily; do not penalize for lack of revenue or metrics.
+- For Series A, expect clear product-market fit evidence and early traction.
+- For Series B+ and growth, expect strong revenue, unit economics, and a \
+clear path to profitability.
+- Apply industry-specific standards: a biotech company should be evaluated \
+on clinical pipeline and regulatory, not SaaS metrics; a fintech company \
+needs regulatory compliance assessment.
 
 For each dimension, provide a score from 0 to 100 and a brief reasoning \
 (1-2 sentences).
@@ -177,13 +198,38 @@ async def _enrich_data(
     return _extract_json(raw)
 
 
-async def _score_startup(enriched_data: dict, dimensions: list[dict]) -> dict:
-    """Call Perplexity for VC-style scoring."""
+async def _score_startup(
+    enriched_data: dict,
+    dimensions: list[dict],
+    industry: str | None = None,
+    stage: str | None = None,
+) -> dict:
+    """Call Perplexity for VC-style scoring with industry/stage context."""
     dim_text = "\n".join(
         f"- {d['name']} (weight {d['weight']})" for d in dimensions
     )
+
+    context_parts = []
+    if industry:
+        context_parts.append(f"Industry: {industry}")
+    if stage:
+        stage_labels = {
+            "pre_seed": "Pre-Seed",
+            "seed": "Seed",
+            "series_a": "Series A",
+            "series_b": "Series B",
+            "series_c": "Series C",
+            "growth": "Growth / Late Stage",
+        }
+        context_parts.append(f"Funding Stage: {stage_labels.get(stage, stage)}")
+
+    context_line = ""
+    if context_parts:
+        context_line = f"\n\nCompany context: {' | '.join(context_parts)}\n"
+
     user_msg = (
-        f"Enriched data:\n```json\n{json.dumps(enriched_data, indent=2)}\n```\n\n"
+        f"Enriched data:\n```json\n{json.dumps(enriched_data, indent=2)}\n```\n"
+        f"{context_line}\n"
         f"Scoring dimensions:\n{dim_text}"
     )
 
@@ -223,6 +269,13 @@ async def _fetch_logo_if_needed(startup: Startup, db) -> None:
 async def _ensure_dimensions(startup_id: uuid.UUID, db) -> list[dict]:
     """Ensure a startup has dimensions. Auto-apply template or use defaults.
 
+    Template matching priority:
+    1. Exact match: industry_slug + stage
+    2. Industry match: industry_slug only (stage=NULL)
+    3. Stage match: stage only (industry_slug=NULL)
+    4. General fallback: both NULL, name="General"
+    5. Hardcoded defaults
+
     Returns a list of dicts: [{"name": ..., "slug": ..., "weight": ...}, ...]
     """
     result = await db.execute(
@@ -237,34 +290,57 @@ async def _ensure_dimensions(startup_id: uuid.UUID, db) -> list[dict]:
             for d in existing
         ]
 
-    # No dimensions yet — try to find a matching template.
-    # Load the startup with industries eagerly (async requires explicit loading).
+    # Load the startup with industries eagerly
     result = await db.execute(
         select(Startup).where(Startup.id == startup_id).options(selectinload(Startup.industries))
     )
     startup = result.scalars().first()
     template = None
 
-    if startup and startup.industries:
-        first_industry_name = startup.industries[0].name
-        result = await db.execute(
-            select(DueDiligenceTemplate).where(
-                DueDiligenceTemplate.name.ilike(f"%{first_industry_name}%")
-            )
-        )
-        template = result.scalars().first()
+    if startup:
+        industry_slug = startup.industries[0].slug if startup.industries else None
+        stage_value = startup.stage.value if startup.stage else None
 
-    # Fall back to "Default" template
+        # 1. Exact match: industry + stage
+        if industry_slug and stage_value:
+            result = await db.execute(
+                select(DueDiligenceTemplate).where(
+                    DueDiligenceTemplate.industry_slug == industry_slug,
+                    DueDiligenceTemplate.stage == stage_value,
+                )
+            )
+            template = result.scalars().first()
+
+        # 2. Industry-only match
+        if template is None and industry_slug:
+            result = await db.execute(
+                select(DueDiligenceTemplate).where(
+                    DueDiligenceTemplate.industry_slug == industry_slug,
+                    DueDiligenceTemplate.stage.is_(None),
+                )
+            )
+            template = result.scalars().first()
+
+        # 3. Stage-only match
+        if template is None and stage_value:
+            result = await db.execute(
+                select(DueDiligenceTemplate).where(
+                    DueDiligenceTemplate.industry_slug.is_(None),
+                    DueDiligenceTemplate.stage == stage_value,
+                )
+            )
+            template = result.scalars().first()
+
+    # 4. General fallback
     if template is None:
         result = await db.execute(
-            select(DueDiligenceTemplate).where(DueDiligenceTemplate.name == "Default")
+            select(DueDiligenceTemplate).where(DueDiligenceTemplate.name == "General")
         )
         template = result.scalars().first()
 
     dims_to_create: list[tuple[str, str, float]] = []
 
     if template is not None:
-        # Load template dimensions
         result = await db.execute(
             select(TemplateDimension)
             .where(TemplateDimension.template_id == template.id)
@@ -275,11 +351,10 @@ async def _ensure_dimensions(startup_id: uuid.UUID, db) -> list[dict]:
             dims_to_create = [
                 (td.dimension_name, td.dimension_slug, td.weight) for td in tdims
             ]
-            # Link template to startup
             if startup:
                 startup.template_id = template.id
 
-    # Final fallback: hardcoded defaults
+    # 5. Hardcoded defaults
     if not dims_to_create:
         dims_to_create = [
             (name, _slugify(name), weight) for name, weight in DEFAULT_DIMENSIONS
@@ -392,16 +467,26 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                 startup.hiring_signals = enriched["hiring_signals"]
             if enriched.get("patents"):
                 startup.patents = enriched["patents"]
+            if enriched.get("company_status"):
+                try:
+                    startup.company_status = CompanyStatus(enriched["company_status"].lower().strip())
+                except ValueError:
+                    pass
+            if enriched.get("revenue_estimate"):
+                startup.revenue_estimate = enriched["revenue_estimate"][:200]
+            if enriched.get("business_model"):
+                startup.business_model = enriched["business_model"][:200]
 
             await db.flush()
 
             # ----------------------------------------------------------
-            # 3. Replace founders
+            # 3. Replace founders and management team
             # ----------------------------------------------------------
             await db.execute(
                 delete(StartupFounder).where(StartupFounder.startup_id == sid)
             )
-            for idx, f in enumerate(enriched.get("founders") or []):
+            idx = 0
+            for f in enriched.get("founders") or []:
                 if not f.get("name"):
                     continue
                 db.add(
@@ -410,9 +495,29 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                         name=f["name"][:200],
                         title=(f.get("title") or "")[:200] or None,
                         linkedin_url=(f.get("linkedin_url") or "")[:500] or None,
+                        is_founder=True,
+                        prior_experience=(f.get("prior_experience") or "")[:2000] or None,
+                        education=(f.get("education") or "")[:500] or None,
                         sort_order=idx,
                     )
                 )
+                idx += 1
+            for m in enriched.get("management_team") or []:
+                if not m.get("name"):
+                    continue
+                db.add(
+                    StartupFounder(
+                        startup_id=sid,
+                        name=m["name"][:200],
+                        title=(m.get("title") or "")[:200] or None,
+                        linkedin_url=(m.get("linkedin_url") or "")[:500] or None,
+                        is_founder=False,
+                        prior_experience=(m.get("prior_experience") or "")[:2000] or None,
+                        education=(m.get("education") or "")[:500] or None,
+                        sort_order=idx,
+                    )
+                )
+                idx += 1
             await db.flush()
 
             # ----------------------------------------------------------
@@ -433,6 +538,9 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                         amount=(fr.get("amount") or "")[:50] or None,
                         date=(fr.get("date") or "")[:20] or None,
                         lead_investor=(fr.get("lead_investor") or "")[:200] or None,
+                        other_investors=(fr.get("other_investors") or "")[:1000] or None,
+                        pre_money_valuation=(fr.get("pre_money_valuation") or "")[:50] or None,
+                        post_money_valuation=(fr.get("post_money_valuation") or "")[:50] or None,
                         sort_order=idx,
                     )
                 )
@@ -477,10 +585,20 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             # ----------------------------------------------------------
             dimensions = await _ensure_dimensions(sid, db)
 
+            # Reload startup with industries for scoring context
+            result = await db.execute(
+                select(Startup).where(Startup.id == sid).options(selectinload(Startup.industries))
+            )
+            startup = result.scalars().first()
+            industry_name = startup.industries[0].name if startup and startup.industries else None
+            stage_value = startup.stage.value if startup and startup.stage else None
+
             # ----------------------------------------------------------
             # 8. Scoring: call Perplexity for VC-style scoring
             # ----------------------------------------------------------
-            score_result = await _score_startup(enriched, dimensions)
+            score_result = await _score_startup(
+                enriched, dimensions, industry=industry_name, stage=stage_value
+            )
 
             dim_scores_raw = score_result.get("dimensions", {})
             investment_thesis = score_result.get("investment_thesis", "")

@@ -13,6 +13,7 @@ class AuthProvider(str, enum.Enum):
     google = "google"
     linkedin = "linkedin"
     github = "github"
+    credentials = "credentials"
 
 
 class UserRole(str, enum.Enum):
@@ -31,5 +32,8 @@ class User(Base):
     auth_provider: Mapped[AuthProvider] = mapped_column(Enum(AuthProvider), nullable=False)
     provider_id: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False, default=UserRole.user)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ecosystem_role: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
