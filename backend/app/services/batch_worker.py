@@ -34,10 +34,10 @@ logger = logging.getLogger(__name__)
 
 # Delays in seconds after each step type
 STEP_DELAYS = {
-    BatchStepType.discover_investors: 90,
-    BatchStepType.find_startups: 90,
+    BatchStepType.discover_investors: 2,
+    BatchStepType.find_startups: 2,
     BatchStepType.add_to_triage: 2,
-    BatchStepType.enrich: 10,
+    BatchStepType.enrich: 2,
 }
 
 # System prompt for investor discovery (no startup JSON needed)
