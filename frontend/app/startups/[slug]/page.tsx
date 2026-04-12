@@ -145,7 +145,7 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
             </div>
 
             {/* Dimension Breakdown */}
-            {startup.ai_review.dimension_scores.length > 0 && (
+            {Array.isArray(startup.ai_review.dimension_scores) && startup.ai_review.dimension_scores.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-text-primary mb-3">Dimension Breakdown</h3>
                 <div className="space-y-4">
@@ -355,7 +355,7 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
       <ReviewSection
         slug={startup.slug}
         dimensions={
-          startup.ai_review
+          startup.ai_review && Array.isArray(startup.ai_review.dimension_scores)
             ? startup.ai_review.dimension_scores.map((d) => d.dimension_name)
             : []
         }
