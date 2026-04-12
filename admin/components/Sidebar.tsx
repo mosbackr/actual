@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Triage" },
+  { href: "/scout", label: "Scout" },
   { href: "/startups", label: "Startups" },
   { href: "/experts", label: "Experts" },
   { href: "/templates", label: "Templates" },
@@ -17,9 +18,9 @@ export function Sidebar() {
   const { data: session } = useSession();
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-56 bg-gray-950 border-r border-gray-800 flex flex-col">
-      <div className="p-4 border-b border-gray-800">
-        <h1 className="text-lg font-bold text-indigo-400">Acutal Admin</h1>
+    <aside className="fixed left-0 top-0 h-full w-56 bg-surface border-r border-border flex flex-col">
+      <div className="p-4 border-b border-border">
+        <h1 className="font-serif text-lg text-text-primary">Deep Thesis</h1>
       </div>
       <nav className="flex-1 p-2 space-y-1">
         {NAV_ITEMS.map((item) => {
@@ -31,10 +32,10 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`block px-3 py-2 rounded text-sm ${
+              className={`block px-3 py-2 rounded text-sm transition ${
                 isActive
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800"
+                  ? "bg-accent text-white"
+                  : "text-text-secondary hover:text-text-primary hover:bg-hover-row"
               }`}
             >
               {item.label}
@@ -42,11 +43,11 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="p-4 border-t border-gray-800">
-        <p className="text-xs text-gray-500 truncate">{session?.user?.email}</p>
+      <div className="p-4 border-t border-border">
+        <p className="text-xs text-text-tertiary truncate">{session?.user?.email}</p>
         <button
           onClick={() => signOut()}
-          className="mt-2 text-xs text-gray-400 hover:text-white"
+          className="mt-2 text-xs text-text-secondary hover:text-text-primary transition"
         >
           Sign out
         </button>
