@@ -76,7 +76,8 @@ async def main():
             if best_stage is None:
                 continue
 
-            if best_stage != current_stage:
+            # Only upgrade, never downgrade
+            if STAGE_ORDER[best_stage] > STAGE_ORDER.get(current_stage, -1) and best_stage != current_stage:
                 print(f"  {name}: {current_stage.value} -> {best_stage.value}  (rounds: {', '.join(rounds)})")
                 await db.execute(
                     Startup.__table__.update()

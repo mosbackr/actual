@@ -455,12 +455,19 @@ _STAGE_ORDER = {
 
 def _infer_stage_from_rounds(round_names: list[str], company_status: str | None) -> StartupStage | None:
     """Infer the correct stage from funding round names and company status."""
-    # If company_status is IPO, it's public
-    if company_status and company_status.lower().strip() == "ipo":
-        return StartupStage.public
+    status = (company_status or "").lower().strip()
 
-    best_stage = None
-    best_order = -1
+    # Company status overrides: IPO → public, acquired → at least growth
+    if status == "ipo":
+        return StartupStage.public
+    if status == "acquired":
+        # Acquired companies were at least growth-stage; rounds may upgrade further
+        best_stage = StartupStage.growth
+        best_order = _STAGE_ORDER[StartupStage.growth]
+    else:
+        best_stage = None
+        best_order = -1
+
     for round_name in round_names:
         for pattern, stage in _ROUND_TO_STAGE:
             if pattern.search(round_name):
