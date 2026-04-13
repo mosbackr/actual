@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { api } from "@/lib/api";
-import type { Industry, Stage, RegionalInsights } from "@/lib/types";
+import type { Industry, Stage, RegionalInsights, RegionMetrics } from "@/lib/types";
 import { WorldMap } from "@/components/WorldMap";
+import { USMap } from "@/components/USMap";
 
 type MetricKey = "avg_ai_score" | "avg_expert_score" | "avg_user_score";
 
@@ -16,6 +17,37 @@ const METRIC_OPTIONS: { value: MetricKey; label: string; color: string }[] = [
   { value: "avg_expert_score", label: "Contributor Score", color: "#2D6A4F" },
   { value: "avg_user_score", label: "Community Score", color: "#B8860B" },
 ];
+
+const STATE_NAMES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia",
+  HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa",
+  KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
+  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
+  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
+  NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
+  NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma",
+  OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina",
+  SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont",
+  VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin",
+  WY: "Wyoming", DC: "District of Columbia",
+};
+
+const COUNTRY_NAMES: Record<string, string> = {
+  AF: "Afghanistan", AL: "Albania", DZ: "Algeria", AO: "Angola", AR: "Argentina",
+  AU: "Australia", AT: "Austria", BD: "Bangladesh", BE: "Belgium", BR: "Brazil",
+  BG: "Bulgaria", CA: "Canada", CL: "Chile", CN: "China", CO: "Colombia",
+  CR: "Costa Rica", CZ: "Czechia", DK: "Denmark", EG: "Egypt", EE: "Estonia",
+  FI: "Finland", FR: "France", DE: "Germany", GH: "Ghana", GR: "Greece",
+  HU: "Hungary", IS: "Iceland", IN: "India", ID: "Indonesia", IE: "Ireland",
+  IL: "Israel", IT: "Italy", JP: "Japan", KE: "Kenya", KR: "South Korea",
+  MX: "Mexico", NL: "Netherlands", NZ: "New Zealand", NG: "Nigeria", NO: "Norway",
+  PK: "Pakistan", PE: "Peru", PH: "Philippines", PL: "Poland", PT: "Portugal",
+  RO: "Romania", RU: "Russia", SA: "Saudi Arabia", SG: "Singapore", ZA: "South Africa",
+  ES: "Spain", SE: "Sweden", CH: "Switzerland", TH: "Thailand", TR: "Turkey",
+  UA: "Ukraine", AE: "UAE", GB: "United Kingdom", US: "United States",
+  VN: "Vietnam",
+};
 
 function scoreColor(score: number | null): string {
   if (score === null) return "text-text-tertiary";
@@ -41,6 +73,10 @@ function deltaColor(region: number | null, sitewide: number | null): string {
   if (d > 2) return "text-score-high";
   if (d < -2) return "text-score-low";
   return "text-text-tertiary";
+}
+
+function regionDisplayName(code: string): string {
+  return STATE_NAMES[code] || COUNTRY_NAMES[code] || code;
 }
 
 /* ── Multi-select dropdown ── */
@@ -162,24 +198,32 @@ export default function InsightsPage() {
     fetchData();
   }, [fetchData]);
 
-  const chartData = data
-    ? [...data.regions]
-        .filter((r) => r[metric] !== null)
-        .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0))
-        .slice(0, 20)
-        .map((r) => ({
-          name: r.region,
-          score: r[metric],
-          count: r.count,
-        }))
-    : [];
+  // Combined regions for chart and table: US states + non-US countries
+  const allRegions = useMemo(() => {
+    if (!data) return [];
+    const nonUS = data.countries.filter((c) => c.region !== "US");
+    return [...data.us_states, ...nonUS];
+  }, [data]);
+
+  const chartData = useMemo(() => {
+    return [...allRegions]
+      .filter((r) => r[metric] !== null)
+      .sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0))
+      .slice(0, 25)
+      .map((r) => ({
+        name: STATE_NAMES[r.region] || COUNTRY_NAMES[r.region] || r.region,
+        code: r.region,
+        score: r[metric],
+        count: r.count,
+      }));
+  }, [allRegions, metric]);
 
   const selectedData = selectedRegion
-    ? data?.regions.find((r) => r.region === selectedRegion)
+    ? allRegions.find((r) => r.region === selectedRegion)
     : null;
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="font-serif text-3xl text-text-primary">Regional Insights</h1>
         <p className="text-text-secondary mt-1">
@@ -231,7 +275,7 @@ export default function InsightsPage() {
 
       {loading ? (
         <div className="text-center py-20 text-text-tertiary text-sm">Loading regional data...</div>
-      ) : !data || data.regions.length === 0 ? (
+      ) : !data || (data.countries.length === 0 && data.us_states.length === 0) ? (
         <div className="text-center py-20 text-text-tertiary text-sm">No regional data available for the selected filters.</div>
       ) : (
         <>
@@ -261,41 +305,80 @@ export default function InsightsPage() {
             </div>
           </div>
 
-          {/* Map */}
+          {/* Side-by-side maps */}
           <section className="mb-8">
-            <div className="rounded border border-border bg-surface p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-medium text-text-primary">
-                  {METRIC_OPTIONS.find((o) => o.value === metric)?.label} by Country
-                </h2>
-                {selectedRegion && (
-                  <button
-                    onClick={() => setSelectedRegion(null)}
-                    className="text-xs text-accent hover:text-accent-hover transition"
-                  >
-                    Clear selection
-                  </button>
-                )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* US Map */}
+              <div className="rounded border border-border bg-surface p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-sm font-medium text-text-primary">
+                    United States — {METRIC_OPTIONS.find((o) => o.value === metric)?.label}
+                  </h2>
+                  {selectedRegion && STATE_NAMES[selectedRegion] && (
+                    <button
+                      onClick={() => setSelectedRegion(null)}
+                      className="text-xs text-accent hover:text-accent-hover transition"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <USMap
+                  regions={data.us_states}
+                  metric={metric}
+                  selectedRegion={selectedRegion}
+                  onSelectRegion={setSelectedRegion}
+                />
+                <div className="flex items-center justify-center gap-4 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#E8E6E3" }} />
+                    <span className="text-xs text-text-tertiary">No data</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#D4B8A8" }} />
+                    <span className="text-xs text-text-tertiary">Low</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#B8553A" }} />
+                    <span className="text-xs text-text-tertiary">High</span>
+                  </div>
+                </div>
               </div>
-              <WorldMap
-                regions={data.regions}
-                metric={metric}
-                selectedRegion={selectedRegion}
-                onSelectRegion={setSelectedRegion}
-              />
-              {/* Legend */}
-              <div className="flex items-center justify-center gap-4 mt-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#E8E6E3" }} />
-                  <span className="text-xs text-text-tertiary">No data</span>
+
+              {/* World Map */}
+              <div className="rounded border border-border bg-surface p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-sm font-medium text-text-primary">
+                    Worldwide — {METRIC_OPTIONS.find((o) => o.value === metric)?.label}
+                  </h2>
+                  {selectedRegion && COUNTRY_NAMES[selectedRegion] && !STATE_NAMES[selectedRegion] && (
+                    <button
+                      onClick={() => setSelectedRegion(null)}
+                      className="text-xs text-accent hover:text-accent-hover transition"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#D4B8A8" }} />
-                  <span className="text-xs text-text-tertiary">Low</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#B8553A" }} />
-                  <span className="text-xs text-text-tertiary">High</span>
+                <WorldMap
+                  regions={data.countries}
+                  metric={metric}
+                  selectedRegion={selectedRegion}
+                  onSelectRegion={setSelectedRegion}
+                />
+                <div className="flex items-center justify-center gap-4 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#E8E6E3" }} />
+                    <span className="text-xs text-text-tertiary">No data</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#D4B8A8" }} />
+                    <span className="text-xs text-text-tertiary">Low</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-3 rounded-sm" style={{ backgroundColor: "#B8553A" }} />
+                    <span className="text-xs text-text-tertiary">High</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -306,7 +389,7 @@ export default function InsightsPage() {
             <section className="mb-8">
               <div className="rounded border-2 border-accent bg-surface p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-serif text-lg text-text-primary">{selectedData.region}</h3>
+                  <h3 className="font-serif text-lg text-text-primary">{regionDisplayName(selectedData.region)}</h3>
                   <span className="text-xs text-text-tertiary">{selectedData.count} startup{selectedData.count !== 1 ? "s" : ""}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -337,14 +420,14 @@ export default function InsightsPage() {
           {chartData.length > 0 && (
             <section className="mb-8">
               <h2 className="text-sm font-medium text-text-primary mb-3">
-                Regional Comparison — {METRIC_OPTIONS.find((o) => o.value === metric)?.label}
+                Top Regions — {METRIC_OPTIONS.find((o) => o.value === metric)?.label}
               </h2>
               <div className="rounded border border-border bg-surface p-4">
-                <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 32)}>
-                  <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 28)}>
+                  <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E3" horizontal={false} />
                     <XAxis type="number" domain={[0, 100]} stroke="#9B9B9B" fontSize={11} />
-                    <YAxis type="category" dataKey="name" width={40} stroke="#9B9B9B" fontSize={11} />
+                    <YAxis type="category" dataKey="name" width={120} stroke="#9B9B9B" fontSize={11} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "#FFFFFF",
@@ -378,7 +461,7 @@ export default function InsightsPage() {
           <section className="mb-12">
             <h2 className="text-sm font-medium text-text-primary mb-3">All Regions</h2>
             <div className="rounded border border-border bg-surface overflow-x-auto">
-              <table className="w-full text-sm min-w-[500px]">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead>
                   <tr className="border-b border-border bg-background">
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Region</th>
@@ -397,7 +480,7 @@ export default function InsightsPage() {
                     <td className={`px-4 py-2.5 text-right tabular-nums ${scoreColor(data.sitewide.avg_expert_score)}`}>{fmt(data.sitewide.avg_expert_score)}</td>
                     <td className={`px-4 py-2.5 text-right tabular-nums ${scoreColor(data.sitewide.avg_user_score)}`}>{fmt(data.sitewide.avg_user_score)}</td>
                   </tr>
-                  {[...data.regions].sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0)).map((r) => (
+                  {[...allRegions].sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0)).map((r) => (
                     <tr
                       key={r.region}
                       className={`border-b border-border last:border-b-0 cursor-pointer transition ${
@@ -405,7 +488,7 @@ export default function InsightsPage() {
                       }`}
                       onClick={() => setSelectedRegion(selectedRegion === r.region ? null : r.region)}
                     >
-                      <td className="px-4 py-2.5 text-text-primary font-medium">{r.region}</td>
+                      <td className="px-4 py-2.5 text-text-primary font-medium">{regionDisplayName(r.region)}</td>
                       <td className="px-4 py-2.5 text-right text-text-secondary tabular-nums">{r.count}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
                         <span className={scoreColor(r.avg_ai_score)}>{fmt(r.avg_ai_score)}</span>

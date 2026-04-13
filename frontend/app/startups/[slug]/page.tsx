@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const stageLabels: Record<string, string> = {
   pre_seed: "Pre-Seed", seed: "Seed", series_a: "Series A",
   series_b: "Series B", series_c: "Series C", growth: "Growth",
+  public: "Public",
 };
 
 function ScoreBar({ score, label }: { score: number; label: string }) {

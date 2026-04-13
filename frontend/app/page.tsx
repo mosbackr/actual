@@ -16,6 +16,7 @@ async function getFeaturedStartups(): Promise<PaginatedStartups> {
 const stageLabels: Record<string, string> = {
   pre_seed: "Pre-Seed", seed: "Seed", series_a: "Series A",
   series_b: "Series B", series_c: "Series C", growth: "Growth",
+  public: "Public",
 };
 
 export default async function LandingPage() {

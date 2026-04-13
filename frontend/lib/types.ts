@@ -136,7 +136,8 @@ export interface RegionMetrics {
 }
 
 export interface RegionalInsights {
-  regions: RegionMetrics[];
+  countries: RegionMetrics[];
+  us_states: RegionMetrics[];
   sitewide: {
     count: number;
     avg_ai_score: number | null;

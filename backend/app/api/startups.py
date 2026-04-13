@@ -319,6 +319,7 @@ async def list_stages():
         {"value": "series_b", "label": "Series B"},
         {"value": "series_c", "label": "Series C"},
         {"value": "growth", "label": "Growth"},
+        {"value": "public", "label": "Public"},
     ]
 
 

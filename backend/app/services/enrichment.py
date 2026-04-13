@@ -24,7 +24,7 @@ from app.models.funding_round import StartupFundingRound
 from app.models.media import MediaType, StartupMedia
 from app.models.score import ScoreType, StartupScoreHistory
 from app.models.industry import Industry
-from app.models.startup import CompanyStatus, EnrichmentStatus, Startup, startup_industries
+from app.models.startup import CompanyStatus, EnrichmentStatus, Startup, StartupStage, startup_industries
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 
 logger = logging.getLogger(__name__)
@@ -94,6 +94,8 @@ heavily; do not penalize for lack of revenue or metrics.
 - For Series A, expect clear product-market fit evidence and early traction.
 - For Series B+ and growth, expect strong revenue, unit economics, and a \
 clear path to profitability.
+- For public/post-IPO companies, evaluate as mature businesses: focus on \
+market position, revenue growth, margins, competitive moat, and shareholder value.
 - Apply industry-specific standards: a biotech company should be evaluated \
 on clinical pipeline and regulatory, not SaaS metrics; a fintech company \
 needs regulatory compliance assessment.
@@ -261,6 +263,7 @@ async def _score_startup(
             "series_b": "Series B",
             "series_c": "Series C",
             "growth": "Growth / Late Stage",
+            "public": "Public / Post-IPO",
         }
         context_parts.append(f"Funding Stage: {stage_labels.get(stage, stage)}")
 
@@ -430,6 +433,45 @@ def _parse_founded_date(raw: str | None) -> date | None:
         return None
 
 
+_ROUND_TO_STAGE: list[tuple[re.Pattern, StartupStage]] = [
+    (re.compile(r"ipo|post.ipo|public", re.I), StartupStage.public),
+    (re.compile(r"series\s*[d-z]|growth|late|mezzanine|private.equity", re.I), StartupStage.growth),
+    (re.compile(r"series\s*c", re.I), StartupStage.series_c),
+    (re.compile(r"series\s*b", re.I), StartupStage.series_b),
+    (re.compile(r"series\s*a", re.I), StartupStage.series_a),
+    (re.compile(r"seed|angel|pre.seed|accelerator|incubator", re.I), StartupStage.seed),
+]
+
+_STAGE_ORDER = {
+    StartupStage.pre_seed: 0,
+    StartupStage.seed: 1,
+    StartupStage.series_a: 2,
+    StartupStage.series_b: 3,
+    StartupStage.series_c: 4,
+    StartupStage.growth: 5,
+    StartupStage.public: 6,
+}
+
+
+def _infer_stage_from_rounds(round_names: list[str], company_status: str | None) -> StartupStage | None:
+    """Infer the correct stage from funding round names and company status."""
+    # If company_status is IPO, it's public
+    if company_status and company_status.lower().strip() == "ipo":
+        return StartupStage.public
+
+    best_stage = None
+    best_order = -1
+    for round_name in round_names:
+        for pattern, stage in _ROUND_TO_STAGE:
+            if pattern.search(round_name):
+                order = _STAGE_ORDER[stage]
+                if order > best_order:
+                    best_stage = stage
+                    best_order = order
+                break
+    return best_stage
+
+
 def _map_media_type(raw: str | None) -> MediaType:
     """Map a raw media_type string to the MediaType enum, defaulting to article."""
     if not raw:
@@ -586,6 +628,25 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                     )
                 )
             await db.flush()
+
+            # ----------------------------------------------------------
+            # 4b. Infer and correct stage from funding rounds + company status
+            # ----------------------------------------------------------
+            round_names = [
+                fr["round_name"]
+                for fr in (enriched.get("funding_rounds") or [])
+                if fr.get("round_name")
+            ]
+            inferred = _infer_stage_from_rounds(
+                round_names, enriched.get("company_status")
+            )
+            if inferred and _STAGE_ORDER.get(inferred, -1) > _STAGE_ORDER.get(startup.stage, -1):
+                logger.info(
+                    "Stage correction for %s: %s -> %s",
+                    startup.name, startup.stage.value, inferred.value,
+                )
+                startup.stage = inferred
+                await db.flush()
 
             # ----------------------------------------------------------
             # 5. Replace media items

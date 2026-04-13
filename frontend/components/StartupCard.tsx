@@ -9,6 +9,7 @@ const stageLabels: Record<string, string> = {
   series_b: "Series B",
   series_c: "Series C",
   growth: "Growth",
+  public: "Public",
 };
 
 interface StartupCardProps {

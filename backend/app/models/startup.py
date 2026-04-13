@@ -16,6 +16,7 @@ class StartupStage(str, enum.Enum):
     series_b = "series_b"
     series_c = "series_c"
     growth = "growth"
+    public = "public"
 
 
 class StartupStatus(str, enum.Enum):

@@ -40,8 +40,8 @@ IMPORTANT: You MUST include a JSON block in your response with structured startu
 ```
 
 Rules:
-- stage must be one of: pre_seed, seed, series_a, series_b, series_c, growth
-- Use "growth" for any publicly traded, post-IPO, or mature company. Do NOT invent new stage values.
+- stage must be one of: pre_seed, seed, series_a, series_b, series_c, growth, public
+- Use "public" for any publicly traded or post-IPO company. Use "growth" for late-stage private companies.
 - CRITICAL: For EVERY company, you MUST research and include: website_url, founders (full names), \
 funding_raised (total amount), location_city, location_state, key_investors, and founded_year. \
 Search each company individually if needed. Empty fields are not acceptable when the information \
@@ -176,7 +176,7 @@ async def add_startups_to_triage(
         if stage not in valid_stages:
             # Map common AI-generated stage names to valid values
             stage_map = {
-                "public": "growth", "post_ipo": "growth", "ipo": "growth",
+                "public": "public", "post_ipo": "public", "ipo": "public",
                 "late": "growth", "late_stage": "growth", "mature": "growth",
                 "pre-seed": "pre_seed", "preseed": "pre_seed",
                 "series_d": "growth", "series_e": "growth", "series_f": "growth",

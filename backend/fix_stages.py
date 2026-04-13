@@ -13,7 +13,7 @@ from app.models.funding_round import StartupFundingRound
 
 # Map funding round names → correct stage
 ROUND_TO_STAGE: list[tuple[re.Pattern, StartupStage]] = [
-    (re.compile(r"ipo|post.ipo|public", re.I), StartupStage.growth),
+    (re.compile(r"ipo|post.ipo|public", re.I), StartupStage.public),
     (re.compile(r"series\s*[d-z]|growth|late|mezzanine|private.equity", re.I), StartupStage.growth),
     (re.compile(r"series\s*c", re.I), StartupStage.series_c),
     (re.compile(r"series\s*b", re.I), StartupStage.series_b),
@@ -29,6 +29,7 @@ STAGE_ORDER = {
     StartupStage.series_b: 3,
     StartupStage.series_c: 4,
     StartupStage.growth: 5,
+    StartupStage.public: 6,
 }
 
 
