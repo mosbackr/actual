@@ -95,5 +95,7 @@ class Startup(Base):
     )
     enrichment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sec_cik: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    edgar_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     industries = relationship("Industry", secondary=startup_industries)

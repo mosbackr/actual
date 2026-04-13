@@ -22,3 +22,4 @@ class StartupFundingRound(Base):
     pre_money_valuation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     post_money_valuation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    data_source: Mapped[str] = mapped_column(String(20), nullable=False, default="perplexity", server_default="perplexity")
