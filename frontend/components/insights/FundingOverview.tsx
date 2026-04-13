@@ -80,8 +80,8 @@ export function FundingOverview({ data }: Props) {
                   color: "#1A1A1A",
                   fontSize: "12px",
                 }}
-                formatter={(value: number) => [
-                  mode === "amount" ? formatAmount(value) : value,
+                formatter={(value) => [
+                  mode === "amount" ? formatAmount(Number(value)) : String(value),
                   mode === "amount" ? "Total Funding" : "Startups",
                 ]}
               />

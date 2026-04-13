@@ -73,7 +73,7 @@ export function DealFlow({ data }: Props) {
                   color: "#1A1A1A",
                   fontSize: "12px",
                 }}
-                formatter={(value: number) => [value, "Startups added"]}
+                formatter={(value) => [String(value), "Startups added"]}
               />
               <Bar dataKey="count" fill="#B8553A" radius={[3, 3, 0, 0]} />
             </BarChart>
