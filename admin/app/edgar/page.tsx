@@ -11,6 +11,10 @@ const PHASE_LABELS: Record<string, string> = {
   fetching_filings: "Fetching Filings",
   processing_filings: "Processing Filings",
   complete: "Complete",
+  discovering: "Discovering Filings",
+  extracting: "Extracting Companies",
+  adding: "Creating Startups",
+  enriching: "Enriching with Perplexity",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -50,6 +54,7 @@ export default function EdgarPage() {
   const [log, setLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [discoverDays, setDiscoverDays] = useState(365);
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -122,6 +127,18 @@ export default function EdgarPage() {
     await fetchData();
   }
 
+  async function handleDiscover() {
+    if (!token) return;
+    setLoading(true);
+    try {
+      await adminApi.startEdgar(token, "discover", discoverDays);
+      await fetchData();
+    } catch (e: any) {
+      alert(e.message || "Failed to start discovery");
+    }
+    setLoading(false);
+  }
+
   const summary = job?.progress_summary || {};
   const isActive = job?.status === "running" || job?.status === "paused";
   const canStart = !isActive && job?.status !== "pending";
@@ -152,6 +169,25 @@ export default function EdgarPage() {
               >
                 Scan New Only
               </button>
+              <div className="w-px h-6 bg-border mx-1" />
+              <button
+                onClick={handleDiscover}
+                disabled={loading}
+                className="px-4 py-2 text-sm font-medium rounded bg-score-high text-white hover:opacity-90 disabled:opacity-50 transition"
+              >
+                Discover New
+              </button>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  value={discoverDays}
+                  onChange={(e) => setDiscoverDays(Math.max(1, parseInt(e.target.value) || 365))}
+                  className="w-16 px-2 py-1.5 text-sm rounded border border-border bg-background text-text-primary text-center tabular-nums"
+                  min={1}
+                  max={3650}
+                />
+                <span className="text-xs text-text-tertiary">days</span>
+              </div>
             </>
           )}
           {job?.status === "running" && (
@@ -181,41 +217,84 @@ export default function EdgarPage() {
 
         {job && (
           <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-            <div>
-              <p className="text-xs text-text-tertiary">Startups Scanned</p>
-              <p className="text-sm font-medium text-text-primary tabular-nums">
-                {summary.startups_scanned || 0} / {summary.startups_total || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-text-tertiary">CIKs Matched</p>
-              <p className="text-sm font-medium text-text-primary tabular-nums">
-                {summary.ciks_matched || 0}
-                {summary.startups_scanned > 0 && (
-                  <span className="text-text-tertiary text-xs ml-1">({matchRate}%)</span>
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-text-tertiary">Filings Found</p>
-              <p className="text-sm font-medium text-text-primary tabular-nums">{summary.filings_found || 0}</p>
-            </div>
-            <div>
-              <p className="text-xs text-text-tertiary">Filings Processed</p>
-              <p className="text-sm font-medium text-text-primary tabular-nums">
-                {summary.filings_processed || 0} / {summary.filings_total || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-text-tertiary">Rounds Updated</p>
-              <p className="text-sm font-medium text-score-high tabular-nums">
-                {(summary.rounds_updated || 0) + (summary.rounds_created || 0)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-text-tertiary">Valuations Added</p>
-              <p className="text-sm font-medium text-score-high tabular-nums">{summary.valuations_added || 0}</p>
-            </div>
+            {job.scan_mode === "discover" ? (
+              <>
+                <div>
+                  <p className="text-xs text-text-tertiary">Filings Discovered</p>
+                  <p className="text-sm font-medium text-text-primary tabular-nums">
+                    {summary.filings_discovered || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Companies Extracted</p>
+                  <p className="text-sm font-medium text-text-primary tabular-nums">
+                    {summary.companies_extracted || 0} / {summary.extract_total || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Duplicates Skipped</p>
+                  <p className="text-sm font-medium text-text-tertiary tabular-nums">
+                    {summary.duplicates_skipped || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Startups Created</p>
+                  <p className="text-sm font-medium text-score-high tabular-nums">
+                    {summary.startups_created || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Enriched</p>
+                  <p className="text-sm font-medium text-score-high tabular-nums">
+                    {summary.enrichments_completed || 0} / {summary.enrich_total || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Enrich Failed</p>
+                  <p className="text-sm font-medium text-red-600 tabular-nums">
+                    {summary.enrichments_failed || 0}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-xs text-text-tertiary">Startups Scanned</p>
+                  <p className="text-sm font-medium text-text-primary tabular-nums">
+                    {summary.startups_scanned || 0} / {summary.startups_total || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">CIKs Matched</p>
+                  <p className="text-sm font-medium text-text-primary tabular-nums">
+                    {summary.ciks_matched || 0}
+                    {summary.startups_scanned > 0 && (
+                      <span className="text-text-tertiary text-xs ml-1">({matchRate}%)</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Filings Found</p>
+                  <p className="text-sm font-medium text-text-primary tabular-nums">{summary.filings_found || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Filings Processed</p>
+                  <p className="text-sm font-medium text-text-primary tabular-nums">
+                    {summary.filings_processed || 0} / {summary.filings_total || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Rounds Updated</p>
+                  <p className="text-sm font-medium text-score-high tabular-nums">
+                    {(summary.rounds_updated || 0) + (summary.rounds_created || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary">Valuations Added</p>
+                  <p className="text-sm font-medium text-score-high tabular-nums">{summary.valuations_added || 0}</p>
+                </div>
+              </>
+            )}
           </div>
         )}
 
