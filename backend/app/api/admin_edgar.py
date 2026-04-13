@@ -25,6 +25,7 @@ router = APIRouter()
 class EdgarStartRequest(BaseModel):
     scan_mode: str = "full"
     discover_days: int = 365
+    form_types: list[str] = ["D", "S-1", "10-K", "C", "1-A"]
 
 
 @router.post("/api/admin/edgar/start")
@@ -53,16 +54,17 @@ async def start_edgar_scan(
     sort_order = 0
 
     if body.scan_mode == "discover":
-        # Discovery mode: generate a single discover_filings step
         job.current_phase = EdgarJobPhase.discovering
-        step = EdgarJobStep(
-            job_id=job.id,
-            step_type=EdgarStepType.discover_filings,
-            params={"discover_days": body.discover_days},
-            sort_order=0,
-        )
-        db.add(step)
-        sort_order = 1
+
+        for form_type in body.form_types:
+            step = EdgarJobStep(
+                job_id=job.id,
+                step_type=EdgarStepType.discover_filings,
+                params={"discover_days": body.discover_days, "form_type": form_type},
+                sort_order=sort_order,
+            )
+            db.add(step)
+            sort_order += 1
 
         job.progress_summary = {
             "filings_discovered": 0,
@@ -73,6 +75,7 @@ async def start_edgar_scan(
             "enrichments_completed": 0,
             "enrichments_failed": 0,
             "enrich_total": 0,
+            "form_types": body.form_types,
         }
     else:
         # Existing scan mode logic (resolve_cik + fetch_filings)
@@ -372,47 +375,60 @@ async def get_edgar_log(
             else:
                 msg = f"Failed to process {ftype} for {name}: {s.error or 'unknown'}"
         elif s.step_type == EdgarStepType.discover_filings:
+            form_type = p.get("form_type", "D")
+            form_labels = {"D": "Form D", "S-1": "S-1", "10-K": "10-K", "C": "Form C", "1-A": "Form 1-A"}
+            label = form_labels.get(form_type, form_type)
             if s.status == EdgarStepStatus.completed:
                 created = r.get("extract_steps_created", 0)
                 date_range = r.get("date_range", "")
-                msg = f"Discovered {created} Form D filings ({date_range})"
+                msg = f"Discovered {created} {label} filings ({date_range})"
             elif s.status == EdgarStepStatus.running:
-                msg = "Searching EDGAR for Form D filings..."
+                msg = f"Searching EDGAR for {label} filings..."
             else:
-                msg = f"Discovery search failed: {s.error or 'unknown'}"
+                msg = f"Discovery search failed for {label}: {s.error or 'unknown'}"
 
         elif s.step_type == EdgarStepType.extract_company:
             entity = p.get("entity_name", "") or r.get("issuer_name", "")
+            form_type = p.get("form_type", "D")
+            form_labels = {"D": "Form D", "S-1": "S-1", "10-K": "10-K", "C": "Form C", "1-A": "Form 1-A"}
+            label = form_labels.get(form_type, form_type)
             if s.status == EdgarStepStatus.completed:
                 action = r.get("action", "")
                 if action == "new_company":
                     amount = r.get("amount", 0)
-                    msg = f"New: {entity}"
+                    msg = f"New ({label}): {entity}"
                     if amount:
                         msg += f" (${amount:,.0f})" if isinstance(amount, (int, float)) else f" ({amount})"
                 elif action == "duplicate":
                     existing = r.get("existing_startup", "")
-                    msg = f"Duplicate: {entity} → {existing}"
+                    msg = f"Duplicate ({label}): {entity} → {existing}"
                 else:
                     reason = r.get("reason", "filtered")
-                    msg = f"Skipped: {entity} ({reason})"
+                    msg = f"Skipped ({label}): {entity} ({reason})"
             elif s.status == EdgarStepStatus.running:
-                msg = f"Extracting: {entity}..."
+                msg = f"Extracting ({label}): {entity}..."
             else:
-                msg = f"Extract failed for {entity}: {s.error or 'unknown'}"
+                msg = f"Extract failed ({label}) for {entity}: {s.error or 'unknown'}"
 
         elif s.step_type == EdgarStepType.add_startup:
             name = p.get("issuer_name", "") or r.get("startup_name", "")
+            form_type = p.get("form_type", r.get("form_type", "D"))
+            form_labels = {"D": "Form D", "S-1": "S-1", "10-K": "10-K", "C": "Form C", "1-A": "Form 1-A"}
+            label = form_labels.get(form_type, form_type)
             if s.status == EdgarStepStatus.completed:
+                entity_type = r.get("entity_type", "startup")
                 stage = r.get("stage", "")
                 amount = r.get("amount", "")
-                msg = f"Created: {name} ({stage})"
+                if entity_type == "fund":
+                    msg = f"Fund ({label}): {name} (saved, skipping enrichment)"
+                else:
+                    msg = f"Created ({label}): {name} ({stage})"
                 if amount:
                     msg += f" — {amount}"
             elif s.status == EdgarStepStatus.running:
-                msg = f"Creating startup: {name}..."
+                msg = f"Classifying ({label}): {name}..."
             else:
-                msg = f"Failed to create {name}: {s.error or 'unknown'}"
+                msg = f"Failed to create ({label}) {name}: {s.error or 'unknown'}"
 
         elif s.step_type == EdgarStepType.enrich_startup:
             name = p.get("startup_name", "")

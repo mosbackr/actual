@@ -117,6 +117,7 @@ async def list_startups(
                 "expert_score": s.expert_score,
                 "user_score": s.user_score,
                 "tagline": s.tagline,
+                "form_sources": s.form_sources or [],
                 "industries": [{"id": str(i.id), "name": i.name, "slug": i.slug} for i in s.industries],
             }
             for s in startups
@@ -232,6 +233,8 @@ async def get_startup(slug: str, db: AsyncSession = Depends(get_db)):
         "id": str(startup.id),
         "name": startup.name,
         "slug": startup.slug,
+        "form_sources": startup.form_sources or [],
+        "data_sources": startup.data_sources or {},
         "description": startup.description,
         "website_url": startup.website_url,
         "logo_url": startup.logo_url,
