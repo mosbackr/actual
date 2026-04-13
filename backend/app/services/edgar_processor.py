@@ -48,6 +48,65 @@ class FundingRoundData:
     accession_number: str | None = None
 
 
+# SIC codes for venture-backed startups
+SIC_WHITELIST: set[str] = set()
+for _start, _end in [
+    (2830, 2836),  # Pharmaceutical/Biotech
+    (3570, 3579),  # Computer hardware
+    (3600, 3699),  # Electronic components
+    (3841, 3845),  # Medical devices/instruments
+    (4812, 4813),  # Telecommunications
+    (7371, 7379),  # Computer programming/software/services
+    (8711, 8742),  # Engineering/R&D/Management consulting
+]:
+    SIC_WHITELIST.update(str(i) for i in range(_start, _end + 1))
+SIC_WHITELIST.update(["3674", "3812", "4899", "5045"])
+
+# Entity name patterns that indicate investment vehicles, not operating companies
+ENTITY_EXCLUDE_PATTERNS = re.compile(
+    r"\b(FUND|LP|PARTNERS|CAPITAL|TRUST|REIT|HOLDINGS)\b",
+    re.IGNORECASE,
+)
+
+# Amount range for venture-backed startups
+MIN_RAISE_AMOUNT = 500_000      # $500K
+MAX_RAISE_AMOUNT = 500_000_000  # $500M
+
+
+def is_qualifying_filing(form_d_data: FormDData, sic_code: str | None) -> bool:
+    """Check if a Form D filing qualifies as a venture-backed startup."""
+    # SIC code check
+    if sic_code and sic_code not in SIC_WHITELIST:
+        return False
+
+    # Entity name exclusion
+    if form_d_data.issuer_name and ENTITY_EXCLUDE_PATTERNS.search(form_d_data.issuer_name):
+        return False
+
+    # Amount range check
+    amount = form_d_data.total_amount_sold
+    if amount is None:
+        return False
+    if amount < MIN_RAISE_AMOUNT or amount > MAX_RAISE_AMOUNT:
+        return False
+
+    return True
+
+
+def infer_stage_from_amount(amount: float) -> str:
+    """Infer startup stage from Form D raise amount."""
+    if amount < 2_000_000:
+        return "pre_seed"
+    elif amount < 10_000_000:
+        return "seed"
+    elif amount < 50_000_000:
+        return "series_a"
+    elif amount < 150_000_000:
+        return "series_b"
+    else:
+        return "series_c"
+
+
 def parse_form_d(xml_text: str) -> FormDData:
     """Parse Form D XML and extract funding data."""
     root = ET.fromstring(xml_text)
