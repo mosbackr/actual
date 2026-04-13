@@ -63,6 +63,16 @@ class EdgarFiling:
     description: str
 
 
+@dataclass
+class EdgarFormDHit:
+    """A Form D filing hit from EDGAR EFTS search."""
+    accession_number: str
+    entity_name: str
+    file_date: str
+    file_num: str | None
+    cik: str | None
+
+
 async def search_company(name: str) -> list[EdgarCompany]:
     """Search EDGAR for companies matching the given name.
 
@@ -189,3 +199,67 @@ async def get_company_info(cik: str) -> dict:
             for i in range(min(len(recent_forms), len(recent_dates)))
         ],
     }
+
+
+async def search_form_d_filings(
+    start_date: str,
+    end_date: str,
+    page_from: int = 0,
+    page_size: int = 100,
+) -> tuple[list[EdgarFormDHit], int]:
+    """Search EDGAR EFTS for Form D filings within a date range.
+
+    Returns (hits, total_count). Caller paginates using page_from.
+    """
+    url = (
+        f"https://efts.sec.gov/LATEST/search-index"
+        f"?q=*&forms=D&dateRange=custom"
+        f"&startdt={start_date}&enddt={end_date}"
+        f"&from={page_from}&size={page_size}"
+    )
+
+    try:
+        resp = await _rate_limited_get(url)
+    except httpx.HTTPStatusError as e:
+        logger.warning(f"EDGAR EFTS search failed: {e}")
+        return [], 0
+
+    data = resp.json()
+    total = data.get("hits", {}).get("total", {}).get("value", 0)
+    raw_hits = data.get("hits", {}).get("hits", [])
+
+    hits = []
+    for hit in raw_hits:
+        source = hit.get("_source", {})
+        accession = hit.get("_id", "")
+
+        display_names = source.get("display_names", [])
+        entity_name = display_names[0] if display_names else ""
+        file_date = source.get("file_date", "")
+        file_num = source.get("file_num", "")
+
+        # CIK is often in the entity_id or can be extracted from accession path
+        entity_id = source.get("entity_id", "")
+        cik = entity_id if entity_id else None
+
+        hits.append(EdgarFormDHit(
+            accession_number=accession,
+            entity_name=entity_name,
+            file_date=file_date,
+            file_num=file_num,
+            cik=cik,
+        ))
+
+    return hits, total
+
+
+async def get_cik_from_accession(accession_number: str) -> str | None:
+    """Resolve CIK from an accession number using the EDGAR filing index."""
+    # The accession number format is XXXXXXXXXX-YY-ZZZZZZ where X is CIK
+    parts = accession_number.split("-")
+    if len(parts) >= 1:
+        potential_cik = parts[0].lstrip("0")
+        if potential_cik.isdigit():
+            return potential_cik
+
+    return None
