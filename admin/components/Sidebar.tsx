@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Triage" },
   { href: "/scout", label: "Scout" },
   { href: "/batch", label: "Batch" },
+  { href: "/edgar", label: "EDGAR" },
   { href: "/startups", label: "Startups" },
   { href: "/experts", label: "Experts" },
   { href: "/templates", label: "Templates" },

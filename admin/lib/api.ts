@@ -212,4 +212,35 @@ export const adminApi = {
     const qs = page ? `?page=${page}` : "";
     return apiFetch<any>(`/api/admin/batch/${jobId}/log${qs}`, token);
   },
+
+  // EDGAR pipeline
+  async startEdgar(token: string, scanMode: string) {
+    return apiFetch<{ job_id: string; status: string; total_steps: number }>(
+      "/api/admin/edgar/start",
+      token,
+      { method: "POST", body: JSON.stringify({ scan_mode: scanMode }) }
+    );
+  },
+  async pauseEdgar(token: string, jobId: string) {
+    return apiFetch<{ status: string }>(`/api/admin/edgar/${jobId}/pause`, token, { method: "POST" });
+  },
+  async resumeEdgar(token: string, jobId: string) {
+    return apiFetch<{ status: string }>(`/api/admin/edgar/${jobId}/resume`, token, { method: "POST" });
+  },
+  async cancelEdgar(token: string, jobId: string) {
+    return apiFetch<{ status: string }>(`/api/admin/edgar/${jobId}/cancel`, token, { method: "POST" });
+  },
+  async getActiveEdgar(token: string) {
+    return apiFetch<any>("/api/admin/edgar/active", token);
+  },
+  async getEdgarStartups(token: string, jobId: string) {
+    return apiFetch<any>(`/api/admin/edgar/${jobId}/startups`, token);
+  },
+  async getEdgarFilings(token: string, jobId: string) {
+    return apiFetch<any>(`/api/admin/edgar/${jobId}/filings`, token);
+  },
+  async getEdgarLog(token: string, jobId: string, page?: number) {
+    const qs = page ? `?page=${page}` : "";
+    return apiFetch<any>(`/api/admin/edgar/${jobId}/log${qs}`, token);
+  },
 };
