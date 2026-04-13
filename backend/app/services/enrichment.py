@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.db.session import async_session
+from app.services.edgar_processor import should_overwrite
 from app.models.ai_review import StartupAIReview
 from app.models.dimension import StartupDimension
 from app.models.founder import StartupFounder
@@ -533,6 +534,8 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             startup.enrichment_error = None
             await db.commit()
 
+            data_sources = dict(startup.data_sources or {})
+
             # ----------------------------------------------------------
             # 2. Enrichment: call Perplexity for data research
             # ----------------------------------------------------------
@@ -542,46 +545,79 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                 description=startup.description,
             )
 
-            # Update scalar fields on startup
+            # Update scalar fields on startup (with provenance tracking)
             if enriched.get("website_url") and not startup.website_url:
                 startup.website_url = enriched["website_url"][:500]
+                data_sources["website_url"] = "perplexity"
             if enriched.get("tagline"):
-                startup.tagline = enriched["tagline"][:500]
+                if should_overwrite("tagline", "perplexity", data_sources):
+                    startup.tagline = enriched["tagline"][:500]
+                    data_sources["tagline"] = "perplexity"
             if enriched.get("description"):
-                startup.description = enriched["description"]
+                if should_overwrite("description", "perplexity", data_sources):
+                    startup.description = enriched["description"]
+                    data_sources["description"] = "perplexity"
             if enriched.get("founded_date"):
-                parsed_date = _parse_founded_date(enriched["founded_date"])
-                if parsed_date:
-                    startup.founded_date = parsed_date
+                if should_overwrite("founded_date", "perplexity", data_sources):
+                    parsed_date = _parse_founded_date(enriched["founded_date"])
+                    if parsed_date:
+                        startup.founded_date = parsed_date
+                        data_sources["founded_date"] = "perplexity"
             if enriched.get("total_funding"):
-                startup.total_funding = enriched["total_funding"][:100]
+                if should_overwrite("total_funding", "perplexity", data_sources):
+                    startup.total_funding = enriched["total_funding"][:100]
+                    data_sources["total_funding"] = "perplexity"
             if enriched.get("employee_count"):
-                startup.employee_count = enriched["employee_count"][:50]
+                if should_overwrite("employee_count", "perplexity", data_sources):
+                    startup.employee_count = enriched["employee_count"][:50]
+                    data_sources["employee_count"] = "perplexity"
             if enriched.get("linkedin_url"):
-                startup.linkedin_url = enriched["linkedin_url"][:500]
+                if should_overwrite("linkedin_url", "perplexity", data_sources):
+                    startup.linkedin_url = enriched["linkedin_url"][:500]
+                    data_sources["linkedin_url"] = "perplexity"
             if enriched.get("twitter_url"):
-                startup.twitter_url = enriched["twitter_url"][:500]
+                if should_overwrite("twitter_url", "perplexity", data_sources):
+                    startup.twitter_url = enriched["twitter_url"][:500]
+                    data_sources["twitter_url"] = "perplexity"
             if enriched.get("crunchbase_url"):
-                startup.crunchbase_url = enriched["crunchbase_url"][:500]
+                if should_overwrite("crunchbase_url", "perplexity", data_sources):
+                    startup.crunchbase_url = enriched["crunchbase_url"][:500]
+                    data_sources["crunchbase_url"] = "perplexity"
             if enriched.get("competitors"):
-                startup.competitors = enriched["competitors"]
+                if should_overwrite("competitors", "perplexity", data_sources):
+                    startup.competitors = enriched["competitors"]
+                    data_sources["competitors"] = "perplexity"
             if enriched.get("tech_stack"):
-                startup.tech_stack = enriched["tech_stack"]
+                if should_overwrite("tech_stack", "perplexity", data_sources):
+                    startup.tech_stack = enriched["tech_stack"]
+                    data_sources["tech_stack"] = "perplexity"
             if enriched.get("key_metrics"):
-                startup.key_metrics = enriched["key_metrics"]
+                if should_overwrite("key_metrics", "perplexity", data_sources):
+                    startup.key_metrics = enriched["key_metrics"]
+                    data_sources["key_metrics"] = "perplexity"
             if enriched.get("hiring_signals"):
-                startup.hiring_signals = enriched["hiring_signals"]
+                if should_overwrite("hiring_signals", "perplexity", data_sources):
+                    startup.hiring_signals = enriched["hiring_signals"]
+                    data_sources["hiring_signals"] = "perplexity"
             if enriched.get("patents"):
-                startup.patents = enriched["patents"]
+                if should_overwrite("patents", "perplexity", data_sources):
+                    startup.patents = enriched["patents"]
+                    data_sources["patents"] = "perplexity"
             if enriched.get("company_status"):
-                try:
-                    startup.company_status = CompanyStatus(enriched["company_status"].lower().strip())
-                except ValueError:
-                    pass
+                if should_overwrite("company_status", "perplexity", data_sources):
+                    try:
+                        startup.company_status = CompanyStatus(enriched["company_status"].lower().strip())
+                        data_sources["company_status"] = "perplexity"
+                    except ValueError:
+                        pass
             if enriched.get("revenue_estimate"):
-                startup.revenue_estimate = enriched["revenue_estimate"][:200]
+                if should_overwrite("revenue_estimate", "perplexity", data_sources):
+                    startup.revenue_estimate = enriched["revenue_estimate"][:200]
+                    data_sources["revenue_estimate"] = "perplexity"
             if enriched.get("business_model"):
-                startup.business_model = enriched["business_model"][:200]
+                if should_overwrite("business_model", "perplexity", data_sources):
+                    startup.business_model = enriched["business_model"][:200]
+                    data_sources["business_model"] = "perplexity"
 
             await db.flush()
 
@@ -740,6 +776,8 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                     )
                 )
             await db.flush()
+            if enriched.get("media"):
+                data_sources["media"] = "perplexity"
 
             # ----------------------------------------------------------
             # 6. Assign industries
@@ -767,11 +805,14 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                             )
                         )
                 await db.flush()
+                data_sources["industry"] = "perplexity"
 
             # ----------------------------------------------------------
             # 7. Fetch logo if needed
             # ----------------------------------------------------------
             await _fetch_logo_if_needed(startup, db)
+            if startup.logo_url and "logo.dev" in (startup.logo_url or ""):
+                data_sources["logo_url"] = "logo.dev"
 
             # ----------------------------------------------------------
             # 8. Ensure dimensions exist
@@ -876,8 +917,10 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             )
 
             # ----------------------------------------------------------
-            # 11. Mark enrichment complete
+            # 11. Save provenance and mark enrichment complete
             # ----------------------------------------------------------
+            data_sources["ai_score"] = "perplexity"
+            startup.data_sources = data_sources
             startup.enrichment_status = EnrichmentStatus.complete
             startup.enriched_at = datetime.now(timezone.utc)
             startup.enrichment_error = None
