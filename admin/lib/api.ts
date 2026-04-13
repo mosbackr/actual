@@ -214,11 +214,15 @@ export const adminApi = {
   },
 
   // EDGAR pipeline
-  async startEdgar(token: string, scanMode: string) {
+  async startEdgar(token: string, scanMode: string, discoverDays?: number) {
+    const body: Record<string, any> = { scan_mode: scanMode };
+    if (discoverDays !== undefined) {
+      body.discover_days = discoverDays;
+    }
     return apiFetch<{ job_id: string; status: string; total_steps: number }>(
       "/api/admin/edgar/start",
       token,
-      { method: "POST", body: JSON.stringify({ scan_mode: scanMode }) }
+      { method: "POST", body: JSON.stringify(body) }
     );
   },
   async pauseEdgar(token: string, jobId: string) {
