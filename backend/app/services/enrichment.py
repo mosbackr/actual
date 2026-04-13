@@ -627,29 +627,70 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             await db.flush()
 
             # ----------------------------------------------------------
-            # 4. Replace funding rounds
+            # 4. Replace funding rounds (merge for EDGAR-sourced startups)
             # ----------------------------------------------------------
-            await db.execute(
-                delete(StartupFundingRound).where(
-                    StartupFundingRound.startup_id == sid
+            if startup.sec_cik:
+                # EDGAR-sourced startup: keep EDGAR rounds, supplement with Perplexity
+                existing_rounds_result = await db.execute(
+                    select(StartupFundingRound)
+                    .where(StartupFundingRound.startup_id == sid)
                 )
-            )
-            for idx, fr in enumerate(enriched.get("funding_rounds") or []):
-                if not fr.get("round_name"):
-                    continue
-                db.add(
-                    StartupFundingRound(
-                        startup_id=sid,
-                        round_name=fr["round_name"][:100],
-                        amount=(fr.get("amount") or "")[:50] or None,
-                        date=(fr.get("date") or "")[:20] or None,
-                        lead_investor=(fr.get("lead_investor") or "")[:200] or None,
-                        other_investors=(fr.get("other_investors") or "")[:1000] or None,
-                        pre_money_valuation=(fr.get("pre_money_valuation") or "")[:50] or None,
-                        post_money_valuation=(fr.get("post_money_valuation") or "")[:50] or None,
-                        sort_order=idx,
+                existing_rounds = existing_rounds_result.scalars().all()
+                existing_names = {r.round_name.lower() for r in existing_rounds if r.round_name}
+                max_order = max((r.sort_order for r in existing_rounds), default=-1)
+                for fr in enriched.get("funding_rounds") or []:
+                    if not fr.get("round_name"):
+                        continue
+                    if fr["round_name"].lower() in existing_names:
+                        # Update investor info on existing EDGAR round if missing
+                        for er in existing_rounds:
+                            if er.round_name and er.round_name.lower() == fr["round_name"].lower():
+                                if not er.lead_investor and fr.get("lead_investor"):
+                                    er.lead_investor = fr["lead_investor"][:200]
+                                if not er.other_investors and fr.get("other_investors"):
+                                    er.other_investors = fr["other_investors"][:1000]
+                                if not er.round_name or er.round_name.startswith("Form D"):
+                                    er.round_name = fr["round_name"][:100]
+                                break
+                        continue
+                    max_order += 1
+                    db.add(
+                        StartupFundingRound(
+                            startup_id=sid,
+                            round_name=fr["round_name"][:100],
+                            amount=(fr.get("amount") or "")[:50] or None,
+                            date=(fr.get("date") or "")[:20] or None,
+                            lead_investor=(fr.get("lead_investor") or "")[:200] or None,
+                            other_investors=(fr.get("other_investors") or "")[:1000] or None,
+                            pre_money_valuation=(fr.get("pre_money_valuation") or "")[:50] or None,
+                            post_money_valuation=(fr.get("post_money_valuation") or "")[:50] or None,
+                            sort_order=max_order,
+                            data_source="perplexity",
+                        )
+                    )
+            else:
+                # Non-EDGAR startup: replace all rounds with Perplexity data
+                await db.execute(
+                    delete(StartupFundingRound).where(
+                        StartupFundingRound.startup_id == sid
                     )
                 )
+                for idx, fr in enumerate(enriched.get("funding_rounds") or []):
+                    if not fr.get("round_name"):
+                        continue
+                    db.add(
+                        StartupFundingRound(
+                            startup_id=sid,
+                            round_name=fr["round_name"][:100],
+                            amount=(fr.get("amount") or "")[:50] or None,
+                            date=(fr.get("date") or "")[:20] or None,
+                            lead_investor=(fr.get("lead_investor") or "")[:200] or None,
+                            other_investors=(fr.get("other_investors") or "")[:1000] or None,
+                            pre_money_valuation=(fr.get("pre_money_valuation") or "")[:50] or None,
+                            post_money_valuation=(fr.get("post_money_valuation") or "")[:50] or None,
+                            sort_order=idx,
+                        )
+                    )
             await db.flush()
 
             # ----------------------------------------------------------
