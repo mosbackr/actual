@@ -24,6 +24,7 @@ router = APIRouter()
 
 class EdgarStartRequest(BaseModel):
     scan_mode: str = "full"
+    discover_days: int = 365
 
 
 @router.post("/api/admin/edgar/start")
@@ -51,55 +52,79 @@ async def start_edgar_scan(
 
     sort_order = 0
 
-    cik_query = (
-        select(Startup.id, Startup.name)
-        .where(Startup.location_country == "US")
-        .where(Startup.sec_cik.is_(None))
-    )
-    if body.scan_mode == "new_only":
-        cik_query = cik_query.where(Startup.edgar_last_scanned_at.is_(None))
-
-    cik_result = await db.execute(cik_query)
-    for startup_id, startup_name in cik_result.all():
+    if body.scan_mode == "discover":
+        # Discovery mode: generate a single discover_filings step
+        job.current_phase = EdgarJobPhase.discovering
         step = EdgarJobStep(
             job_id=job.id,
-            step_type=EdgarStepType.resolve_cik,
-            params={"startup_id": str(startup_id), "startup_name": startup_name},
-            sort_order=sort_order,
+            step_type=EdgarStepType.discover_filings,
+            params={"discover_days": body.discover_days},
+            sort_order=0,
         )
         db.add(step)
-        sort_order += 1
+        sort_order = 1
 
-    fetch_query = (
-        select(Startup.id, Startup.name, Startup.sec_cik)
-        .where(Startup.sec_cik.is_not(None))
-    )
-    fetch_result = await db.execute(fetch_query)
-    for startup_id, startup_name, sec_cik in fetch_result.all():
-        step = EdgarJobStep(
-            job_id=job.id,
-            step_type=EdgarStepType.fetch_filings,
-            params={
-                "startup_id": str(startup_id),
-                "startup_name": startup_name,
-                "cik": sec_cik,
-            },
-            sort_order=sort_order,
+        job.progress_summary = {
+            "filings_discovered": 0,
+            "companies_extracted": 0,
+            "extract_total": 0,
+            "duplicates_skipped": 0,
+            "startups_created": 0,
+            "enrichments_completed": 0,
+            "enrichments_failed": 0,
+            "enrich_total": 0,
+        }
+    else:
+        # Existing scan mode logic (resolve_cik + fetch_filings)
+        cik_query = (
+            select(Startup.id, Startup.name)
+            .where(Startup.location_country == "US")
+            .where(Startup.sec_cik.is_(None))
         )
-        db.add(step)
-        sort_order += 1
+        if body.scan_mode == "new_only":
+            cik_query = cik_query.where(Startup.edgar_last_scanned_at.is_(None))
 
-    job.progress_summary = {
-        "startups_total": sort_order,
-        "startups_scanned": 0,
-        "ciks_matched": 0,
-        "filings_found": 0,
-        "filings_total": 0,
-        "filings_processed": 0,
-        "rounds_updated": 0,
-        "rounds_created": 0,
-        "valuations_added": 0,
-    }
+        cik_result = await db.execute(cik_query)
+        for startup_id, startup_name in cik_result.all():
+            step = EdgarJobStep(
+                job_id=job.id,
+                step_type=EdgarStepType.resolve_cik,
+                params={"startup_id": str(startup_id), "startup_name": startup_name},
+                sort_order=sort_order,
+            )
+            db.add(step)
+            sort_order += 1
+
+        fetch_query = (
+            select(Startup.id, Startup.name, Startup.sec_cik)
+            .where(Startup.sec_cik.is_not(None))
+        )
+        fetch_result = await db.execute(fetch_query)
+        for startup_id, startup_name, sec_cik in fetch_result.all():
+            step = EdgarJobStep(
+                job_id=job.id,
+                step_type=EdgarStepType.fetch_filings,
+                params={
+                    "startup_id": str(startup_id),
+                    "startup_name": startup_name,
+                    "cik": sec_cik,
+                },
+                sort_order=sort_order,
+            )
+            db.add(step)
+            sort_order += 1
+
+        job.progress_summary = {
+            "startups_total": sort_order,
+            "startups_scanned": 0,
+            "ciks_matched": 0,
+            "filings_found": 0,
+            "filings_total": 0,
+            "filings_processed": 0,
+            "rounds_updated": 0,
+            "rounds_created": 0,
+            "valuations_added": 0,
+        }
 
     await db.commit()
     background_tasks.add_task(run_edgar_worker, str(job.id))
@@ -346,6 +371,62 @@ async def get_edgar_log(
                 msg = f"Processing {ftype} for {name}..."
             else:
                 msg = f"Failed to process {ftype} for {name}: {s.error or 'unknown'}"
+        elif s.step_type == EdgarStepType.discover_filings:
+            if s.status == EdgarStepStatus.completed:
+                created = r.get("extract_steps_created", 0)
+                date_range = r.get("date_range", "")
+                msg = f"Discovered {created} Form D filings ({date_range})"
+            elif s.status == EdgarStepStatus.running:
+                msg = "Searching EDGAR for Form D filings..."
+            else:
+                msg = f"Discovery search failed: {s.error or 'unknown'}"
+
+        elif s.step_type == EdgarStepType.extract_company:
+            entity = p.get("entity_name", "") or r.get("issuer_name", "")
+            if s.status == EdgarStepStatus.completed:
+                action = r.get("action", "")
+                if action == "new_company":
+                    amount = r.get("amount", 0)
+                    msg = f"New: {entity}"
+                    if amount:
+                        msg += f" (${amount:,.0f})" if isinstance(amount, (int, float)) else f" ({amount})"
+                elif action == "duplicate":
+                    existing = r.get("existing_startup", "")
+                    msg = f"Duplicate: {entity} → {existing}"
+                else:
+                    reason = r.get("reason", "filtered")
+                    msg = f"Skipped: {entity} ({reason})"
+            elif s.status == EdgarStepStatus.running:
+                msg = f"Extracting: {entity}..."
+            else:
+                msg = f"Extract failed for {entity}: {s.error or 'unknown'}"
+
+        elif s.step_type == EdgarStepType.add_startup:
+            name = p.get("issuer_name", "") or r.get("startup_name", "")
+            if s.status == EdgarStepStatus.completed:
+                stage = r.get("stage", "")
+                amount = r.get("amount", "")
+                msg = f"Created: {name} ({stage})"
+                if amount:
+                    msg += f" — {amount}"
+            elif s.status == EdgarStepStatus.running:
+                msg = f"Creating startup: {name}..."
+            else:
+                msg = f"Failed to create {name}: {s.error or 'unknown'}"
+
+        elif s.step_type == EdgarStepType.enrich_startup:
+            name = p.get("startup_name", "")
+            if s.status == EdgarStepStatus.completed:
+                action = r.get("action", "")
+                if action == "enriched":
+                    msg = f"Enriched: {name}"
+                else:
+                    msg = f"Enrichment failed: {name} — {r.get('error', '')}"
+            elif s.status == EdgarStepStatus.running:
+                msg = f"Enriching: {name}..."
+            else:
+                msg = f"Enrichment failed for {name}: {s.error or 'unknown'}"
+
         else:
             msg = f"Step {s.step_type.value}: {s.status.value}"
 
