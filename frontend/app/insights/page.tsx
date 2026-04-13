@@ -43,7 +43,7 @@ export default function InsightsPage() {
   const [filters, setFilters] = useState<FilterState>(() =>
     parseFiltersFromParams(searchParams)
   );
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const isFiltered =
     filters.stages.length > 0 ||
