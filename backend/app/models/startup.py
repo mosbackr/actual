@@ -34,6 +34,13 @@ class CompanyStatus(str, enum.Enum):
     unknown = "unknown"
 
 
+class EntityType(str, enum.Enum):
+    startup = "startup"
+    fund = "fund"
+    vehicle = "vehicle"
+    unknown = "unknown"
+
+
 class EnrichmentStatus(str, enum.Enum):
     none = "none"
     running = "running"
@@ -94,6 +101,9 @@ class Startup(Base):
         Enum(EnrichmentStatus), nullable=False, default=EnrichmentStatus.none, server_default="none"
     )
     enrichment_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    entity_type: Mapped[EntityType] = mapped_column(
+        Enum(EntityType), nullable=False, default=EntityType.unknown, server_default="unknown"
+    )
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sec_cik: Mapped[str | None] = mapped_column(String(20), nullable=True)
     edgar_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

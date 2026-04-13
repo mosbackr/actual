@@ -927,14 +927,25 @@ async def _execute_extract_company(
 # ---------------------------------------------------------------------------
 
 
-async def _is_real_startup(issuer_name: str, sic_code: str, sic_description: str) -> bool:
-    """Quick heuristic check: skip obvious non-startups (funds, trusts, SPACs).
+async def _is_real_startup(name: str) -> bool:
+    """Use Perplexity to check if an entity name is an actual startup/operating company."""
+    from app.services.enrichment import _call_perplexity
 
-    For Form D and Form 1-A where we can't assume every filer is an operating company.
-    """
-    if ENTITY_EXCLUDE_PATTERNS.search(issuer_name):
-        return False
-    return True
+    prompt = (
+        f"Is \"{name}\" the name of an operating startup or technology company that builds products or services? "
+        f"Or is it an investment fund, SPV, holding company, real estate entity, LP, venture fund, or financial vehicle?\n\n"
+        f"Reply with ONLY one word: STARTUP or FUND"
+    )
+
+    try:
+        raw = await _call_perplexity(
+            [{"role": "user", "content": prompt}],
+            timeout=30,
+        )
+        return "STARTUP" in raw.upper().split()[0] if raw.strip() else False
+    except Exception as e:
+        logger.warning(f"Startup classification failed for {name}: {e}")
+        return True  # On failure, assume startup so we don't lose real ones
 
 
 async def _execute_add_startup(
@@ -943,7 +954,7 @@ async def _execute_add_startup(
     """Execute add_startup step: create Startup + FundingRound with provenance, generate enrich step."""
     from app.models.founder import StartupFounder
     from app.models.funding_round import StartupFundingRound
-    from app.models.startup import StartupStage, StartupStatus
+    from app.models.startup import EntityType, StartupStage, StartupStatus
     from app.services.edgar_processor import _format_amount
 
     issuer_name = step.params["issuer_name"]
@@ -962,16 +973,13 @@ async def _execute_add_startup(
     form_label = FORM_LABELS.get(form_type, form_type)
 
     # Classification: S-1, 10-K, Form C -> always real startup (skip check)
-    # Form D, 1-A -> heuristic check
+    # Form D, 1-A -> Perplexity check
     if form_type in ("D", "1-A"):
-        if not await _is_real_startup(issuer_name, sic_code, sic_description):
-            step.result = {
-                "action": "skipped",
-                "reason": "Entity name matched exclusion pattern",
-                "issuer_name": issuer_name,
-                "form_type": form_type,
-            }
-            return
+        is_startup = await _is_real_startup(issuer_name)
+    else:
+        is_startup = True  # S-1, 10-K, Form C are virtually all startups
+
+    entity_type = EntityType.startup if is_startup else EntityType.fund
 
     # Stage: 10-K filers are public companies
     if form_type == "10-K":
@@ -1000,6 +1008,8 @@ async def _execute_add_startup(
         location_country="US",
         sec_cik=cik,
         form_sources=[source_key],
+        entity_type=entity_type,
+        enrichment_status="complete" if not is_startup else "none",
     )
     db.add(startup)
     await db.flush()
@@ -1096,21 +1106,22 @@ async def _execute_add_startup(
         "stage": stage_str,
         "amount": _format_amount(amount) if amount else None,
         "form_type": form_type,
+        "entity_type": entity_type.value,
     }
 
-    # Only generate enrich_startup step for actual startups
-    # S-1, 10-K, Form C, Form D, 1-A all get enrichment
-    next_order = await _get_next_sort_order(db, job.id)
-    enrich_step = EdgarJobStep(
-        job_id=job.id,
-        step_type=EdgarStepType.enrich_startup,
-        params={
-            "startup_id": str(startup.id),
-            "startup_name": issuer_name,
-        },
-        sort_order=next_order,
-    )
-    db.add(enrich_step)
+    # Only enrich actual startups — skip funds to save Perplexity credits
+    if is_startup:
+        next_order = await _get_next_sort_order(db, job.id)
+        enrich_step = EdgarJobStep(
+            job_id=job.id,
+            step_type=EdgarStepType.enrich_startup,
+            params={
+                "startup_id": str(startup.id),
+                "startup_name": issuer_name,
+            },
+            sort_order=next_order,
+        )
+        db.add(enrich_step)
 
     logger.info(
         f"Discovery ({form_label}): created startup {issuer_name} "
