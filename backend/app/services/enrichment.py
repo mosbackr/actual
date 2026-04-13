@@ -76,9 +76,25 @@ SaaS, E-commerce, Logistics, AI/ML, Cybersecurity, BioTech, PropTech, InsurTech,
 AgTech, SpaceTech, Robotics, Gaming, Media, Enterprise Software, Consumer Apps, Climate. \
 Pick 1-3 that best fit.
 
-IMPORTANT: For funding_rounds, list ALL known investors per round (not just the lead). \
-Include valuations when publicly reported. For founders and management_team, include \
-prior work experience and education when available.
+IMPORTANT: For funding_rounds, list ALL known investors per round (not just the lead).
+
+CRITICAL — VALUATIONS: For EVERY funding round, you MUST provide pre_money_valuation and \
+post_money_valuation. Use these methods in order:
+1. Use the reported valuation if publicly available (SEC filings, press, Crunchbase).
+2. If only pre-money is known, calculate post-money = pre-money + round amount.
+3. If only post-money is known, calculate pre-money = post-money - round amount.
+4. If neither is reported, ESTIMATE using standard dilution ranges for the stage:
+   - Pre-seed/Angel: 15-25% dilution (e.g., $1M raise → ~$3-5M pre-money)
+   - Seed: 15-25% dilution (e.g., $3M raise → ~$9-17M pre-money)
+   - Series A: 15-25% dilution (e.g., $10M raise → ~$30-57M pre-money)
+   - Series B: 15-20% dilution (e.g., $30M raise → ~$120-170M pre-money)
+   - Series C+: 10-15% dilution
+   - Use the midpoint of the range and prefix with "~" to indicate estimate.
+5. Only use null if you truly cannot even estimate (e.g., unknown round size).
+Mark estimated valuations with "~" prefix (e.g., "~$40M"). Never leave both null when \
+the round amount is known — you can always estimate from dilution.
+
+For founders and management_team, include prior work experience and education when available.
 
 Return ONLY valid JSON. No markdown, no extra commentary.\
 """
