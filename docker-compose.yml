@@ -22,7 +22,7 @@ services:
     environment:
       ACUTAL_DATABASE_URL: postgresql+asyncpg://acutal:acutal@db:5432/acutal
       ACUTAL_JWT_SECRET: dev-secret-change-in-production
-      ACUTAL_LOGO_DEV_TOKEN: ${LOGO_DEV_TOKEN:-}
+      ACUTAL_LOGO_DEV_TOKEN: ${ACUTAL_LOGO_DEV_TOKEN:-}
       ACUTAL_PERPLEXITY_API_KEY: ${ACUTAL_PERPLEXITY_API_KEY:-}
     depends_on:
       db:

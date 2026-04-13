@@ -436,12 +436,27 @@ STEP_EXECUTORS = {
 
 
 async def _claim_next_step(db: AsyncSession, job_id: str) -> BatchJobStep | None:
-    """Atomically claim the next pending step using FOR UPDATE SKIP LOCKED."""
+    """Atomically claim the next pending step using FOR UPDATE SKIP LOCKED.
+
+    Prioritizes downstream pipeline stages (enrich > add_to_triage > find_startups > discover)
+    so the pipeline flows through instead of completing one stage before starting the next.
+    """
+    from sqlalchemy import case
+
+    # Lower number = higher priority
+    stage_priority = case(
+        (BatchJobStep.step_type == BatchStepType.enrich, 0),
+        (BatchJobStep.step_type == BatchStepType.add_to_triage, 1),
+        (BatchJobStep.step_type == BatchStepType.find_startups, 2),
+        (BatchJobStep.step_type == BatchStepType.discover_investors, 3),
+        else_=4,
+    )
+
     result = await db.execute(
         select(BatchJobStep)
         .where(BatchJobStep.job_id == job_id)
         .where(BatchJobStep.status == BatchStepStatus.pending)
-        .order_by(BatchJobStep.sort_order)
+        .order_by(stage_priority, BatchJobStep.sort_order)
         .limit(1)
         .with_for_update(skip_locked=True)
     )
