@@ -1,11 +1,11 @@
-"""Batch worker: processes batch job steps sequentially with rate limiting."""
+"""Batch worker: processes batch job steps concurrently with rate limiting."""
 import asyncio
 import json
 import logging
 import re
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session
@@ -31,6 +31,9 @@ from app.services.scout import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Number of concurrent workers
+CONCURRENCY = 3
 
 # Delays in seconds after each step type
 STEP_DELAYS = {
@@ -432,54 +435,63 @@ STEP_EXECUTORS = {
 }
 
 
-async def run_batch_worker(job_id: str) -> None:
-    """Main worker loop. Processes batch job steps sequentially with rate limiting.
+async def _claim_next_step(db: AsyncSession, job_id: str) -> BatchJobStep | None:
+    """Atomically claim the next pending step using FOR UPDATE SKIP LOCKED."""
+    result = await db.execute(
+        select(BatchJobStep)
+        .where(BatchJobStep.job_id == job_id)
+        .where(BatchJobStep.status == BatchStepStatus.pending)
+        .order_by(BatchJobStep.sort_order)
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    step = result.scalar_one_or_none()
+    if step is not None:
+        step.status = BatchStepStatus.running
+        await db.commit()
+    return step
 
-    This runs as a background task, creating its own DB sessions.
-    """
+
+async def _worker_loop(job_id: str, worker_id: int, failure_event: asyncio.Event) -> None:
+    """Single worker coroutine that claims and processes steps."""
     consecutive_failures = 0
 
-    while True:
+    while not failure_event.is_set():
         async with async_session() as db:
-            # 1. Check job status
+            # Check job status
             job_result = await db.execute(
                 select(BatchJob).where(BatchJob.id == job_id)
             )
             job = job_result.scalar_one_or_none()
             if job is None:
-                logger.error(f"Batch job {job_id} not found, exiting worker")
+                logger.error(f"[worker-{worker_id}] Batch job {job_id} not found, exiting")
                 return
 
             if job.status in (BatchJobStatus.paused, BatchJobStatus.cancelled):
-                logger.info(f"Batch job {job_id} is {job.status.value}, exiting worker")
+                logger.info(f"[worker-{worker_id}] Batch job {job_id} is {job.status.value}, exiting")
                 return
 
-            # 2. Get next pending step
-            step_result = await db.execute(
-                select(BatchJobStep)
-                .where(BatchJobStep.job_id == job.id)
-                .where(BatchJobStep.status == BatchStepStatus.pending)
-                .order_by(BatchJobStep.sort_order)
-                .limit(1)
-            )
-            step = step_result.scalar_one_or_none()
+            # Claim next step atomically
+            step = await _claim_next_step(db, job_id)
 
             if step is None:
-                # No more steps — job is complete
-                job.status = BatchJobStatus.completed
-                job.current_phase = BatchJobPhase.complete
-                job.completed_at = datetime.now(timezone.utc)
-                job.updated_at = datetime.now(timezone.utc)
-                await _update_progress(db, job)
-                await db.commit()
-                logger.info(f"Batch job {job_id} completed")
-                return
+                # No steps available — either all done or other workers have them
+                # Check if there are any running steps (other workers still going)
+                running_result = await db.execute(
+                    select(func.count())
+                    .select_from(BatchJobStep)
+                    .where(BatchJobStep.job_id == job_id)
+                    .where(BatchJobStep.status == BatchStepStatus.running)
+                )
+                running_count = running_result.scalar() or 0
+                if running_count == 0:
+                    # Nothing pending, nothing running — we're done
+                    return
+                # Other workers still going, wait and check for new steps they generate
+                await asyncio.sleep(2)
+                continue
 
-            # 3. Mark step as running
-            step.status = BatchStepStatus.running
-            await db.commit()
-
-            # 4. Execute step
+            # Execute step
             step_type = step.step_type
             executor = STEP_EXECUTORS.get(step_type)
             if executor is None:
@@ -495,25 +507,58 @@ async def run_batch_worker(job_id: str) -> None:
                 step.completed_at = datetime.now(timezone.utc)
                 consecutive_failures = 0
             except Exception as e:
-                logger.exception(f"Step {step.id} failed: {e}")
+                logger.exception(f"[worker-{worker_id}] Step {step.id} failed: {e}")
                 step.status = BatchStepStatus.failed
                 step.error = str(e)[:500]
                 step.completed_at = datetime.now(timezone.utc)
                 consecutive_failures += 1
 
-            # 5. Update progress
+            # Update progress
             await _update_progress(db, job)
             await db.commit()
 
-            # 6. Check consecutive failures
+            # Check consecutive failures
             if consecutive_failures >= 3:
+                failure_event.set()
                 job.status = BatchJobStatus.paused
-                job.error = "Paused after 3 consecutive failures — check API key/limits"
+                job.error = f"Worker {worker_id} paused job after 3 consecutive failures — check API key/limits"
                 job.updated_at = datetime.now(timezone.utc)
                 await db.commit()
-                logger.warning(f"Batch job {job_id} paused after 3 consecutive failures")
+                logger.warning(f"[worker-{worker_id}] Paused job {job_id} after 3 consecutive failures")
                 return
 
-        # 7. Rate limiting delay
+        # Rate limiting delay
         delay = STEP_DELAYS.get(step_type, 5)
         await asyncio.sleep(delay)
+
+
+async def run_batch_worker(job_id: str) -> None:
+    """Main entry point. Spawns concurrent workers that claim steps from the queue.
+
+    This runs as a background task, creating its own DB sessions.
+    """
+    failure_event = asyncio.Event()
+
+    # Spawn N concurrent workers
+    workers = [
+        asyncio.create_task(_worker_loop(job_id, i, failure_event))
+        for i in range(CONCURRENCY)
+    ]
+
+    # Wait for all workers to finish
+    await asyncio.gather(*workers)
+
+    # Mark job complete if it wasn't paused/cancelled
+    async with async_session() as db:
+        job_result = await db.execute(
+            select(BatchJob).where(BatchJob.id == job_id)
+        )
+        job = job_result.scalar_one_or_none()
+        if job and job.status == BatchJobStatus.running:
+            job.status = BatchJobStatus.completed
+            job.current_phase = BatchJobPhase.complete
+            job.completed_at = datetime.now(timezone.utc)
+            job.updated_at = datetime.now(timezone.utc)
+            await _update_progress(db, job)
+            await db.commit()
+            logger.info(f"Batch job {job_id} completed")
