@@ -127,24 +127,6 @@ export interface Review {
   created_at: string;
 }
 
-export interface RegionMetrics {
-  region: string;
-  count: number;
-  avg_ai_score: number | null;
-  avg_expert_score: number | null;
-  avg_user_score: number | null;
-}
-
-export interface RegionalInsights {
-  countries: RegionMetrics[];
-  us_states: RegionMetrics[];
-  sitewide: {
-    count: number;
-    avg_ai_score: number | null;
-    avg_expert_score: number | null;
-    avg_user_score: number | null;
-  };
-}
 
 export interface ExpertApplication {
   id: string;

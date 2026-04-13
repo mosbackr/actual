@@ -83,8 +83,8 @@ export const api = {
       body: JSON.stringify({ vote_type: voteType }),
     }),
 
-  getRegionalInsights: (params?: URLSearchParams) =>
-    apiFetch<import("./types").RegionalInsights>(
-      `/api/insights/regional${params ? `?${params}` : ""}`
+  getInsights: (params?: URLSearchParams) =>
+    apiFetch<import("./insights-types").InsightsResponse>(
+      `/api/insights${params ? `?${params}` : ""}`
     ),
 };
