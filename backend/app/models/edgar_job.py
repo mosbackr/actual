@@ -23,12 +23,20 @@ class EdgarJobPhase(str, enum.Enum):
     fetching_filings = "fetching_filings"
     processing_filings = "processing_filings"
     complete = "complete"
+    discovering = "discovering"
+    extracting = "extracting"
+    adding = "adding"
+    enriching = "enriching"
 
 
 class EdgarStepType(str, enum.Enum):
     resolve_cik = "resolve_cik"
     fetch_filings = "fetch_filings"
     process_filing = "process_filing"
+    discover_filings = "discover_filings"
+    extract_company = "extract_company"
+    add_startup = "add_startup"
+    enrich_startup = "enrich_startup"
 
 
 class EdgarStepStatus(str, enum.Enum):
