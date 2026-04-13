@@ -41,6 +41,7 @@ IMPORTANT: You MUST include a JSON block in your response with structured startu
 
 Rules:
 - stage must be one of: pre_seed, seed, series_a, series_b, series_c, growth
+- Use "growth" for any publicly traded, post-IPO, or mature company. Do NOT invent new stage values.
 - CRITICAL: For EVERY company, you MUST research and include: website_url, founders (full names), \
 funding_raised (total amount), location_city, location_state, key_investors, and founded_year. \
 Search each company individually if needed. Empty fields are not acceptable when the information \
@@ -170,10 +171,17 @@ async def add_startups_to_triage(
         if slug_check.scalar_one_or_none() is not None:
             slug = f"{slug}-{uuid.uuid4().hex[:6]}"
 
-        stage = candidate.stage
+        stage = candidate.stage.lower().strip()
         valid_stages = [s.value for s in StartupStage]
         if stage not in valid_stages:
-            stage = "seed"
+            # Map common AI-generated stage names to valid values
+            stage_map = {
+                "public": "growth", "post_ipo": "growth", "ipo": "growth",
+                "late": "growth", "late_stage": "growth", "mature": "growth",
+                "pre-seed": "pre_seed", "preseed": "pre_seed",
+                "series_d": "growth", "series_e": "growth", "series_f": "growth",
+            }
+            stage = stage_map.get(stage, "seed")
 
         startup = Startup(
             name=candidate.name,

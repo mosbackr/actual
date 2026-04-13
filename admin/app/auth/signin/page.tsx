@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogoIcon } from "@/components/LogoIcon";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -39,6 +40,9 @@ export default function SignInPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
+          <div className="flex justify-center mb-4">
+            <LogoIcon size={48} />
+          </div>
           <h1 className="font-serif text-3xl text-text-primary">Deep Thesis Admin</h1>
           <p className="text-text-secondary mt-2 text-sm">
             Sign in to access the admin panel

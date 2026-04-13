@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import { LogoIcon } from "@/components/LogoIcon";
 
 function SignInContent() {
   const router = useRouter();
@@ -43,6 +44,9 @@ function SignInContent() {
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
+          <div className="flex justify-center mb-4">
+            <LogoIcon size={48} />
+          </div>
           <h1 className="font-serif text-3xl text-text-primary">Deep Thesis</h1>
           <p className="text-text-secondary mt-2 text-sm">
             Sign in to your account

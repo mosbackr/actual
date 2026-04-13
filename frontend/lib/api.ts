@@ -82,4 +82,9 @@ export const api = {
       headers: authHeaders(token),
       body: JSON.stringify({ vote_type: voteType }),
     }),
+
+  getRegionalInsights: (params?: URLSearchParams) =>
+    apiFetch<import("./types").RegionalInsights>(
+      `/api/insights/regional${params ? `?${params}` : ""}`
+    ),
 };

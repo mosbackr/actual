@@ -33,7 +33,7 @@ from app.services.scout import (
 logger = logging.getLogger(__name__)
 
 # Number of concurrent workers
-CONCURRENCY = 3
+CONCURRENCY = 6
 
 # Delays in seconds after each step type
 STEP_DELAYS = {
@@ -435,28 +435,35 @@ STEP_EXECUTORS = {
 }
 
 
-async def _claim_next_step(db: AsyncSession, job_id: str) -> BatchJobStep | None:
+async def _claim_next_step(db: AsyncSession, job_id: str, preferred_type: BatchStepType | None = None) -> BatchJobStep | None:
     """Atomically claim the next pending step using FOR UPDATE SKIP LOCKED.
 
-    Prioritizes downstream pipeline stages (enrich > add_to_triage > find_startups > discover)
-    so the pipeline flows through instead of completing one stage before starting the next.
+    Each worker has a preferred step type to keep the pipeline flowing.
+    Falls back to any pending step if none of the preferred type are available.
     """
-    from sqlalchemy import case
+    # Try preferred type first
+    if preferred_type is not None:
+        result = await db.execute(
+            select(BatchJobStep)
+            .where(BatchJobStep.job_id == job_id)
+            .where(BatchJobStep.status == BatchStepStatus.pending)
+            .where(BatchJobStep.step_type == preferred_type)
+            .order_by(BatchJobStep.sort_order)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        step = result.scalar_one_or_none()
+        if step is not None:
+            step.status = BatchStepStatus.running
+            await db.commit()
+            return step
 
-    # Lower number = higher priority
-    stage_priority = case(
-        (BatchJobStep.step_type == BatchStepType.enrich, 0),
-        (BatchJobStep.step_type == BatchStepType.add_to_triage, 1),
-        (BatchJobStep.step_type == BatchStepType.find_startups, 2),
-        (BatchJobStep.step_type == BatchStepType.discover_investors, 3),
-        else_=4,
-    )
-
+    # Fallback: grab any pending step
     result = await db.execute(
         select(BatchJobStep)
         .where(BatchJobStep.job_id == job_id)
         .where(BatchJobStep.status == BatchStepStatus.pending)
-        .order_by(stage_priority, BatchJobStep.sort_order)
+        .order_by(BatchJobStep.sort_order)
         .limit(1)
         .with_for_update(skip_locked=True)
     )
@@ -465,6 +472,17 @@ async def _claim_next_step(db: AsyncSession, job_id: str) -> BatchJobStep | None
         step.status = BatchStepStatus.running
         await db.commit()
     return step
+
+
+# 2 workers per pipeline stage
+WORKER_PREFERENCES = {
+    0: BatchStepType.find_startups,
+    1: BatchStepType.find_startups,
+    2: BatchStepType.add_to_triage,
+    3: BatchStepType.add_to_triage,
+    4: BatchStepType.enrich,
+    5: BatchStepType.enrich,
+}
 
 
 async def _worker_loop(job_id: str, worker_id: int, failure_event: asyncio.Event) -> None:
@@ -486,8 +504,9 @@ async def _worker_loop(job_id: str, worker_id: int, failure_event: asyncio.Event
                 logger.info(f"[worker-{worker_id}] Batch job {job_id} is {job.status.value}, exiting")
                 return
 
-            # Claim next step atomically
-            step = await _claim_next_step(db, job_id)
+            # Claim next step atomically (each worker prefers a pipeline stage)
+            preferred = WORKER_PREFERENCES.get(worker_id)
+            step = await _claim_next_step(db, job_id, preferred)
 
             if step is None:
                 # No steps available — either all done or other workers have them

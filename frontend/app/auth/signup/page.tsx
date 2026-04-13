@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { LogoIcon } from "@/components/LogoIcon";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -125,6 +126,9 @@ export default function SignUpPage() {
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
+          <div className="flex justify-center mb-4">
+            <LogoIcon size={48} />
+          </div>
           <h1 className="font-serif text-3xl text-text-primary">Deep Thesis</h1>
           <p className="text-text-secondary mt-2 text-sm">
             Create your account

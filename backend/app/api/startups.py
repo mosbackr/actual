@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +12,9 @@ from app.models.funding_round import StartupFundingRound
 from app.models.industry import Industry
 from app.models.media import StartupMedia
 from app.models.score import StartupScoreHistory
+from app.models.dimension import StartupDimension
 from app.models.startup import Startup, StartupStatus, startup_industries
+from app.models.template import DueDiligenceTemplate, TemplateDimension
 
 router = APIRouter()
 
@@ -19,12 +23,12 @@ router = APIRouter()
 async def list_startups(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
-    stage: str | None = None,
-    industry: str | None = None,
-    region: str | None = None,
-    investor: str | None = None,
+    stage: List[str] = Query(default=[]),
+    industry: List[str] = Query(default=[]),
+    region: List[str] = Query(default=[]),
+    investor: List[str] = Query(default=[]),
     q: str | None = None,
-    sort: str = "newest",
+    sort: str = "ai_score",
     db: AsyncSession = Depends(get_db),
 ):
     query = (
@@ -34,22 +38,30 @@ async def list_startups(
     )
 
     if stage:
-        query = query.where(Startup.stage == stage)
+        query = query.where(Startup.stage.in_(stage))
 
     if industry:
-        query = query.join(startup_industries).join(Industry).where(Industry.slug == industry)
+        industry_subq = (
+            select(startup_industries.c.startup_id)
+            .join(Industry, startup_industries.c.industry_id == Industry.id)
+            .where(Industry.slug.in_(industry))
+            .distinct()
+        )
+        query = query.where(Startup.id.in_(industry_subq))
 
     if region:
-        query = query.where(Startup.location_state == region)
+        query = query.where(Startup.location_state.in_(region))
 
     if investor:
-        investor_pattern = f"%{investor}%"
+        from sqlalchemy import or_
+        investor_conditions = []
+        for inv in investor:
+            pattern = f"%{inv}%"
+            investor_conditions.append(StartupFundingRound.lead_investor.ilike(pattern))
+            investor_conditions.append(StartupFundingRound.other_investors.ilike(pattern))
         query = query.where(
             Startup.id.in_(
-                select(StartupFundingRound.startup_id).where(
-                    StartupFundingRound.lead_investor.ilike(investor_pattern)
-                    | StartupFundingRound.other_investors.ilike(investor_pattern)
-                )
+                select(StartupFundingRound.startup_id).where(or_(*investor_conditions)).distinct()
             )
         )
 
@@ -156,6 +168,66 @@ async def get_startup(slug: str, db: AsyncSession = Depends(get_db)):
     )
     ai_review = review_result.scalar_one_or_none()
 
+    # Fetch dimensions (from template-based scoring)
+    dims_result = await db.execute(
+        select(StartupDimension)
+        .where(StartupDimension.startup_id == startup.id)
+        .order_by(StartupDimension.sort_order)
+    )
+    dimensions = dims_result.scalars().all()
+
+    # If no dimensions assigned, fall back to matching template dimensions
+    template_dims = []
+    if not dimensions:
+        industry_slug = startup.industries[0].slug if startup.industries else None
+        stage_value = startup.stage.value if startup.stage else None
+        template = None
+
+        # 1. Exact match: industry + stage
+        if industry_slug and stage_value:
+            t = await db.execute(
+                select(DueDiligenceTemplate).where(
+                    DueDiligenceTemplate.industry_slug == industry_slug,
+                    DueDiligenceTemplate.stage == stage_value,
+                )
+            )
+            template = t.scalars().first()
+
+        # 2. Industry-only match
+        if template is None and industry_slug:
+            t = await db.execute(
+                select(DueDiligenceTemplate).where(
+                    DueDiligenceTemplate.industry_slug == industry_slug,
+                    DueDiligenceTemplate.stage.is_(None),
+                )
+            )
+            template = t.scalars().first()
+
+        # 3. Stage-only match
+        if template is None and stage_value:
+            t = await db.execute(
+                select(DueDiligenceTemplate).where(
+                    DueDiligenceTemplate.industry_slug.is_(None),
+                    DueDiligenceTemplate.stage == stage_value,
+                )
+            )
+            template = t.scalars().first()
+
+        # 4. General fallback
+        if template is None:
+            t = await db.execute(
+                select(DueDiligenceTemplate).where(DueDiligenceTemplate.name == "General")
+            )
+            template = t.scalars().first()
+
+        if template is not None:
+            td_result = await db.execute(
+                select(TemplateDimension)
+                .where(TemplateDimension.template_id == template.id)
+                .order_by(TemplateDimension.sort_order)
+            )
+            template_dims = td_result.scalars().all()
+
     return {
         "id": str(startup.id),
         "name": startup.name,
@@ -227,6 +299,13 @@ async def get_startup(slug: str, db: AsyncSession = Depends(get_db)):
                 "recorded_at": sh.recorded_at.isoformat(),
             }
             for sh in scores
+        ],
+        "dimensions": [
+            {"name": d.dimension_name, "slug": d.dimension_slug, "weight": d.weight}
+            for d in dimensions
+        ] if dimensions else [
+            {"name": td.dimension_name, "slug": td.dimension_slug, "weight": td.weight}
+            for td in template_dims
         ],
     }
 

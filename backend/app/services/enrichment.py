@@ -23,7 +23,8 @@ from app.models.founder import StartupFounder
 from app.models.funding_round import StartupFundingRound
 from app.models.media import MediaType, StartupMedia
 from app.models.score import ScoreType, StartupScoreHistory
-from app.models.startup import CompanyStatus, EnrichmentStatus, Startup
+from app.models.industry import Industry
+from app.models.startup import CompanyStatus, EnrichmentStatus, Startup, startup_industries
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,16 @@ following fields.  Use null for any field you cannot determine.
   "key_metrics": "ARR $1M, 10k users, 20% MoM growth, ...",
   "hiring_signals": "Hiring 5 engineers, opened new SF office, ...",
   "patents": "Patent on X technology, filed Y patent, ...",
+  "industries": ["Fintech", "AI/ML"],
   "media": [
     {"url": "https://...", "title": "Article title", "source": "TechCrunch", "media_type": "article", "published_at": "2024-01-15"}
   ]
 }
+
+IMPORTANT: For industries, pick from this list ONLY: Fintech, Healthcare, Edtech, CleanTech, \
+SaaS, E-commerce, Logistics, AI/ML, Cybersecurity, BioTech, PropTech, InsurTech, FoodTech, \
+AgTech, SpaceTech, Robotics, Gaming, Media, Enterprise Software, Consumer Apps, Climate. \
+Pick 1-3 that best fit.
 
 IMPORTANT: For funding_rounds, list ALL known investors per round (not just the lead). \
 Include valuations when publicly reported. For founders and management_team, include \
@@ -610,12 +617,39 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             await db.flush()
 
             # ----------------------------------------------------------
-            # 6. Fetch logo if needed
+            # 6. Assign industries
+            # ----------------------------------------------------------
+            raw_industries = enriched.get("industries") or []
+            if raw_industries:
+                # Clear existing associations
+                await db.execute(
+                    delete(startup_industries).where(
+                        startup_industries.c.startup_id == sid
+                    )
+                )
+                # Match by name (case-insensitive)
+                for ind_name in raw_industries:
+                    result = await db.execute(
+                        select(Industry).where(
+                            Industry.name.ilike(ind_name.strip())
+                        )
+                    )
+                    industry = result.scalar_one_or_none()
+                    if industry:
+                        await db.execute(
+                            startup_industries.insert().values(
+                                startup_id=sid, industry_id=industry.id
+                            )
+                        )
+                await db.flush()
+
+            # ----------------------------------------------------------
+            # 7. Fetch logo if needed
             # ----------------------------------------------------------
             await _fetch_logo_if_needed(startup, db)
 
             # ----------------------------------------------------------
-            # 7. Ensure dimensions exist
+            # 8. Ensure dimensions exist
             # ----------------------------------------------------------
             dimensions = await _ensure_dimensions(sid, db)
 

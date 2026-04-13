@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Industry, Stage } from "@/lib/types";
 
 interface Props {
@@ -22,68 +22,138 @@ function buildHref(current: Record<string, string | undefined>, overrides: Recor
   return `/startups${qs ? `?${qs}` : ""}`;
 }
 
+/* ── Multi-select dropdown ── */
+function MultiSelect({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const toggle = (val: string) => {
+    onChange(
+      selected.includes(val)
+        ? selected.filter((v) => v !== val)
+        : [...selected, val]
+    );
+  };
+
+  const displayText =
+    selected.length === 0
+      ? label
+      : selected.length <= 2
+        ? options.filter((o) => selected.includes(o.value)).map((o) => o.label).join(", ")
+        : `${selected.length} selected`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-2 rounded border px-3 py-1.5 text-xs outline-none transition ${
+          selected.length > 0
+            ? "border-accent bg-accent/5 text-accent"
+            : "border-border bg-surface text-text-primary"
+        }`}
+      >
+        <span className="max-w-[160px] truncate">{displayText}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 w-52 max-h-64 overflow-y-auto rounded border border-border bg-surface shadow-lg">
+          {selected.length > 0 && (
+            <button
+              onClick={() => { onChange([]); }}
+              className="w-full px-3 py-2 text-left text-xs text-accent hover:bg-hover-row transition border-b border-border"
+            >
+              Clear all
+            </button>
+          )}
+          {options.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-hover-row cursor-pointer transition"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(opt.value)}
+                onChange={() => toggle(opt.value)}
+                className="accent-accent"
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FilterBar({ industries, stages, regions, investors, currentParams }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(currentParams.q || "");
 
-  function handleFilter(key: string, value: string) {
-    const val = value || undefined;
-    router.push(buildHref(currentParams, { [key]: val, page: undefined }));
+  // Parse comma-separated current values
+  const activeIndustries = currentParams.industry ? currentParams.industry.split(",") : [];
+  const activeStages = currentParams.stage ? currentParams.stage.split(",") : [];
+  const activeRegions = currentParams.region ? currentParams.region.split(",") : [];
+  const activeInvestors = currentParams.investor ? currentParams.investor.split(",") : [];
+
+  function handleMulti(key: string, values: string[]) {
+    const val = values.length > 0 ? values.join(",") : undefined;
+    router.push(buildHref(currentParams, { [key]: val, page: undefined, sort: "ai_score" }));
   }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    router.push(buildHref(currentParams, { q: search || undefined, page: undefined }));
+    router.push(buildHref(currentParams, { q: search || undefined, page: undefined, sort: "ai_score" }));
   }
-
-  const selectClasses =
-    "rounded border border-border bg-surface px-3 py-1.5 text-xs text-text-primary focus:border-accent focus:ring-1 focus:ring-accent outline-none";
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-6">
-      <select
-        value={currentParams.industry || ""}
-        onChange={(e) => handleFilter("industry", e.target.value)}
-        className={selectClasses}
-      >
-        <option value="">All Industries</option>
-        {industries.map((i) => (
-          <option key={i.slug} value={i.slug}>{i.name}</option>
-        ))}
-      </select>
+      <MultiSelect
+        label="All Industries"
+        options={industries.map((i) => ({ value: i.slug, label: i.name }))}
+        selected={activeIndustries}
+        onChange={(vals) => handleMulti("industry", vals)}
+      />
 
-      <select
-        value={currentParams.stage || ""}
-        onChange={(e) => handleFilter("stage", e.target.value)}
-        className={selectClasses}
-      >
-        <option value="">All Stages</option>
-        {stages.map((s) => (
-          <option key={s.value} value={s.value}>{s.label}</option>
-        ))}
-      </select>
+      <MultiSelect
+        label="All Stages"
+        options={stages.map((s) => ({ value: s.value, label: s.label }))}
+        selected={activeStages}
+        onChange={(vals) => handleMulti("stage", vals)}
+      />
 
-      <select
-        value={currentParams.region || ""}
-        onChange={(e) => handleFilter("region", e.target.value)}
-        className={selectClasses}
-      >
-        <option value="">All Regions</option>
-        {regions.map((r) => (
-          <option key={r} value={r}>{r}</option>
-        ))}
-      </select>
+      <MultiSelect
+        label="All Regions"
+        options={regions.map((r) => ({ value: r, label: r }))}
+        selected={activeRegions}
+        onChange={(vals) => handleMulti("region", vals)}
+      />
 
-      <select
-        value={currentParams.investor || ""}
-        onChange={(e) => handleFilter("investor", e.target.value)}
-        className={selectClasses}
-      >
-        <option value="">All Investors</option>
-        {investors.map((inv) => (
-          <option key={inv} value={inv}>{inv}</option>
-        ))}
-      </select>
+      <MultiSelect
+        label="All Investors"
+        options={investors.map((inv) => ({ value: inv, label: inv }))}
+        selected={activeInvestors}
+        onChange={(vals) => handleMulti("investor", vals)}
+      />
 
       <form onSubmit={handleSearch} className="flex items-center gap-1 ml-auto">
         <input

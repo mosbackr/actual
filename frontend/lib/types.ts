@@ -38,6 +38,12 @@ export interface ScoreHistory {
   recorded_at: string;
 }
 
+export interface StartupDimension {
+  name: string;
+  slug: string;
+  weight: number;
+}
+
 export interface StartupDetail extends StartupCard {
   founded_date: string | null;
   total_funding: string | null;
@@ -56,6 +62,7 @@ export interface StartupDetail extends StartupCard {
   ai_review: AIReview | null;
   media: MediaItem[];
   score_history: ScoreHistory[];
+  dimensions: StartupDimension[];
 }
 
 export interface PaginatedStartups {
@@ -118,6 +125,24 @@ export interface Review {
   downvotes: number;
   current_user_vote: "up" | "down" | null;
   created_at: string;
+}
+
+export interface RegionMetrics {
+  region: string;
+  count: number;
+  avg_ai_score: number | null;
+  avg_expert_score: number | null;
+  avg_user_score: number | null;
+}
+
+export interface RegionalInsights {
+  regions: RegionMetrics[];
+  sitewide: {
+    count: number;
+    avg_ai_score: number | null;
+    avg_expert_score: number | null;
+    avg_user_score: number | null;
+  };
 }
 
 export interface ExpertApplication {

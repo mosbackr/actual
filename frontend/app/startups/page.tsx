@@ -11,9 +11,9 @@ const stageLabels: Record<string, string> = {
 
 interface Filters {
   page: number;
-  industry?: string;
-  stage?: string;
-  region?: string;
+  industry?: string;   // comma-separated slugs
+  stage?: string;      // comma-separated values
+  region?: string;     // comma-separated values
   investor?: string;
   q?: string;
   sort: string;
@@ -24,10 +24,19 @@ async function getStartups(filters: Filters): Promise<PaginatedStartups> {
     const params = new URLSearchParams();
     params.set("page", String(filters.page));
     params.set("per_page", "24");
-    if (filters.industry) params.set("industry", filters.industry);
-    if (filters.stage) params.set("stage", filters.stage);
-    if (filters.region) params.set("region", filters.region);
-    if (filters.investor) params.set("investor", filters.investor);
+    // Send multi-values as repeated params for FastAPI
+    if (filters.industry) {
+      for (const v of filters.industry.split(",")) params.append("industry", v);
+    }
+    if (filters.stage) {
+      for (const v of filters.stage.split(",")) params.append("stage", v);
+    }
+    if (filters.region) {
+      for (const v of filters.region.split(",")) params.append("region", v);
+    }
+    if (filters.investor) {
+      for (const v of filters.investor.split(",")) params.append("investor", v);
+    }
     if (filters.q) params.set("q", filters.q);
     if (filters.sort) params.set("sort", filters.sort);
 
@@ -106,6 +115,12 @@ export default async function StartupsPage({
 
   const hasFilters = !!(params.industry || params.stage || params.region || params.investor || params.q);
 
+  // Parse multi-values for display
+  const activeIndustries = params.industry ? params.industry.split(",") : [];
+  const activeStages = params.stage ? params.stage.split(",") : [];
+  const activeRegions = params.region ? params.region.split(",") : [];
+  const activeInvestors = params.investor ? params.investor.split(",") : [];
+
   return (
     <div>
       <div className="mb-6">
@@ -146,32 +161,60 @@ export default async function StartupsPage({
       />
 
       {hasFilters && (
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <span className="text-xs text-text-tertiary">Active filters:</span>
-          {params.industry && (
-            <Link href={buildHref(currentParams, { industry: undefined, page: "1" })} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition">
-              {filterOptions.industries.find(i => i.slug === params.industry)?.name || params.industry}
-              <span>&times;</span>
-            </Link>
-          )}
-          {params.stage && (
-            <Link href={buildHref(currentParams, { stage: undefined, page: "1" })} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition">
-              {stageLabels[params.stage] || params.stage}
-              <span>&times;</span>
-            </Link>
-          )}
-          {params.region && (
-            <Link href={buildHref(currentParams, { region: undefined, page: "1" })} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition">
-              {params.region}
-              <span>&times;</span>
-            </Link>
-          )}
-          {params.investor && (
-            <Link href={buildHref(currentParams, { investor: undefined, page: "1" })} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition">
-              {params.investor}
-              <span>&times;</span>
-            </Link>
-          )}
+          {activeIndustries.map((slug) => {
+            const remaining = activeIndustries.filter((s) => s !== slug).join(",");
+            return (
+              <Link
+                key={slug}
+                href={buildHref(currentParams, { industry: remaining || undefined, page: "1" })}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition"
+              >
+                {filterOptions.industries.find((i) => i.slug === slug)?.name || slug}
+                <span>&times;</span>
+              </Link>
+            );
+          })}
+          {activeStages.map((val) => {
+            const remaining = activeStages.filter((s) => s !== val).join(",");
+            return (
+              <Link
+                key={val}
+                href={buildHref(currentParams, { stage: remaining || undefined, page: "1" })}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition"
+              >
+                {stageLabels[val] || val}
+                <span>&times;</span>
+              </Link>
+            );
+          })}
+          {activeRegions.map((val) => {
+            const remaining = activeRegions.filter((s) => s !== val).join(",");
+            return (
+              <Link
+                key={val}
+                href={buildHref(currentParams, { region: remaining || undefined, page: "1" })}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition"
+              >
+                {val}
+                <span>&times;</span>
+              </Link>
+            );
+          })}
+          {activeInvestors.map((val) => {
+            const remaining = activeInvestors.filter((s) => s !== val).join(",");
+            return (
+              <Link
+                key={val}
+                href={buildHref(currentParams, { investor: remaining || undefined, page: "1" })}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition"
+              >
+                {val}
+                <span>&times;</span>
+              </Link>
+            );
+          })}
           {params.q && (
             <Link href={buildHref(currentParams, { q: undefined, page: "1" })} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition">
               &ldquo;{params.q}&rdquo;

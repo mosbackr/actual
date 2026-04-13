@@ -88,17 +88,21 @@ function ReviewCard({
   );
 }
 
+interface DimensionInfo {
+  name: string;
+  weight: number;
+}
+
 function ReviewForm({
   slug,
   dimensions,
   onSubmitted,
 }: {
   slug: string;
-  dimensions: string[];
+  dimensions: DimensionInfo[];
   onSubmitted: (review: Review) => void;
 }) {
   const { data: session } = useSession();
-  const [score, setScore] = useState(50);
   const [comment, setComment] = useState("");
   const [dimScores, setDimScores] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -106,9 +110,17 @@ function ReviewForm({
 
   useEffect(() => {
     const initial: Record<string, number> = {};
-    dimensions.forEach((d) => (initial[d] = 50));
+    dimensions.forEach((d) => (initial[d.name] = 50));
     setDimScores(initial);
   }, [dimensions]);
+
+  // Auto-calculate overall score as weighted average of dimension scores
+  const overallScore = dimensions.length > 0
+    ? Math.round(
+        dimensions.reduce((sum, d) => sum + (dimScores[d.name] || 50) * d.weight, 0) /
+        dimensions.reduce((sum, d) => sum + d.weight, 0)
+      )
+    : 50;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,13 +132,15 @@ function ReviewForm({
     setError("");
     try {
       const result = await api.createReview(token, slug, {
-        overall_score: score,
+        overall_score: overallScore,
         dimension_scores: dimensions.length > 0 ? dimScores : undefined,
         comment: comment || undefined,
       });
       onSubmitted(result);
       setComment("");
-      setScore(50);
+      const reset: Record<string, number> = {};
+      dimensions.forEach((d) => (reset[d.name] = 50));
+      setDimScores(reset);
     } catch (err: any) {
       setError(err.message || "Failed to submit review");
     } finally {
@@ -136,46 +150,51 @@ function ReviewForm({
 
   return (
     <form onSubmit={handleSubmit} className="rounded border border-border bg-surface p-5 space-y-4">
-      <h4 className="text-sm font-medium text-text-primary">Submit Your Score</h4>
-
-      <div>
-        <label className="flex items-center justify-between text-sm text-text-secondary mb-1">
-          <span>Overall Score</span>
-          <span className={`font-medium tabular-nums ${scoreColor(score)}`}>{score}</span>
-        </label>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={score}
-          onChange={(e) => setScore(Number(e.target.value))}
-          className="w-full accent-accent"
-        />
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-text-primary">Submit Your Score</h4>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-tertiary">Overall</span>
+          <span className={`font-serif text-xl tabular-nums ${scoreColor(overallScore)}`}>{overallScore}</span>
+        </div>
       </div>
 
-      {dimensions.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs text-text-tertiary">Dimension Scores</p>
+      {dimensions.length > 0 ? (
+        <div className="space-y-3">
           {dimensions.map((dim) => (
-            <div key={dim}>
-              <label className="flex items-center justify-between text-xs text-text-secondary mb-0.5">
-                <span>{dim}</span>
-                <span className={`font-medium tabular-nums ${scoreColor(dimScores[dim] || 50)}`}>
-                  {dimScores[dim] || 50}
+            <div key={dim.name}>
+              <label className="flex items-center justify-between text-sm text-text-secondary mb-1">
+                <span>{dim.name}</span>
+                <span className={`font-medium tabular-nums ${scoreColor(dimScores[dim.name] || 50)}`}>
+                  {dimScores[dim.name] || 50}
                 </span>
               </label>
               <input
                 type="range"
                 min="0"
                 max="100"
-                value={dimScores[dim] || 50}
+                value={dimScores[dim.name] || 50}
                 onChange={(e) =>
-                  setDimScores((prev) => ({ ...prev, [dim]: Number(e.target.value) }))
+                  setDimScores((prev) => ({ ...prev, [dim.name]: Number(e.target.value) }))
                 }
                 className="w-full accent-accent"
               />
             </div>
           ))}
+        </div>
+      ) : (
+        <div>
+          <label className="flex items-center justify-between text-sm text-text-secondary mb-1">
+            <span>Overall Score</span>
+            <span className={`font-medium tabular-nums ${scoreColor(overallScore)}`}>{overallScore}</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={50}
+            onChange={() => {}}
+            className="w-full accent-accent"
+          />
         </div>
       )}
 
@@ -208,7 +227,7 @@ export function ReviewSection({
   dimensions,
 }: {
   slug: string;
-  dimensions: string[];
+  dimensions: DimensionInfo[];
 }) {
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<"contributor" | "community">("contributor");

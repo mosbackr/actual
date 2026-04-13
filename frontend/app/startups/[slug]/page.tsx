@@ -39,11 +39,11 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
   const hasScoreHistory = startup.score_history && startup.score_history.length > 0;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto overflow-hidden">
       {/* Hero */}
       <div className="flex items-start gap-6 mb-12">
         {startup.logo_url ? (
-          <img src={startup.logo_url} alt={startup.name} className="h-20 w-20 rounded object-cover" />
+          <img src={startup.logo_url} alt={startup.name} className="h-20 w-20 shrink-0 rounded object-cover" />
         ) : (
           <div className="h-20 w-20 rounded bg-background border border-border flex items-center justify-center font-serif text-2xl text-text-tertiary">
             {startup.name[0]}
@@ -54,7 +54,7 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
           {startup.tagline && (
             <p className="text-text-tertiary mt-1 text-sm">{startup.tagline}</p>
           )}
-          <p className="text-text-secondary mt-2">{startup.description}</p>
+          <p className="text-text-secondary mt-2 break-words">{startup.description}</p>
           <div className="flex flex-wrap gap-2 mt-3 items-center">
             <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
               {stageLabels[startup.stage] || startup.stage}
@@ -132,6 +132,16 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
         <h2 className="font-serif text-xl text-text-primary mb-6">Scores Overview</h2>
         <ScoreComparison aiScore={startup.ai_score} expertScore={startup.expert_score} userScore={startup.user_score} />
       </section>
+
+      {/* Reviews & Scoring */}
+      <ReviewSection
+        slug={startup.slug}
+        dimensions={
+          startup.dimensions && startup.dimensions.length > 0
+            ? startup.dimensions.map((d) => ({ name: d.name, weight: d.weight }))
+            : []
+        }
+      />
 
       {/* AI Analysis */}
       {startup.ai_review && (
@@ -265,8 +275,8 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
       {startup.funding_rounds && startup.funding_rounds.length > 0 && (
         <section className="mb-12">
           <h2 className="font-serif text-xl text-text-primary mb-6">Funding History</h2>
-          <div className="rounded border border-border bg-surface overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded border border-border bg-surface overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="border-b border-border bg-background">
                   <th className="text-left px-4 py-2.5 text-xs font-medium text-text-tertiary">Round</th>
@@ -351,15 +361,6 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
         </section>
       )}
 
-      {/* Reviews & Scoring */}
-      <ReviewSection
-        slug={startup.slug}
-        dimensions={
-          startup.ai_review && Array.isArray(startup.ai_review.dimension_scores)
-            ? startup.ai_review.dimension_scores.map((d) => d.dimension_name)
-            : []
-        }
-      />
     </div>
   );
 }
