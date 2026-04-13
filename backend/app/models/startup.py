@@ -2,8 +2,8 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, String, Table, Text, func
-from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
+from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, String, Table, Text, func, text
+from sqlalchemy.dialects.postgresql import JSON, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.industry import Base
@@ -97,5 +97,11 @@ class Startup(Base):
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sec_cik: Mapped[str | None] = mapped_column(String(20), nullable=True)
     edgar_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    form_sources: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    data_sources: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     industries = relationship("Industry", secondary=startup_industries)
