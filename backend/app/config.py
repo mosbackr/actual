@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     admin_setup_key: str = "acutal-setup-2024"
     logo_dev_token: str = ""
     perplexity_api_key: str = ""
+    anthropic_api_key: str = ""
+    edgar_user_agent: str = "Acutal admin@deepthesis.org"
 
     model_config = {"env_prefix": "ACUTAL_"}
 
