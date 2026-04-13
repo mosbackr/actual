@@ -64,13 +64,17 @@ class EdgarFiling:
 
 
 @dataclass
-class EdgarFormDHit:
-    """A Form D filing hit from EDGAR EFTS search."""
+class EdgarEFTSHit:
+    """A filing hit from EDGAR EFTS full-text search."""
     accession_number: str
     entity_name: str
     file_date: str
     file_num: str | None
     cik: str | None
+    form_type: str  # "D", "S-1", "10-K", "C", "1-A" etc.
+
+# Backwards compat
+EdgarFormDHit = EdgarEFTSHit
 
 
 async def search_company(name: str) -> list[EdgarCompany]:
@@ -141,7 +145,7 @@ async def get_filings(cik: str) -> list[EdgarFiling]:
     primary_docs = recent.get("primaryDocument", [])
     descriptions = recent.get("primaryDocDescription", [])
 
-    target_forms = {"D", "D/A", "S-1", "S-1/A", "10-K", "10-K/A"}
+    target_forms = {"D", "D/A", "S-1", "S-1/A", "10-K", "10-K/A", "C", "C-U", "C/A", "1-A", "1-A/A"}
 
     filings = []
     for i in range(len(forms)):
@@ -201,19 +205,27 @@ async def get_company_info(cik: str) -> dict:
     }
 
 
-async def search_form_d_filings(
+async def _search_efts(
+    forms: str,
     start_date: str,
     end_date: str,
     page_from: int = 0,
     page_size: int = 100,
-) -> tuple[list[EdgarFormDHit], int]:
-    """Search EDGAR EFTS for Form D filings within a date range.
+) -> tuple[list[EdgarEFTSHit], int]:
+    """Search EDGAR EFTS for filings of given form types within a date range.
+
+    Args:
+        forms: Comma-separated form types, e.g. "D" or "S-1,S-1/A".
+        start_date: Start date in YYYY-MM-DD format.
+        end_date: End date in YYYY-MM-DD format.
+        page_from: Pagination offset.
+        page_size: Page size (max results per request).
 
     Returns (hits, total_count). Caller paginates using page_from.
     """
     url = (
         f"https://efts.sec.gov/LATEST/search-index"
-        f"?q=*&forms=D&dateRange=custom"
+        f"?q=*&forms={forms}&dateRange=custom"
         f"&startdt={start_date}&enddt={end_date}"
         f"&from={page_from}&size={page_size}"
     )
@@ -221,7 +233,7 @@ async def search_form_d_filings(
     try:
         resp = await _rate_limited_get(url)
     except httpx.HTTPStatusError as e:
-        logger.warning(f"EDGAR EFTS search failed: {e}")
+        logger.warning(f"EDGAR EFTS search failed for forms={forms}: {e}")
         return [], 0
 
     data = resp.json()
@@ -242,15 +254,70 @@ async def search_form_d_filings(
         entity_id = source.get("entity_id", "")
         cik = entity_id if entity_id else None
 
-        hits.append(EdgarFormDHit(
+        # Extract form type from the hit source
+        hit_forms = source.get("forms", [])
+        form_type = hit_forms[0] if hit_forms else forms.split(",")[0]
+
+        hits.append(EdgarEFTSHit(
             accession_number=accession,
             entity_name=entity_name,
             file_date=file_date,
             file_num=file_num,
             cik=cik,
+            form_type=form_type,
         ))
 
     return hits, total
+
+
+async def search_form_d_filings(
+    start_date: str,
+    end_date: str,
+    page_from: int = 0,
+    page_size: int = 100,
+) -> tuple[list[EdgarEFTSHit], int]:
+    """Search EDGAR EFTS for Form D filings within a date range."""
+    return await _search_efts("D", start_date, end_date, page_from, page_size)
+
+
+async def search_s1_filings(
+    start_date: str,
+    end_date: str,
+    page_from: int = 0,
+    page_size: int = 100,
+) -> tuple[list[EdgarEFTSHit], int]:
+    """Search EDGAR EFTS for S-1 filings within a date range."""
+    return await _search_efts("S-1,S-1/A", start_date, end_date, page_from, page_size)
+
+
+async def search_10k_filings(
+    start_date: str,
+    end_date: str,
+    page_from: int = 0,
+    page_size: int = 100,
+) -> tuple[list[EdgarEFTSHit], int]:
+    """Search EDGAR EFTS for 10-K filings within a date range."""
+    return await _search_efts("10-K,10-K/A", start_date, end_date, page_from, page_size)
+
+
+async def search_form_c_filings(
+    start_date: str,
+    end_date: str,
+    page_from: int = 0,
+    page_size: int = 100,
+) -> tuple[list[EdgarEFTSHit], int]:
+    """Search EDGAR EFTS for Form C filings within a date range."""
+    return await _search_efts("C,C-U,C/A", start_date, end_date, page_from, page_size)
+
+
+async def search_form_1a_filings(
+    start_date: str,
+    end_date: str,
+    page_from: int = 0,
+    page_size: int = 100,
+) -> tuple[list[EdgarEFTSHit], int]:
+    """Search EDGAR EFTS for Form 1-A filings within a date range."""
+    return await _search_efts("1-A,1-A/A", start_date, end_date, page_from, page_size)
 
 
 async def get_cik_from_accession(accession_number: str) -> str | None:
