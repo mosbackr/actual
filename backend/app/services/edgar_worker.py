@@ -24,14 +24,20 @@ from app.models.edgar_job import (
 )
 from app.models.startup import Startup
 from app.services import edgar
+from app.services.dedup import normalize_name, find_duplicate
 from app.services.edgar_processor import (
     form_d_to_funding_round,
+    is_qualifying_filing,
+    infer_stage_from_amount,
     merge_funding_round,
     parse_form_d,
     parse_s1_html,
     parse_10k_html,
     resolve_cik,
+    SIC_WHITELIST,
 )
+from app.services.enrichment import run_enrichment_pipeline
+from app.utils import slugify
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +47,10 @@ STEP_DELAYS = {
     EdgarStepType.resolve_cik: 1.0,
     EdgarStepType.fetch_filings: 0.5,
     EdgarStepType.process_filing: 1.0,
+    EdgarStepType.discover_filings: 0.2,
+    EdgarStepType.extract_company: 1.0,
+    EdgarStepType.add_startup: 0.5,
+    EdgarStepType.enrich_startup: 2.0,
 }
 
 
@@ -67,6 +77,14 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
     rounds_created = 0
     valuations_added = 0
 
+    # Discovery-mode counters
+    filings_discovered = 0
+    companies_extracted = 0
+    duplicates_skipped = 0
+    startups_created = 0
+    enrichments_completed = 0
+    enrichments_failed = 0
+
     for step in all_steps:
         if step.step_type == EdgarStepType.resolve_cik and step.status == EdgarStepStatus.completed:
             startups_scanned += 1
@@ -84,9 +102,27 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
                     rounds_created += 1
                 if step.result.get("valuation_added"):
                     valuations_added += 1
+        elif step.step_type == EdgarStepType.discover_filings and step.status == EdgarStepStatus.completed:
+            if step.result:
+                filings_discovered += step.result.get("extract_steps_created", 0)
+        elif step.step_type == EdgarStepType.extract_company and step.status == EdgarStepStatus.completed:
+            companies_extracted += 1
+            if step.result and step.result.get("action") == "duplicate":
+                duplicates_skipped += 1
+        elif step.step_type == EdgarStepType.add_startup and step.status == EdgarStepStatus.completed:
+            if step.result and step.result.get("action") == "created":
+                startups_created += 1
+        elif step.step_type == EdgarStepType.enrich_startup and step.status == EdgarStepStatus.completed:
+            if step.result:
+                if step.result.get("action") == "enriched":
+                    enrichments_completed += 1
+                elif step.result.get("action") == "enrichment_failed":
+                    enrichments_failed += 1
 
     total_resolve = len([s for s in all_steps if s.step_type == EdgarStepType.resolve_cik])
     total_process = len([s for s in all_steps if s.step_type == EdgarStepType.process_filing])
+    total_extract = len([s for s in all_steps if s.step_type == EdgarStepType.extract_company])
+    total_enrich = len([s for s in all_steps if s.step_type == EdgarStepType.enrich_startup])
 
     current_startup = None
     current_filing = None
@@ -114,6 +150,16 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
     if current_filing:
         summary["current_filing"] = current_filing
 
+    if total_extract > 0 or filings_discovered > 0:
+        summary["filings_discovered"] = filings_discovered
+        summary["companies_extracted"] = companies_extracted
+        summary["extract_total"] = total_extract
+        summary["duplicates_skipped"] = duplicates_skipped
+        summary["startups_created"] = startups_created
+        summary["enrichments_completed"] = enrichments_completed
+        summary["enrichments_failed"] = enrichments_failed
+        summary["enrich_total"] = total_enrich
+
     job.progress_summary = summary
     job.updated_at = datetime.now(timezone.utc)
 
@@ -129,6 +175,22 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
         s.step_type == EdgarStepType.process_filing and s.status == EdgarStepStatus.pending
         for s in all_steps
     )
+    has_pending_discover = any(
+        s.step_type == EdgarStepType.discover_filings and s.status == EdgarStepStatus.pending
+        for s in all_steps
+    )
+    has_pending_extract = any(
+        s.step_type == EdgarStepType.extract_company and s.status == EdgarStepStatus.pending
+        for s in all_steps
+    )
+    has_pending_add = any(
+        s.step_type == EdgarStepType.add_startup and s.status == EdgarStepStatus.pending
+        for s in all_steps
+    )
+    has_pending_enrich = any(
+        s.step_type == EdgarStepType.enrich_startup and s.status == EdgarStepStatus.pending
+        for s in all_steps
+    )
 
     if has_pending_resolve:
         job.current_phase = EdgarJobPhase.resolving_ciks
@@ -136,6 +198,14 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
         job.current_phase = EdgarJobPhase.fetching_filings
     elif has_pending_process:
         job.current_phase = EdgarJobPhase.processing_filings
+    elif has_pending_discover:
+        job.current_phase = EdgarJobPhase.discovering
+    elif has_pending_extract:
+        job.current_phase = EdgarJobPhase.extracting
+    elif has_pending_add:
+        job.current_phase = EdgarJobPhase.adding
+    elif has_pending_enrich:
+        job.current_phase = EdgarJobPhase.enriching
     else:
         job.current_phase = EdgarJobPhase.complete
 
@@ -295,10 +365,284 @@ async def _execute_process_filing(
         step.result = {"filing_type": filing_type, "action": "skipped", "reason": f"Unsupported type: {filing_type}"}
 
 
+async def _execute_discover_filings(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob
+) -> None:
+    """Execute discover_filings step: search EFTS for Form D filings, generate extract steps."""
+    from datetime import timedelta
+
+    discover_days = step.params.get("discover_days", 365)
+    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=discover_days)).strftime("%Y-%m-%d")
+
+    total_hits = 0
+    qualifying = 0
+    page_from = 0
+    page_size = 100
+    next_order = await _get_next_sort_order(db, job.id)
+
+    while True:
+        hits, total_count = await edgar.search_form_d_filings(
+            start_date=start_date,
+            end_date=end_date,
+            page_from=page_from,
+            page_size=page_size,
+        )
+
+        if not hits:
+            break
+
+        total_hits += len(hits)
+
+        for hit in hits:
+            extract_step = EdgarJobStep(
+                job_id=job.id,
+                step_type=EdgarStepType.extract_company,
+                params={
+                    "accession_number": hit.accession_number,
+                    "entity_name": hit.entity_name,
+                    "file_date": hit.file_date,
+                    "cik": hit.cik,
+                },
+                sort_order=next_order,
+            )
+            db.add(extract_step)
+            next_order += 1
+            qualifying += 1
+
+        page_from += page_size
+        if page_from >= total_count:
+            break
+
+        if qualifying % 500 == 0:
+            await db.flush()
+
+    step.result = {
+        "total_hits": total_hits,
+        "extract_steps_created": qualifying,
+        "date_range": f"{start_date} to {end_date}",
+    }
+    logger.info(f"Discovery: {total_hits} EFTS hits, {qualifying} extract steps created")
+
+
+async def _execute_extract_company(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob
+) -> None:
+    """Execute extract_company step: download Form D XML, parse, filter, dedup, generate add_startup step."""
+    accession = step.params["accession_number"]
+    entity_name = step.params.get("entity_name", "")
+    cik = step.params.get("cik")
+
+    if not cik:
+        cik = await edgar.get_cik_from_accession(accession)
+        if not cik:
+            step.result = {"action": "skipped", "reason": "Could not resolve CIK"}
+            return
+
+    company_info = await edgar.get_company_info(cik)
+    sic_code = company_info.get("sic", "")
+
+    if sic_code and sic_code not in SIC_WHITELIST:
+        step.result = {"action": "skipped", "reason": f"SIC {sic_code} not in whitelist"}
+        return
+
+    filings = await edgar.get_filings(cik)
+    target_filing = None
+    for f in filings:
+        if f.accession_number == accession:
+            target_filing = f
+            break
+
+    if not target_filing:
+        step.result = {"action": "skipped", "reason": "Filing not found in index"}
+        return
+
+    try:
+        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
+        form_d_data = parse_form_d(doc_text)
+    except Exception as e:
+        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
+        return
+
+    if not is_qualifying_filing(form_d_data, sic_code):
+        step.result = {
+            "action": "skipped",
+            "reason": "Did not pass qualifying filters",
+            "amount": form_d_data.total_amount_sold,
+            "sic": sic_code,
+            "entity_name": form_d_data.issuer_name or entity_name,
+        }
+        return
+
+    issuer_name = form_d_data.issuer_name or entity_name
+    amount = form_d_data.total_amount_sold or 0
+
+    # Dedup check 1: CIK match
+    existing_cik_result = await db.execute(
+        select(Startup).where(Startup.sec_cik == cik)
+    )
+    existing_by_cik = existing_cik_result.scalar_one_or_none()
+    if existing_by_cik:
+        step.result = {
+            "action": "duplicate",
+            "reason": "CIK already in database",
+            "existing_startup": existing_by_cik.name,
+            "existing_id": str(existing_by_cik.id),
+        }
+        return
+
+    # Dedup check 2: Name match
+    dup = await find_duplicate(db, issuer_name)
+    if dup:
+        existing_result = await db.execute(select(Startup).where(Startup.id == dup["id"]))
+        existing = existing_result.scalar_one_or_none()
+        if existing and not existing.sec_cik:
+            existing.sec_cik = cik
+        step.result = {
+            "action": "duplicate",
+            "reason": "Name match in database",
+            "existing_startup": dup["name"],
+            "existing_id": dup["id"],
+            "cik_updated": bool(existing and not existing.sec_cik),
+        }
+        return
+
+    # Qualifying new company — generate add_startup step
+    state = company_info.get("state_of_incorporation", "") or company_info.get("state", "")
+    next_order = await _get_next_sort_order(db, job.id)
+    add_step = EdgarJobStep(
+        job_id=job.id,
+        step_type=EdgarStepType.add_startup,
+        params={
+            "issuer_name": issuer_name,
+            "cik": cik,
+            "sic_code": sic_code,
+            "sic_description": company_info.get("sic_description", ""),
+            "state": state,
+            "amount": amount,
+            "date_of_first_sale": form_d_data.date_of_first_sale,
+            "number_of_investors": form_d_data.number_of_investors,
+            "accession_number": accession,
+            "filing_date": step.params.get("file_date", ""),
+        },
+        sort_order=next_order,
+    )
+    db.add(add_step)
+
+    step.result = {
+        "action": "new_company",
+        "issuer_name": issuer_name,
+        "cik": cik,
+        "amount": amount,
+        "sic": sic_code,
+    }
+    logger.info(f"Discovery: new company candidate — {issuer_name} (CIK {cik}, ${amount:,.0f})")
+
+
+async def _execute_add_startup(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob
+) -> None:
+    """Execute add_startup step: create Startup + FundingRound, generate enrich step."""
+    from app.models.funding_round import StartupFundingRound
+    from app.models.startup import StartupStage, StartupStatus
+    from app.services.edgar_processor import _format_amount
+
+    issuer_name = step.params["issuer_name"]
+    cik = step.params["cik"]
+    state = step.params.get("state", "")
+    amount = step.params.get("amount", 0)
+    date_of_first_sale = step.params.get("date_of_first_sale")
+    filing_date = step.params.get("filing_date", "")
+    accession = step.params.get("accession_number", "")
+    sic_description = step.params.get("sic_description", "")
+
+    stage_str = infer_stage_from_amount(amount)
+    stage = StartupStage(stage_str)
+
+    slug = slugify(issuer_name)
+    existing_slug = await db.execute(select(Startup).where(Startup.slug == slug))
+    if existing_slug.scalar_one_or_none():
+        slug = f"{slug}-{cik}"
+
+    startup = Startup(
+        name=issuer_name,
+        slug=slug,
+        description=f"Discovered via SEC Form D filing. {sic_description}".strip(),
+        stage=stage,
+        status=StartupStatus.pending,
+        location_state=state if state else None,
+        location_country="US",
+        sec_cik=cik,
+    )
+    db.add(startup)
+    await db.flush()
+
+    round_amount = _format_amount(amount) if amount else None
+    round_date = date_of_first_sale or filing_date
+
+    funding_round = StartupFundingRound(
+        startup_id=startup.id,
+        round_name=f"Form D ({round_date or 'undated'})",
+        amount=round_amount,
+        date=round_date,
+        sort_order=0,
+        data_source="edgar",
+    )
+    db.add(funding_round)
+
+    next_order = await _get_next_sort_order(db, job.id)
+    enrich_step = EdgarJobStep(
+        job_id=job.id,
+        step_type=EdgarStepType.enrich_startup,
+        params={
+            "startup_id": str(startup.id),
+            "startup_name": issuer_name,
+        },
+        sort_order=next_order,
+    )
+    db.add(enrich_step)
+
+    step.result = {
+        "action": "created",
+        "startup_id": str(startup.id),
+        "startup_name": issuer_name,
+        "stage": stage_str,
+        "amount": round_amount,
+    }
+    logger.info(f"Discovery: created startup {issuer_name} (stage={stage_str}, CIK={cik})")
+
+
+async def _execute_enrich_startup(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob
+) -> None:
+    """Execute enrich_startup step: run Perplexity enrichment pipeline."""
+    startup_id = step.params["startup_id"]
+    startup_name = step.params.get("startup_name", "")
+
+    try:
+        await run_enrichment_pipeline(startup_id)
+        step.result = {
+            "action": "enriched",
+            "startup_name": startup_name,
+        }
+        logger.info(f"Discovery: enriched {startup_name}")
+    except Exception as e:
+        step.result = {
+            "action": "enrichment_failed",
+            "startup_name": startup_name,
+            "error": str(e)[:200],
+        }
+        logger.warning(f"Discovery: enrichment failed for {startup_name}: {e}")
+
+
 STEP_EXECUTORS = {
     EdgarStepType.resolve_cik: _execute_resolve_cik,
     EdgarStepType.fetch_filings: _execute_fetch_filings,
     EdgarStepType.process_filing: _execute_process_filing,
+    EdgarStepType.discover_filings: _execute_discover_filings,
+    EdgarStepType.extract_company: _execute_extract_company,
+    EdgarStepType.add_startup: _execute_add_startup,
+    EdgarStepType.enrich_startup: _execute_enrich_startup,
 }
 
 WORKER_PREFERENCES = {
