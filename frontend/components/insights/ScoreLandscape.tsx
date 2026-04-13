@@ -86,7 +86,7 @@ export function ScoreLandscape({ data }: Props) {
               />
               <Scatter
                 data={data.scatter}
-                onClick={(entry) => {
+                onClick={(entry: Record<string, unknown>) => {
                   if (entry?.slug) router.push(`/startups/${entry.slug}`);
                 }}
                 cursor="pointer"
