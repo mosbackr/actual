@@ -3,7 +3,7 @@
 Same architecture as batch_worker.py:
 - 4 concurrent workers (lower than batch's 6 — SEC rate limit is the bottleneck)
 - Atomic step claiming with SELECT FOR UPDATE SKIP LOCKED
-- Step chaining: resolve_cik → fetch_filings → process_filing
+- Step chaining: resolve_cik -> fetch_filings -> process_filing
 - Pause/resume support
 """
 import asyncio
@@ -24,17 +24,33 @@ from app.models.edgar_job import (
 )
 from app.models.startup import Startup
 from app.services import edgar
+from app.services.edgar import (
+    search_form_d_filings,
+    search_s1_filings,
+    search_10k_filings,
+    search_form_c_filings,
+    search_form_1a_filings,
+)
 from app.services.dedup import normalize_name, find_duplicate
 from app.services.edgar_processor import (
+    FormCData,
+    Form1AData,
     form_d_to_funding_round,
     is_qualifying_filing,
+    is_qualifying_form_c,
+    is_qualifying_form_1a,
     infer_stage_from_amount,
     merge_funding_round,
+    normalize_form_source,
+    parse_form_c,
     parse_form_d,
+    parse_form_1a_html,
+    parse_s1_company_data,
     parse_s1_html,
     parse_10k_html,
     resolve_cik,
     SIC_WHITELIST,
+    ENTITY_EXCLUDE_PATTERNS,
 )
 from app.services.enrichment import run_enrichment_pipeline
 from app.utils import slugify
@@ -51,6 +67,22 @@ STEP_DELAYS = {
     EdgarStepType.extract_company: 1.0,
     EdgarStepType.add_startup: 0.5,
     EdgarStepType.enrich_startup: 2.0,
+}
+
+FORM_SEARCH_FUNCTIONS = {
+    "D": search_form_d_filings,
+    "S-1": search_s1_filings,
+    "10-K": search_10k_filings,
+    "C": search_form_c_filings,
+    "1-A": search_form_1a_filings,
+}
+
+FORM_LABELS = {
+    "D": "Form D",
+    "S-1": "S-1",
+    "10-K": "10-K",
+    "C": "Form C",
+    "1-A": "Form 1-A",
 }
 
 
@@ -365,15 +397,28 @@ async def _execute_process_filing(
         step.result = {"filing_type": filing_type, "action": "skipped", "reason": f"Unsupported type: {filing_type}"}
 
 
+# ---------------------------------------------------------------------------
+# Discovery mode: form-aware discover -> extract -> add -> enrich
+# ---------------------------------------------------------------------------
+
+
 async def _execute_discover_filings(
     db: AsyncSession, step: EdgarJobStep, job: EdgarJob
 ) -> None:
-    """Execute discover_filings step: search EFTS for Form D filings, generate extract steps."""
+    """Execute discover_filings step: search EFTS for filings by form type, generate extract steps."""
     from datetime import timedelta
 
+    form_type = step.params.get("form_type", "D")
     discover_days = step.params.get("discover_days", 365)
     end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     start_date = (datetime.now(timezone.utc) - timedelta(days=discover_days)).strftime("%Y-%m-%d")
+
+    search_fn = FORM_SEARCH_FUNCTIONS.get(form_type)
+    if search_fn is None:
+        step.result = {"action": "skipped", "reason": f"Unknown form type: {form_type}"}
+        return
+
+    form_label = FORM_LABELS.get(form_type, form_type)
 
     total_hits = 0
     qualifying = 0
@@ -382,7 +427,7 @@ async def _execute_discover_filings(
     next_order = await _get_next_sort_order(db, job.id)
 
     while True:
-        hits, total_count = await edgar.search_form_d_filings(
+        hits, total_count = await search_fn(
             start_date=start_date,
             end_date=end_date,
             page_from=page_from,
@@ -403,6 +448,7 @@ async def _execute_discover_filings(
                     "entity_name": hit.entity_name,
                     "file_date": hit.file_date,
                     "cik": hit.cik,
+                    "form_type": form_type,
                 },
                 sort_order=next_order,
             )
@@ -421,62 +467,20 @@ async def _execute_discover_filings(
         "total_hits": total_hits,
         "extract_steps_created": qualifying,
         "date_range": f"{start_date} to {end_date}",
+        "form_type": form_type,
     }
-    logger.info(f"Discovery: {total_hits} EFTS hits, {qualifying} extract steps created")
+    logger.info(f"Discovery ({form_label}): {total_hits} EFTS hits, {qualifying} extract steps created")
 
 
-async def _execute_extract_company(
-    db: AsyncSession, step: EdgarJobStep, job: EdgarJob
-) -> None:
-    """Execute extract_company step: download Form D XML, parse, filter, dedup, generate add_startup step."""
-    accession = step.params["accession_number"]
-    entity_name = step.params.get("entity_name", "")
-    cik = step.params.get("cik")
+# ---------------------------------------------------------------------------
+# Extract company: form-specific handlers with shared dedup/add helpers
+# ---------------------------------------------------------------------------
 
-    if not cik:
-        cik = await edgar.get_cik_from_accession(accession)
-        if not cik:
-            step.result = {"action": "skipped", "reason": "Could not resolve CIK"}
-            return
 
-    company_info = await edgar.get_company_info(cik)
-    sic_code = company_info.get("sic", "")
-
-    if sic_code and sic_code not in SIC_WHITELIST:
-        step.result = {"action": "skipped", "reason": f"SIC {sic_code} not in whitelist"}
-        return
-
-    filings = await edgar.get_filings(cik)
-    target_filing = None
-    for f in filings:
-        if f.accession_number == accession:
-            target_filing = f
-            break
-
-    if not target_filing:
-        step.result = {"action": "skipped", "reason": "Filing not found in index"}
-        return
-
-    try:
-        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
-        form_d_data = parse_form_d(doc_text)
-    except Exception as e:
-        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
-        return
-
-    if not is_qualifying_filing(form_d_data, sic_code):
-        step.result = {
-            "action": "skipped",
-            "reason": "Did not pass qualifying filters",
-            "amount": form_d_data.total_amount_sold,
-            "sic": sic_code,
-            "entity_name": form_d_data.issuer_name or entity_name,
-        }
-        return
-
-    issuer_name = form_d_data.issuer_name or entity_name
-    amount = form_d_data.total_amount_sold or 0
-
+async def _dedup_check(
+    db: AsyncSession, step: EdgarJobStep, cik: str, issuer_name: str
+) -> bool:
+    """Check for duplicate startup by CIK then name. Returns True if dup found."""
     # Dedup check 1: CIK match
     existing_cik_result = await db.execute(
         select(Startup).where(Startup.sec_cik == cik)
@@ -489,7 +493,7 @@ async def _execute_extract_company(
             "existing_startup": existing_by_cik.name,
             "existing_id": str(existing_by_cik.id),
         }
-        return
+        return True
 
     # Dedup check 2: Name match
     dup = await find_duplicate(db, issuer_name)
@@ -505,29 +509,109 @@ async def _execute_extract_company(
             "existing_id": dup["id"],
             "cik_updated": bool(existing and not existing.sec_cik),
         }
-        return
+        return True
 
-    # Qualifying new company — generate add_startup step
+    return False
+
+
+async def _create_add_step(
+    db: AsyncSession,
+    step: EdgarJobStep,
+    job: EdgarJob,
+    issuer_name: str,
+    cik: str,
+    company_info: dict,
+    sic_code: str,
+    form_type: str,
+    amount: float,
+    extra_params: dict | None = None,
+) -> None:
+    """Create an add_startup step with standard params plus form-specific extras."""
     state = company_info.get("state_of_incorporation", "") or company_info.get("state", "")
     next_order = await _get_next_sort_order(db, job.id)
+
+    params = {
+        "issuer_name": issuer_name,
+        "cik": cik,
+        "sic_code": sic_code,
+        "sic_description": company_info.get("sic_description", ""),
+        "state": state,
+        "amount": amount,
+        "accession_number": step.params.get("accession_number", ""),
+        "filing_date": step.params.get("file_date", ""),
+        "form_type": form_type,
+    }
+    if extra_params:
+        params.update(extra_params)
+
     add_step = EdgarJobStep(
         job_id=job.id,
         step_type=EdgarStepType.add_startup,
-        params={
-            "issuer_name": issuer_name,
-            "cik": cik,
-            "sic_code": sic_code,
-            "sic_description": company_info.get("sic_description", ""),
-            "state": state,
-            "amount": amount,
-            "date_of_first_sale": form_d_data.date_of_first_sale,
-            "number_of_investors": form_d_data.number_of_investors,
-            "accession_number": accession,
-            "filing_date": step.params.get("file_date", ""),
-        },
+        params=params,
         sort_order=next_order,
     )
     db.add(add_step)
+
+
+async def _extract_form_d(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob,
+    cik: str, company_info: dict, sic_code: str, entity_name: str,
+) -> None:
+    """Extract company from a Form D filing."""
+    accession = step.params["accession_number"]
+
+    # SIC whitelist filter
+    if sic_code and sic_code not in SIC_WHITELIST:
+        step.result = {"action": "skipped", "reason": f"SIC {sic_code} not in whitelist"}
+        return
+
+    # Find filing in index
+    filings = await edgar.get_filings(cik)
+    target_filing = None
+    for f in filings:
+        if f.accession_number == accession:
+            target_filing = f
+            break
+
+    if not target_filing:
+        step.result = {"action": "skipped", "reason": "Filing not found in index"}
+        return
+
+    # Download and parse
+    try:
+        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
+        form_d_data = parse_form_d(doc_text)
+    except Exception as e:
+        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
+        return
+
+    # Qualify
+    if not is_qualifying_filing(form_d_data, sic_code):
+        step.result = {
+            "action": "skipped",
+            "reason": "Did not pass qualifying filters",
+            "amount": form_d_data.total_amount_sold,
+            "sic": sic_code,
+            "entity_name": form_d_data.issuer_name or entity_name,
+        }
+        return
+
+    issuer_name = form_d_data.issuer_name or entity_name
+    amount = form_d_data.total_amount_sold or 0
+
+    # Dedup
+    if await _dedup_check(db, step, cik, issuer_name):
+        return
+
+    # Create add step
+    await _create_add_step(
+        db, step, job, issuer_name, cik, company_info, sic_code,
+        form_type="D", amount=amount,
+        extra_params={
+            "date_of_first_sale": form_d_data.date_of_first_sale,
+            "number_of_investors": form_d_data.number_of_investors,
+        },
+    )
 
     step.result = {
         "action": "new_company",
@@ -535,14 +619,329 @@ async def _execute_extract_company(
         "cik": cik,
         "amount": amount,
         "sic": sic_code,
+        "form_type": "D",
     }
-    logger.info(f"Discovery: new company candidate — {issuer_name} (CIK {cik}, ${amount:,.0f})")
+    logger.info(f"Discovery (Form D): new company candidate — {issuer_name} (CIK {cik}, ${amount:,.0f})")
+
+
+async def _extract_s1(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob,
+    cik: str, company_info: dict, sic_code: str, entity_name: str,
+) -> None:
+    """Extract company from an S-1 filing. No SIC filter — every S-1 is a real company."""
+    accession = step.params["accession_number"]
+    issuer_name = company_info.get("name", "") or entity_name
+
+    # Dedup
+    if await _dedup_check(db, step, cik, issuer_name):
+        return
+
+    # Find filing in index
+    filings = await edgar.get_filings(cik)
+    target_filing = None
+    for f in filings:
+        if f.accession_number == accession:
+            target_filing = f
+            break
+
+    if not target_filing:
+        step.result = {"action": "skipped", "reason": "Filing not found in index"}
+        return
+
+    # Download and parse company data
+    try:
+        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
+        parsed_data = await parse_s1_company_data(doc_text, issuer_name)
+    except Exception as e:
+        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
+        return
+
+    amount = 0  # S-1 amount is typically unknown at discovery
+
+    # Create add step with parsed data
+    await _create_add_step(
+        db, step, job, issuer_name, cik, company_info, sic_code,
+        form_type="S-1", amount=amount,
+        extra_params={"parsed_data": parsed_data},
+    )
+
+    step.result = {
+        "action": "new_company",
+        "issuer_name": issuer_name,
+        "cik": cik,
+        "amount": amount,
+        "sic": sic_code,
+        "form_type": "S-1",
+    }
+    logger.info(f"Discovery (S-1): new company candidate — {issuer_name} (CIK {cik})")
+
+
+async def _extract_10k(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob,
+    cik: str, company_info: dict, sic_code: str, entity_name: str,
+) -> None:
+    """Extract company from a 10-K filing. Applies SIC whitelist."""
+    accession = step.params["accession_number"]
+
+    # SIC whitelist filter
+    if sic_code and sic_code not in SIC_WHITELIST:
+        step.result = {"action": "skipped", "reason": f"SIC {sic_code} not in whitelist"}
+        return
+
+    issuer_name = company_info.get("name", "") or entity_name
+
+    # Dedup
+    if await _dedup_check(db, step, cik, issuer_name):
+        return
+
+    # Find filing in index
+    filings = await edgar.get_filings(cik)
+    target_filing = None
+    for f in filings:
+        if f.accession_number == accession:
+            target_filing = f
+            break
+
+    if not target_filing:
+        step.result = {"action": "skipped", "reason": "Filing not found in index"}
+        return
+
+    # Download and parse
+    try:
+        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
+        parsed_data = await parse_10k_html(doc_text, issuer_name)
+    except Exception as e:
+        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
+        return
+
+    amount = 0  # 10-K does not have a raise amount
+
+    # Create add step with parsed data
+    await _create_add_step(
+        db, step, job, issuer_name, cik, company_info, sic_code,
+        form_type="10-K", amount=amount,
+        extra_params={"parsed_data": parsed_data},
+    )
+
+    step.result = {
+        "action": "new_company",
+        "issuer_name": issuer_name,
+        "cik": cik,
+        "amount": amount,
+        "sic": sic_code,
+        "form_type": "10-K",
+    }
+    logger.info(f"Discovery (10-K): new company candidate — {issuer_name} (CIK {cik})")
+
+
+async def _extract_form_c(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob,
+    cik: str, company_info: dict, sic_code: str, entity_name: str,
+) -> None:
+    """Extract company from a Form C filing (Regulation Crowdfunding)."""
+    accession = step.params["accession_number"]
+
+    # Find filing in index
+    filings = await edgar.get_filings(cik)
+    target_filing = None
+    for f in filings:
+        if f.accession_number == accession:
+            target_filing = f
+            break
+
+    if not target_filing:
+        step.result = {"action": "skipped", "reason": "Filing not found in index"}
+        return
+
+    # Download and parse XML
+    try:
+        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
+        form_c_data = parse_form_c(doc_text)
+    except Exception as e:
+        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
+        return
+
+    # Qualify
+    if not is_qualifying_form_c(form_c_data):
+        step.result = {
+            "action": "skipped",
+            "reason": "Did not pass Form C qualifying filters",
+            "target_amount": form_c_data.target_amount,
+            "entity_name": form_c_data.company_name or entity_name,
+        }
+        return
+
+    issuer_name = form_c_data.company_name or entity_name
+    amount = form_c_data.target_amount or form_c_data.maximum_amount or 0
+
+    # Dedup
+    if await _dedup_check(db, step, cik, issuer_name):
+        return
+
+    # Build parsed_data from Form C fields
+    parsed_data = {
+        "description": form_c_data.description,
+        "business_plan": form_c_data.business_plan,
+        "employee_count": form_c_data.employee_count,
+        "revenue": (
+            f"${form_c_data.revenue_most_recent:,.0f}"
+            if form_c_data.revenue_most_recent
+            else None
+        ),
+        "founders": [
+            {"name": o["name"], "title": o.get("title")}
+            for o in form_c_data.officers
+        ] if form_c_data.officers else [],
+    }
+
+    # Create add step
+    await _create_add_step(
+        db, step, job, issuer_name, cik, company_info, sic_code,
+        form_type="C", amount=amount,
+        extra_params={"parsed_data": parsed_data},
+    )
+
+    step.result = {
+        "action": "new_company",
+        "issuer_name": issuer_name,
+        "cik": cik,
+        "amount": amount,
+        "sic": sic_code,
+        "form_type": "C",
+    }
+    logger.info(f"Discovery (Form C): new company candidate — {issuer_name} (CIK {cik}, ${amount:,.0f})")
+
+
+async def _extract_form_1a(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob,
+    cik: str, company_info: dict, sic_code: str, entity_name: str,
+) -> None:
+    """Extract company from a Form 1-A filing (Regulation A). Uses Claude for HTML parsing."""
+    accession = step.params["accession_number"]
+
+    # Find filing in index
+    filings = await edgar.get_filings(cik)
+    target_filing = None
+    for f in filings:
+        if f.accession_number == accession:
+            target_filing = f
+            break
+
+    if not target_filing:
+        step.result = {"action": "skipped", "reason": "Filing not found in index"}
+        return
+
+    # Download and parse HTML via Claude
+    try:
+        doc_text = await edgar.download_filing(cik, accession, target_filing.primary_document)
+        form_1a_data = await parse_form_1a_html(doc_text, entity_name)
+    except Exception as e:
+        step.result = {"action": "skipped", "reason": f"Parse failed: {str(e)[:200]}"}
+        return
+
+    # Qualify
+    if not is_qualifying_form_1a(form_1a_data):
+        step.result = {
+            "action": "skipped",
+            "reason": "Did not pass Form 1-A qualifying filters",
+            "offering_amount": form_1a_data.offering_amount,
+            "entity_name": form_1a_data.company_name or entity_name,
+        }
+        return
+
+    issuer_name = form_1a_data.company_name or entity_name
+    amount = form_1a_data.offering_amount or 0
+
+    # Dedup
+    if await _dedup_check(db, step, cik, issuer_name):
+        return
+
+    # Build parsed_data from Form 1-A fields
+    parsed_data = {
+        "description": form_1a_data.description,
+        "business_model": form_1a_data.business_model,
+        "employee_count": form_1a_data.employee_count,
+        "revenue": form_1a_data.revenue,
+        "founders": [
+            {"name": o["name"], "title": o.get("title")}
+            for o in form_1a_data.officers
+        ] if form_1a_data.officers else [],
+    }
+
+    # Create add step
+    await _create_add_step(
+        db, step, job, issuer_name, cik, company_info, sic_code,
+        form_type="1-A", amount=amount,
+        extra_params={"parsed_data": parsed_data},
+    )
+
+    step.result = {
+        "action": "new_company",
+        "issuer_name": issuer_name,
+        "cik": cik,
+        "amount": amount,
+        "sic": sic_code,
+        "form_type": "1-A",
+    }
+    logger.info(f"Discovery (Form 1-A): new company candidate — {issuer_name} (CIK {cik}, ${amount:,.0f})")
+
+
+# Dispatcher map for extract_company by form type
+_EXTRACT_HANDLERS = {
+    "D": _extract_form_d,
+    "S-1": _extract_s1,
+    "10-K": _extract_10k,
+    "C": _extract_form_c,
+    "1-A": _extract_form_1a,
+}
+
+
+async def _execute_extract_company(
+    db: AsyncSession, step: EdgarJobStep, job: EdgarJob
+) -> None:
+    """Execute extract_company step: dispatch to form-specific handler."""
+    accession = step.params["accession_number"]
+    entity_name = step.params.get("entity_name", "")
+    cik = step.params.get("cik")
+    form_type = step.params.get("form_type", "D")
+
+    if not cik:
+        cik = await edgar.get_cik_from_accession(accession)
+        if not cik:
+            step.result = {"action": "skipped", "reason": "Could not resolve CIK"}
+            return
+
+    company_info = await edgar.get_company_info(cik)
+    sic_code = company_info.get("sic", "")
+
+    handler = _EXTRACT_HANDLERS.get(form_type)
+    if handler is None:
+        step.result = {"action": "skipped", "reason": f"Unknown form type: {form_type}"}
+        return
+
+    await handler(db, step, job, cik, company_info, sic_code, entity_name)
+
+
+# ---------------------------------------------------------------------------
+# Add startup: form-aware with provenance tracking
+# ---------------------------------------------------------------------------
+
+
+async def _is_real_startup(issuer_name: str, sic_code: str, sic_description: str) -> bool:
+    """Quick heuristic check: skip obvious non-startups (funds, trusts, SPACs).
+
+    For Form D and Form 1-A where we can't assume every filer is an operating company.
+    """
+    if ENTITY_EXCLUDE_PATTERNS.search(issuer_name):
+        return False
+    return True
 
 
 async def _execute_add_startup(
     db: AsyncSession, step: EdgarJobStep, job: EdgarJob
 ) -> None:
-    """Execute add_startup step: create Startup + FundingRound, generate enrich step."""
+    """Execute add_startup step: create Startup + FundingRound with provenance, generate enrich step."""
+    from app.models.founder import StartupFounder
     from app.models.funding_round import StartupFundingRound
     from app.models.startup import StartupStage, StartupStatus
     from app.services.edgar_processor import _format_amount
@@ -555,8 +954,30 @@ async def _execute_add_startup(
     filing_date = step.params.get("filing_date", "")
     accession = step.params.get("accession_number", "")
     sic_description = step.params.get("sic_description", "")
+    sic_code = step.params.get("sic_code", "")
+    form_type = step.params.get("form_type", "D")
+    parsed_data = step.params.get("parsed_data") or {}
 
-    stage_str = infer_stage_from_amount(amount)
+    source_key = normalize_form_source(form_type)
+    form_label = FORM_LABELS.get(form_type, form_type)
+
+    # Classification: S-1, 10-K, Form C -> always real startup (skip check)
+    # Form D, 1-A -> heuristic check
+    if form_type in ("D", "1-A"):
+        if not await _is_real_startup(issuer_name, sic_code, sic_description):
+            step.result = {
+                "action": "skipped",
+                "reason": "Entity name matched exclusion pattern",
+                "issuer_name": issuer_name,
+                "form_type": form_type,
+            }
+            return
+
+    # Stage: 10-K filers are public companies
+    if form_type == "10-K":
+        stage_str = "public"
+    else:
+        stage_str = infer_stage_from_amount(amount)
     stage = StartupStage(stage_str)
 
     slug = slugify(issuer_name)
@@ -564,32 +985,121 @@ async def _execute_add_startup(
     if existing_slug.scalar_one_or_none():
         slug = f"{slug}-{cik}"
 
+    description = f"Discovered via SEC {form_label} filing. {sic_description}".strip()
+    # Override description from parsed_data if available
+    if parsed_data.get("description"):
+        description = parsed_data["description"]
+
     startup = Startup(
         name=issuer_name,
         slug=slug,
-        description=f"Discovered via SEC Form D filing. {sic_description}".strip(),
+        description=description,
         stage=stage,
         status=StartupStatus.pending,
         location_state=state if state else None,
         location_country="US",
         sec_cik=cik,
+        form_sources=[source_key],
     )
     db.add(startup)
     await db.flush()
 
-    round_amount = _format_amount(amount) if amount else None
-    round_date = date_of_first_sale or filing_date
+    # Build data_sources: track which fields came from the filing
+    data_sources: dict = {}
 
-    funding_round = StartupFundingRound(
-        startup_id=startup.id,
-        round_name=f"Form D ({round_date or 'undated'})",
-        amount=round_amount,
-        date=round_date,
-        sort_order=0,
-        data_source="edgar",
-    )
-    db.add(funding_round)
+    # Apply parsed_data fields to the startup with provenance tracking
+    if parsed_data.get("description"):
+        # Already set above in description
+        data_sources["description"] = source_key
 
+    if parsed_data.get("business_model"):
+        startup.business_model = parsed_data["business_model"]
+        data_sources["business_model"] = source_key
+
+    if parsed_data.get("employee_count"):
+        startup.employee_count = parsed_data["employee_count"]
+        data_sources["employee_count"] = source_key
+
+    if parsed_data.get("revenue"):
+        startup.revenue_estimate = parsed_data["revenue"]
+        data_sources["revenue_estimate"] = source_key
+
+    if parsed_data.get("total_funding"):
+        startup.total_funding = parsed_data["total_funding"]
+        data_sources["total_funding"] = source_key
+
+    # Save founders/officers from parsed_data
+    if parsed_data.get("founders"):
+        for i, founder_data in enumerate(parsed_data["founders"]):
+            if founder_data.get("name"):
+                founder = StartupFounder(
+                    startup_id=startup.id,
+                    name=founder_data["name"],
+                    title=founder_data.get("title"),
+                    is_founder=True,
+                    sort_order=i,
+                )
+                db.add(founder)
+        data_sources["founders"] = source_key
+
+    # Funding rounds from parsed_data
+    funding_rounds_created = False
+    if parsed_data.get("funding_rounds"):
+        for i, round_info in enumerate(parsed_data["funding_rounds"]):
+            if isinstance(round_info, dict) and (round_info.get("amount") or round_info.get("round_name")):
+                funding_round = StartupFundingRound(
+                    startup_id=startup.id,
+                    round_name=round_info.get("round_name") or f"{form_label} ({round_info.get('date') or 'undated'})",
+                    amount=round_info.get("amount"),
+                    date=round_info.get("date"),
+                    pre_money_valuation=round_info.get("pre_money_valuation"),
+                    post_money_valuation=round_info.get("post_money_valuation"),
+                    lead_investor=round_info.get("lead_investor"),
+                    other_investors=round_info.get("other_investors"),
+                    sort_order=i,
+                    data_source="edgar",
+                )
+                db.add(funding_round)
+                funding_rounds_created = True
+        if funding_rounds_created:
+            data_sources["funding_rounds"] = source_key
+
+    # If no funding_rounds from parsed_data and amount > 0, create a single funding round (Form D behavior)
+    if not funding_rounds_created and amount and amount > 0:
+        round_amount = _format_amount(amount)
+        round_date = date_of_first_sale or filing_date
+
+        funding_round = StartupFundingRound(
+            startup_id=startup.id,
+            round_name=f"{form_label} ({round_date or 'undated'})",
+            amount=round_amount,
+            date=round_date,
+            sort_order=0,
+            data_source="edgar",
+        )
+        db.add(funding_round)
+        data_sources["funding_rounds"] = source_key
+
+    # Also track business_plan for Form C if present
+    if parsed_data.get("business_plan") and not startup.description:
+        startup.description = parsed_data["business_plan"]
+        data_sources["description"] = source_key
+
+    # Clean up None values from data_sources
+    data_sources = {k: v for k, v in data_sources.items() if v is not None}
+    startup.data_sources = data_sources
+
+    step.result = {
+        "action": "created",
+        "startup_id": str(startup.id),
+        "startup_name": issuer_name,
+        "stage": stage_str,
+        "amount": _format_amount(amount) if amount else None,
+        "form_type": form_type,
+    }
+
+    # Only generate enrich_startup step for actual startups
+    # S-1, 10-K, Form C, Form D, 1-A all get enrichment
     next_order = await _get_next_sort_order(db, job.id)
     enrich_step = EdgarJobStep(
         job_id=job.id,
@@ -602,14 +1112,10 @@ async def _execute_add_startup(
     )
     db.add(enrich_step)
 
-    step.result = {
-        "action": "created",
-        "startup_id": str(startup.id),
-        "startup_name": issuer_name,
-        "stage": stage_str,
-        "amount": round_amount,
-    }
-    logger.info(f"Discovery: created startup {issuer_name} (stage={stage_str}, CIK={cik})")
+    logger.info(
+        f"Discovery ({form_label}): created startup {issuer_name} "
+        f"(stage={stage_str}, CIK={cik}, sources={list(data_sources.keys())})"
+    )
 
 
 async def _execute_enrich_startup(
