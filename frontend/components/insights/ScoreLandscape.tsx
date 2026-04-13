@@ -86,9 +86,12 @@ export function ScoreLandscape({ data }: Props) {
               />
               <Scatter
                 data={data.scatter}
-                onClick={(entry: Record<string, unknown>) => {
-                  if (entry?.slug) router.push(`/startups/${entry.slug}`);
-                }}
+                onClick={
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ((entry: any) => {
+                    if (entry?.slug) router.push(`/startups/${entry.slug}`);
+                  }) as never
+                }
                 cursor="pointer"
               >
                 {data.scatter.map((entry, i) => (
