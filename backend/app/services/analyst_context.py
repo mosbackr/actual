@@ -103,12 +103,23 @@ async def get_portfolio_summary(db: AsyncSession) -> dict:
         bucket = int(s // 10) * 10
         score_buckets[f"{bucket}-{bucket + 9}"] += 1
 
+    # Top locations by state
+    location_result = await db.execute(
+        select(Startup.location_state, func.count(Startup.id))
+        .where(Startup.location_state.isnot(None), Startup.location_state != "")
+        .group_by(Startup.location_state)
+        .order_by(func.count(Startup.id).desc())
+        .limit(10)
+    )
+    top_locations = [{"state": row[0], "count": row[1]} for row in location_result.all()]
+
     summary = {
         "total_startups": total,
         "stage_distribution": stage_dist,
         "avg_ai_score": avg_score,
         "total_funding": total_funding_str,
         "top_industries": top_industries,
+        "top_locations": top_locations,
         "score_distribution": dict(sorted(score_buckets.items())),
     }
 
@@ -143,10 +154,52 @@ async def find_matching_startups(
     return [_startup_to_context(s) for s in startups]
 
 
+US_STATE_MAP = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+    "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+    "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+    "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
+    "wisconsin": "WI", "wyoming": "WY",
+}
+# Also allow abbreviation lookups
+US_ABBREV_SET = set(US_STATE_MAP.values())
+
+
+def _extract_location(message: str) -> tuple[str | None, str | None]:
+    """Extract US state code and/or city name from message text."""
+    msg_lower = message.lower()
+
+    # Check full state names first (longer match wins)
+    matched_state = None
+    for state_name, code in sorted(US_STATE_MAP.items(), key=lambda x: -len(x[0])):
+        if state_name in msg_lower:
+            matched_state = code
+            break
+
+    # Check abbreviations (2-letter uppercase in original message)
+    if not matched_state:
+        import re
+        abbrevs = re.findall(r'\b([A-Z]{2})\b', message)
+        for ab in abbrevs:
+            if ab in US_ABBREV_SET:
+                matched_state = ab
+                break
+
+    return matched_state, None
+
+
 async def find_startups_by_filter(
     db: AsyncSession, message: str, limit: int = 20
 ) -> list[dict]:
-    """Find startups matching sector or stage keywords in the message."""
+    """Find startups matching sector, stage, or location keywords in the message."""
     message_lower = message.lower()
 
     # Check for stage keywords
@@ -174,7 +227,10 @@ async def find_startups_by_filter(
             matched_industry_id = ind_id
             break
 
-    if not matched_stage and not matched_industry_id:
+    # Check for location keywords
+    matched_state, _ = _extract_location(message)
+
+    if not matched_stage and not matched_industry_id and not matched_state:
         return []
 
     query = select(Startup).options(selectinload(Startup.industries))
@@ -188,6 +244,8 @@ async def find_startups_by_filter(
                 )
             )
         )
+    if matched_state:
+        query = query.where(Startup.location_state == matched_state)
     query = query.order_by(Startup.ai_score.desc().nulls_last()).limit(limit)
 
     result = await db.execute(query)
@@ -212,6 +270,9 @@ def _startup_to_context(s: Startup) -> dict:
         "tech_stack": s.tech_stack,
         "key_metrics": s.key_metrics,
         "website_url": s.website_url,
+        "location_city": s.location_city,
+        "location_state": s.location_state,
+        "location_country": s.location_country,
         "industries": [ind.name for ind in s.industries] if s.industries else [],
     }
 
@@ -227,9 +288,14 @@ def build_system_prompt(summary: dict, startup_profiles: list[dict] | None = Non
     score_lines = ", ".join(
         f"{bucket}: {count}" for bucket, count in summary["score_distribution"].items()
     )
+    location_lines = ", ".join(
+        f"{loc['state']} ({loc['count']})" for loc in summary.get("top_locations", [])
+    )
 
     prompt = f"""You are a senior venture analyst at Deep Thesis with a data science background.
 You have access to a proprietary database of {summary['total_startups']} startups and external market intelligence via Crunchbase and PitchBook.
+
+IMPORTANT: When startup profiles are provided below, use ONLY that real data for your analysis. Never fabricate or hallucinate company data. If you don't have enough data to answer, say so and explain what data would be needed.
 
 PORTFOLIO SUMMARY:
 - {summary['total_startups']} total startups
@@ -237,7 +303,13 @@ PORTFOLIO SUMMARY:
 - Average AI score: {summary['avg_ai_score']}/100
 - Total tracked funding: {summary['total_funding']}
 - Top sectors by count: {industry_lines}
+- Top locations by state: {location_lines}
 - Score distribution: {score_lines}
+
+AVAILABLE DATA FIELDS PER STARTUP:
+name, tagline, description, stage, ai_score, total_funding, employee_count,
+business_model, revenue_estimate, competitors, tech_stack, key_metrics,
+website_url, location_city, location_state, location_country, industries
 """
 
     if startup_profiles:
