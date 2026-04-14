@@ -1,0 +1,45 @@
+export const TIERS = [
+  {
+    key: "starter",
+    name: "Starter",
+    price: "$19.99",
+    period: "/mo",
+    annual: "$240/yr",
+    features: [
+      "10 startup analyses / month",
+      "15 reports generated / month",
+      "Unlimited company search & profiles",
+      "VC Quant Agent access",
+    ],
+    highlighted: false,
+  },
+  {
+    key: "professional",
+    name: "Professional",
+    price: "$200",
+    period: "/mo",
+    annual: "$2,400/yr",
+    features: [
+      "50 startup analyses / month",
+      "Unlimited reports",
+      "Unlimited company search & profiles",
+      "VC Quant Agent access",
+      "Priority processing",
+    ],
+    highlighted: true,
+  },
+  {
+    key: "unlimited",
+    name: "Unlimited",
+    price: "$500",
+    period: "/mo",
+    annual: "$6,000/yr",
+    features: [
+      "Unlimited everything",
+      "VC Quant Agent access",
+      "Priority processing",
+      "API access",
+    ],
+    highlighted: false,
+  },
+];

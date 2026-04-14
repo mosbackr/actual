@@ -1,9 +1,11 @@
 import logging
+import uuid
 from datetime import datetime, timezone
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -95,7 +97,6 @@ async def create_checkout_session(
 @router.post("/api/billing/portal")
 async def create_portal_session(
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     if not user.stripe_customer_id:
         raise HTTPException(400, "No billing account found. Subscribe to a plan first.")
@@ -151,7 +152,7 @@ async def stripe_webhook(
         event = s.Webhook.construct_event(
             payload, sig_header, settings.stripe_webhook_secret
         )
-    except s.error.SignatureVerificationError:
+    except (stripe.error.SignatureVerificationError, stripe.SignatureVerificationError, ValueError):
         raise HTTPException(400, "Invalid signature")
 
     event_type = event["type"]
@@ -172,9 +173,6 @@ async def stripe_webhook(
 
 
 async def _handle_checkout_completed(session_data: dict, db: AsyncSession):
-    from sqlalchemy import select
-    import uuid
-
     customer_id = session_data.get("customer")
     subscription_id = session_data.get("subscription")
     metadata = session_data.get("metadata", {})
@@ -223,8 +221,6 @@ async def _handle_checkout_completed(session_data: dict, db: AsyncSession):
 
 
 async def _handle_subscription_updated(sub_data: dict, db: AsyncSession):
-    from sqlalchemy import select
-
     customer_id = sub_data.get("customer")
     if not customer_id:
         return
@@ -264,8 +260,6 @@ async def _handle_subscription_updated(sub_data: dict, db: AsyncSession):
 
 
 async def _handle_subscription_deleted(sub_data: dict, db: AsyncSession):
-    from sqlalchemy import select
-
     customer_id = sub_data.get("customer")
     if not customer_id:
         return
@@ -288,8 +282,6 @@ async def _handle_subscription_deleted(sub_data: dict, db: AsyncSession):
 
 
 async def _handle_payment_failed(invoice_data: dict, db: AsyncSession):
-    from sqlalchemy import select
-
     customer_id = invoice_data.get("customer")
     if not customer_id:
         return

@@ -7,49 +7,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { BillingStatus } from "@/lib/types";
-
-const TIERS = [
-  {
-    key: "starter",
-    name: "Starter",
-    price: "$19.99",
-    period: "/mo",
-    features: [
-      "10 startup analyses / month",
-      "15 reports generated / month",
-      "Unlimited company search & profiles",
-      "VC Quant Agent access",
-    ],
-    highlighted: false,
-  },
-  {
-    key: "professional",
-    name: "Professional",
-    price: "$200",
-    period: "/mo",
-    features: [
-      "50 startup analyses / month",
-      "Unlimited reports",
-      "Unlimited company search & profiles",
-      "VC Quant Agent access",
-      "Priority processing",
-    ],
-    highlighted: true,
-  },
-  {
-    key: "unlimited",
-    name: "Unlimited",
-    price: "$500",
-    period: "/mo",
-    features: [
-      "Unlimited everything",
-      "VC Quant Agent access",
-      "Priority processing",
-      "API access",
-    ],
-    highlighted: false,
-  },
-];
+import { TIERS } from "@/lib/pricing";
 
 export default function BillingPage() {
   return (
@@ -89,16 +47,18 @@ function BillingContent() {
   useEffect(() => {
     if (searchParams.get("success") === "true" && token) {
       setShowSuccess(true);
-      // Poll until status is active
+      let attempts = 0;
+      const maxAttempts = 30;
       const interval = setInterval(async () => {
+        attempts++;
         try {
           const data = await api.getBillingStatus(token);
           setBilling(data);
-          if (data.subscription_status === "active") {
+          if (data.subscription_status === "active" || attempts >= maxAttempts) {
             clearInterval(interval);
           }
         } catch {
-          // keep polling
+          if (attempts >= maxAttempts) clearInterval(interval);
         }
       }, 2000);
       return () => clearInterval(interval);
