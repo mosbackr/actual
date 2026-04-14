@@ -16,6 +16,9 @@ export function Navbar() {
               <Link href="/startups" className="text-sm text-text-secondary hover:text-text-primary transition">
                 Companies
               </Link>
+              <Link href="/analyze" className="text-sm text-text-secondary hover:text-text-primary transition">
+                Analyze
+              </Link>
               <Link href="/insights" className="text-sm text-text-secondary hover:text-text-primary transition">
                 Insights
               </Link>
