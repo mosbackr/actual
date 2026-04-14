@@ -62,7 +62,7 @@ function InsightsContent() {
       if (!token) return;
       try {
         const data = await api.getConversation(token, id);
-        setMessages(data.messages);
+        setMessages(data.messages || []);
         setActiveConvId(id);
       } catch {
         // silent
