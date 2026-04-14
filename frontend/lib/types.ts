@@ -260,3 +260,12 @@ export interface AnalystSharedConversation {
   message_count: number;
   messages: AnalystMessageData[];
 }
+
+// ── Billing types ─────────────────────────────────────────────────────
+
+export interface BillingStatus {
+  subscription_status: "none" | "active" | "cancelled" | "past_due";
+  subscription_tier: "starter" | "professional" | "unlimited" | null;
+  subscription_period_end: string | null;
+  has_stripe_customer: boolean;
+}

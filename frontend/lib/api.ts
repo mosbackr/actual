@@ -255,4 +255,27 @@ export const api = {
       {}
     );
   },
+
+  // ── Billing ───────────────────────────────────────────────────────────
+
+  async createCheckoutSession(token: string, tier: string) {
+    return apiFetch<{ url: string }>("/api/billing/checkout", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ tier }),
+    });
+  },
+
+  async createPortalSession(token: string) {
+    return apiFetch<{ url: string }>("/api/billing/portal", {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  async getBillingStatus(token: string) {
+    return apiFetch<import("./types").BillingStatus>("/api/billing/status", {
+      headers: authHeaders(token),
+    });
+  },
 };
