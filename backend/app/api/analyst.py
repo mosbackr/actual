@@ -22,13 +22,7 @@ from app.models.analyst import (
     ReportGenStatus,
 )
 from app.models.user import SubscriptionStatus, User
-from app.services.analyst_chat import stream_perplexity, extract_charts
-from app.services.analyst_context import (
-    build_system_prompt,
-    find_matching_startups,
-    find_startups_by_filter,
-    get_portfolio_summary,
-)
+from app.services.analyst_agent import run_agent
 from app.services.analyst_reports import generate_report
 from app.services import s3
 
@@ -275,15 +269,6 @@ async def send_message(
 
     await db.commit()
 
-    # Build context
-    summary = await get_portfolio_summary(db)
-    matched_startups = await find_matching_startups(db, body.content)
-    if not matched_startups:
-        matched_startups = await find_startups_by_filter(db, body.content)
-
-    matched_ids = [s["id"] for s in matched_startups] if matched_startups else None
-    system_prompt = build_system_prompt(summary, matched_startups or None)
-
     # Build message history (last 20)
     history = []
     for msg in conversation.messages[-20:]:
@@ -296,37 +281,40 @@ async def send_message(
 
     # Capture IDs needed for the streaming closure
     conv_id = conversation.id
-    user_id = user.id
 
     async def event_stream():
         full_text = ""
         charts = []
         citations = []
-        error_msg = None
 
         try:
-            async for event in stream_perplexity(history, system_prompt):
-                if event["type"] == "text":
+            async for event in run_agent(history):
+                etype = event["type"]
+
+                if etype == "text":
                     full_text += event["chunk"]
                     yield f"event: text\ndata: {json.dumps({'chunk': event['chunk']})}\n\n"
 
-                elif event["type"] == "citations":
+                elif etype == "status":
+                    yield f"event: status\ndata: {json.dumps({'message': event['message']})}\n\n"
+
+                elif etype == "charts":
+                    charts.extend(event["charts"])
+                    yield f"event: charts\ndata: {json.dumps({'charts': event['charts']})}\n\n"
+
+                elif etype == "citations":
                     citations = event["citations"]
                     yield f"event: citations\ndata: {json.dumps({'citations': citations})}\n\n"
 
-                elif event["type"] == "done":
+                elif etype == "done":
                     full_text = event.get("full_text", full_text)
-                    charts = event.get("charts", [])
-                    if charts:
-                        yield f"event: charts\ndata: {json.dumps({'charts': charts})}\n\n"
+                    charts = event.get("charts", charts)
 
-                elif event["type"] == "error":
-                    error_msg = event["message"]
-                    yield f"event: error\ndata: {json.dumps({'message': error_msg})}\n\n"
+                elif etype == "error":
+                    yield f"event: error\ndata: {json.dumps({'message': event['message']})}\n\n"
 
         except Exception as e:
-            error_msg = str(e)
-            yield f"event: error\ndata: {json.dumps({'message': error_msg})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
 
         # Save assistant message to DB
         if full_text:
@@ -338,7 +326,6 @@ async def send_message(
                     content=full_text,
                     charts=charts if charts else None,
                     citations=citations if citations else None,
-                    context_startups=matched_ids,
                 )
                 save_db.add(assistant_msg)
 
@@ -350,7 +337,7 @@ async def send_message(
                 await save_db.commit()
 
         # Warning at 80 messages for subscribers
-        msg_count = (conversation.message_count or 0) + 1  # +1 for assistant
+        msg_count = (conversation.message_count or 0) + 1
         if is_sub and msg_count >= SUBSCRIBER_WARNING_AT:
             yield f"event: warning\ndata: {json.dumps({'message': f'{SUBSCRIBER_MESSAGE_LIMIT - msg_count} messages remaining in this conversation.'})}\n\n"
 

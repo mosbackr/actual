@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     logo_dev_token: str = ""
     perplexity_api_key: str = ""
     anthropic_api_key: str = ""
+    database_readonly_url: str = ""
     edgar_user_agent: str = "Acutal admin@deepthesis.org"
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""

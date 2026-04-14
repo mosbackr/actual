@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { AlertModal, ConfirmModal } from "@/components/Modal";
 import type {
   AnalystConversationSummary,
   AnalystMessageData,
@@ -33,9 +34,12 @@ function InsightsContent() {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AnalystMessageData[]>([]);
   const [streamingContent, setStreamingContent] = useState("");
+  const [streamingStatus, setStreamingStatus] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: "info" | "success" | "error" } | null>(null);
+  const [deleteConvId, setDeleteConvId] = useState<string | null>(null);
 
   // Let backend 402 responses handle subscription gating rather than
   // relying on a client-side session field that isn't wired through NextAuth.
@@ -94,7 +98,7 @@ function InsightsContent() {
       setSidebarOpen(false);
     } catch (err: any) {
       if (err?.status === 402) {
-        alert(err.message || "Subscribe for unlimited analyst access.");
+        setAlertModal({ title: "Subscription Required", message: err.message || "Subscribe for unlimited analyst access.", variant: "info" });
       }
     }
   };
@@ -119,7 +123,7 @@ function InsightsContent() {
       setTimeout(() => sendMessage(prompt, data.id), 100);
     } catch (err: any) {
       if (err?.status === 402) {
-        alert(err.message || "Subscribe for unlimited analyst access.");
+        setAlertModal({ title: "Subscription Required", message: err.message || "Subscribe for unlimited analyst access.", variant: "info" });
       }
     }
   };
@@ -139,7 +143,7 @@ function InsightsContent() {
         await loadConversations();
       } catch (err: any) {
         if (err?.status === 402) {
-          alert(err.message || "Subscribe for unlimited analyst access.");
+          setAlertModal({ title: "Subscription Required", message: err.message || "Subscribe for unlimited analyst access.", variant: "info" });
         }
         return;
       }
@@ -157,6 +161,7 @@ function InsightsContent() {
     setMessages((prev) => [...prev, userMsg]);
     setIsStreaming(true);
     setStreamingContent("");
+    setStreamingStatus("");
 
     try {
       const response = await api.streamMessage(token, targetConvId, content);
@@ -192,15 +197,18 @@ function InsightsContent() {
               if (currentEvent === "text") {
                 fullText += data.chunk;
                 setStreamingContent(fullText);
+                setStreamingStatus("");
+              } else if (currentEvent === "status") {
+                setStreamingStatus(data.message || "");
               } else if (currentEvent === "charts") {
-                charts = data.charts || [];
+                charts = [...charts, ...(data.charts || [])];
               } else if (currentEvent === "citations") {
-                citations = data.citations || [];
+                citations = [...citations, ...(data.citations || [])];
               } else if (currentEvent === "done") {
-                // Use cleaned text (chart JSON stripped) from backend
                 if (data.full_text) {
                   fullText = data.full_text;
                 }
+                setStreamingStatus("");
               } else if (currentEvent === "error") {
                 throw new Error(data.message);
               }
@@ -266,20 +274,20 @@ function InsightsContent() {
           document.body.removeChild(a);
           URL.revokeObjectURL(blobUrl);
         } else if (status.status === "failed") {
-          alert(`Report generation failed: ${status.error || "Unknown error"}`);
+          setAlertModal({ title: "Report Failed", message: status.error || "Unknown error", variant: "error" });
         } else {
           setTimeout(poll, 2000);
         }
       };
       setTimeout(poll, 2000);
-      alert("Generating report... It will download automatically when ready.");
+      setAlertModal({ title: "Generating Report", message: "Your report is being generated. It will download automatically when ready.", variant: "success" });
     } catch (err: any) {
       const msg = err.message || "Failed to generate report.";
       // Backend returns 402 for non-subscribers
       if (msg.includes("402")) {
-        alert("Subscribe for $19.99/mo to generate reports.");
+        setAlertModal({ title: "Subscription Required", message: "Subscribe for $19.99/mo to generate reports.", variant: "info" });
       } else {
-        alert(msg);
+        setAlertModal({ title: "Error", message: msg, variant: "error" });
       }
     }
   };
@@ -326,23 +334,15 @@ function InsightsContent() {
                   const result = await api.shareConversation(token, activeConvId);
                   const fullUrl = `${window.location.origin}${result.url}`;
                   navigator.clipboard.writeText(fullUrl);
-                  alert("Share link copied to clipboard!");
+                  setAlertModal({ title: "Link Copied", message: "Share link copied to clipboard.", variant: "success" });
                 }}
                 className="text-xs text-text-tertiary hover:text-text-secondary"
               >
                 Share
               </button>
               <button
-                onClick={async () => {
-                  if (!token || !activeConvId) return;
-                  if (confirm("Delete this conversation?")) {
-                    await api.deleteConversation(token, activeConvId);
-                    setActiveConvId(null);
-                    setMessages([]);
-                    await loadConversations();
-                  }
-                }}
-                className="text-xs text-red-500 hover:text-red-700"
+                onClick={() => setDeleteConvId(activeConvId)}
+                className="text-xs text-score-low hover:text-score-low/80"
               >
                 Delete
               </button>
@@ -354,6 +354,7 @@ function InsightsContent() {
         <AnalystChat
           messages={messages}
           streamingContent={streamingContent}
+          streamingStatus={streamingStatus}
           isStreaming={isStreaming}
         />
 
@@ -366,6 +367,30 @@ function InsightsContent() {
           isSubscriber={true}
         />
       </div>
+
+      {/* Brand modals */}
+      <AlertModal
+        open={!!alertModal}
+        onClose={() => setAlertModal(null)}
+        title={alertModal?.title || ""}
+        message={alertModal?.message || ""}
+        variant={alertModal?.variant}
+      />
+      <ConfirmModal
+        open={!!deleteConvId}
+        onClose={() => setDeleteConvId(null)}
+        onConfirm={async () => {
+          if (!token || !deleteConvId) return;
+          await api.deleteConversation(token, deleteConvId);
+          setActiveConvId(null);
+          setMessages([]);
+          await loadConversations();
+        }}
+        title="Delete Conversation"
+        message="Are you sure you want to delete this conversation? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+      />
     </div>
   );
 }

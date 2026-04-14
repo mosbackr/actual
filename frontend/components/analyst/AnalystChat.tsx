@@ -7,10 +7,11 @@ import type { AnalystMessageData } from "@/lib/types";
 interface Props {
   messages: AnalystMessageData[];
   streamingContent: string;
+  streamingStatus?: string;
   isStreaming: boolean;
 }
 
-export function AnalystChat({ messages, streamingContent, isStreaming }: Props) {
+export function AnalystChat({ messages, streamingContent, streamingStatus, isStreaming }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,8 +68,21 @@ export function AnalystChat({ messages, streamingContent, isStreaming }: Props) 
         />
       )}
 
+      {/* Status indicator during tool execution */}
+      {isStreaming && streamingStatus && (
+        <div className="flex gap-3 items-start">
+          <div className="w-7 h-7 rounded-full bg-accent/10 text-accent flex items-center justify-center text-xs font-medium shrink-0">
+            DT
+          </div>
+          <div className="bg-surface border border-border rounded-lg px-4 py-2 flex items-center gap-2">
+            <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+            <span className="text-xs text-text-tertiary">{streamingStatus}</span>
+          </div>
+        </div>
+      )}
+
       {/* Typing indicator when streaming hasn't produced text yet */}
-      {isStreaming && !streamingContent && (
+      {isStreaming && !streamingContent && !streamingStatus && (
         <div className="flex gap-3">
           <div className="w-7 h-7 rounded-full bg-accent/10 text-accent flex items-center justify-center text-xs font-medium">
             DT
