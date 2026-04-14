@@ -27,6 +27,7 @@ function BillingContent() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<string>("professional");
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: "info" | "success" | "error" } | null>(null);
 
   const loadBilling = useCallback(async () => {
@@ -213,13 +214,15 @@ function BillingContent() {
       <div className="grid md:grid-cols-3 gap-6">
         {TIERS.map((t) => {
           const isCurrent = status === "active" && tier === t.key;
+          const isSelected = status === "none" && selectedTier === t.key;
           return (
             <div
               key={t.key}
-              className={`rounded p-6 flex flex-col ${
+              onClick={() => status === "none" && setSelectedTier(t.key)}
+              className={`rounded p-6 flex flex-col transition-all ${status === "none" ? "cursor-pointer" : ""} ${
                 isCurrent
                   ? "border-2 border-accent bg-background ring-1 ring-accent/10"
-                  : t.highlighted && status === "none"
+                  : isSelected
                   ? "border-2 border-accent bg-background ring-1 ring-accent/10"
                   : "border border-border bg-background"
               }`}
@@ -227,7 +230,7 @@ function BillingContent() {
               {isCurrent && (
                 <span className="text-xs font-medium text-accent mb-3">Current Plan</span>
               )}
-              {!isCurrent && t.highlighted && status === "none" && (
+              {isSelected && t.highlighted && (
                 <span className="text-xs font-medium text-accent mb-3">Recommended</span>
               )}
               <h3 className="text-sm font-medium text-text-primary">{t.name}</h3>
@@ -264,7 +267,11 @@ function BillingContent() {
                 <button
                   onClick={() => handleCheckout(t.key)}
                   disabled={!!checkoutLoading}
-                  className="block w-full text-center py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
+                  className={`block w-full text-center py-2.5 text-sm font-medium rounded transition disabled:opacity-50 ${
+                    isSelected
+                      ? "bg-accent text-white hover:bg-accent-hover"
+                      : "border border-border text-text-primary hover:border-text-tertiary"
+                  }`}
                 >
                   {checkoutLoading === t.key ? "Redirecting..." : "Subscribe"}
                 </button>
