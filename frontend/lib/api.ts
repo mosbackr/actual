@@ -240,9 +240,9 @@ export const api = {
     );
   },
 
-  async getSharedConversation(token: string) {
+  async getSharedConversation(shareToken: string) {
     return apiFetch<AnalystSharedConversation>(
-      `/api/analyst/shared/${token}`,
+      `/api/analyst/shared/${shareToken}`,
       {}
     );
   },

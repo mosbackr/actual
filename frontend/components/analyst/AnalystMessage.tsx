@@ -96,7 +96,7 @@ export function AnalystMessage({ role, content, charts, citations, isStreaming }
                   className="text-[10px] text-accent/70 hover:text-accent bg-accent/5 px-1.5 py-0.5 rounded"
                   title={cite.url}
                 >
-                  {cite.title || new URL(cite.url).hostname}
+                  {cite.title || (() => { try { return new URL(cite.url).hostname; } catch { return cite.url; } })()}
                 </a>
               ))}
             </div>

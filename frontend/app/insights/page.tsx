@@ -28,8 +28,8 @@ export default function InsightsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Subscription check
-  const isSubscriber = (session as any)?.subscriptionStatus === "active";
+  // Let backend 402 responses handle subscription gating rather than
+  // relying on a client-side session field that isn't wired through NextAuth.
 
   // Load conversations list
   const loadConversations = useCallback(async () => {
@@ -230,11 +230,6 @@ export default function InsightsPage() {
   const handleGenerateReport = async (format: "docx" | "xlsx") => {
     if (!token || !activeConvId) return;
 
-    if (!isSubscriber) {
-      alert("Subscribe to generate reports.");
-      return;
-    }
-
     try {
       const result = await api.createReport(token, activeConvId, format);
 
@@ -265,7 +260,13 @@ export default function InsightsPage() {
       setTimeout(poll, 2000);
       alert("Generating report... It will download automatically when ready.");
     } catch (err: any) {
-      alert(err.message || "Failed to generate report.");
+      const msg = err.message || "Failed to generate report.";
+      // Backend returns 402 for non-subscribers
+      if (msg.includes("402")) {
+        alert("Subscribe for $19.99/mo to generate reports.");
+      } else {
+        alert(msg);
+      }
     }
   };
 
@@ -348,7 +349,7 @@ export default function InsightsPage() {
           onGenerateReport={handleGenerateReport}
           isStreaming={isStreaming}
           hasMessages={messages.length > 0}
-          isSubscriber={isSubscriber}
+          isSubscriber={true}
         />
       </div>
     </div>
