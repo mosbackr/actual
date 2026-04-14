@@ -64,7 +64,6 @@ export interface StartupDetail extends StartupCard {
   media: MediaItem[];
   score_history: ScoreHistory[];
   dimensions: StartupDimension[];
-  form_sources: string[];
   data_sources: Record<string, string>;
 }
 

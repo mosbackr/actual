@@ -92,7 +92,12 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
               ))}
             </div>
           )}
-          <p className="text-text-secondary mt-2 break-words">{startup.description}</p>
+          <div className="mt-2">
+            <p className="text-text-secondary break-words">{startup.description}</p>
+            {startup.data_sources?.description && (
+              <SourceBadge source={startup.data_sources.description} />
+            )}
+          </div>
           <div className="flex flex-wrap gap-2 mt-3 items-center">
             <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
               {stageLabels[startup.stage] || startup.stage}
@@ -142,10 +147,13 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
           </div>
           <div className="flex flex-wrap gap-3 mt-3 items-center">
             {startup.website_url && (
-              <a href={startup.website_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-accent hover:text-accent-hover transition">
-                Website &rarr;
-              </a>
+              <span className="inline-flex items-center gap-1">
+                <a href={startup.website_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-accent hover:text-accent-hover transition">
+                  Website &rarr;
+                </a>
+                <SourceBadge source={startup.data_sources?.website_url} />
+              </span>
             )}
             {startup.linkedin_url && (
               <a href={startup.linkedin_url} target="_blank" rel="noopener noreferrer"
