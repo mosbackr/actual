@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AuthButton } from "./AuthButton";
+import { NotificationBell } from "./NotificationBell";
 import { LogoIcon } from "./LogoIcon";
 
 export function Navbar() {
@@ -37,7 +38,10 @@ export function Navbar() {
               </div>
             )}
           </div>
-          <AuthButton />
+          <div className="flex items-center gap-3">
+            {session && <NotificationBell />}
+            <AuthButton />
+          </div>
         </div>
       </div>
     </nav>

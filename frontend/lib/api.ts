@@ -3,6 +3,8 @@ import type {
   AnalystConversationDetail,
   AnalystReportSummary,
   AnalystSharedConversation,
+  NotificationList,
+  ReportListItem,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -275,6 +277,34 @@ export const api = {
 
   async getBillingStatus(token: string) {
     return apiFetch<import("./types").BillingStatus>("/api/billing/status", {
+      headers: authHeaders(token),
+    });
+  },
+
+  // ── Notifications ───────────────────────────────────────────────────
+
+  async getNotifications(token: string) {
+    return apiFetch<NotificationList>("/api/notifications", {
+      headers: authHeaders(token),
+    });
+  },
+
+  async markNotificationRead(token: string, id: string) {
+    return apiFetch<{ success: boolean }>(`/api/notifications/${id}/read`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+    });
+  },
+
+  async markAllNotificationsRead(token: string) {
+    return apiFetch<{ success: boolean }>("/api/notifications/read-all", {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  async listAllReports(token: string) {
+    return apiFetch<{ items: ReportListItem[] }>("/api/analyst/reports", {
       headers: authHeaders(token),
     });
   },

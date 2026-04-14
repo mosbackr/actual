@@ -269,3 +269,31 @@ export interface BillingStatus {
   subscription_period_end: string | null;
   has_stripe_customer: boolean;
 }
+
+// ── Notification types ────────────────────────────────────────────────
+
+export interface NotificationItem {
+  id: string;
+  type: "analysis_complete" | "report_ready";
+  title: string;
+  message: string;
+  link: string;
+  read: boolean;
+  created_at: string | null;
+}
+
+export interface NotificationList {
+  items: NotificationItem[];
+  unread_count: number;
+}
+
+export interface ReportListItem {
+  id: string;
+  conversation_id: string;
+  title: string;
+  conversation_title: string;
+  format: "docx" | "xlsx" | "pdf" | "pptx";
+  status: "pending" | "generating" | "complete" | "failed";
+  file_size_bytes: number | null;
+  created_at: string | null;
+}
