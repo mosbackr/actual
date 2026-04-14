@@ -55,6 +55,29 @@ export default function EdgarPage() {
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [discoverDays, setDiscoverDays] = useState(365);
+  const [formTypes, setFormTypes] = useState<string[]>(["D", "S-1", "10-K", "C", "1-A"]);
+
+  const FORM_OPTIONS = [
+    { value: "D", label: "Form D" },
+    { value: "S-1", label: "S-1" },
+    { value: "10-K", label: "10-K" },
+    { value: "C", label: "Form C" },
+    { value: "1-A", label: "Form 1-A" },
+  ];
+
+  const toggleFormType = (ft: string) => {
+    setFormTypes(prev =>
+      prev.includes(ft) ? prev.filter(t => t !== ft) : [...prev, ft]
+    );
+  };
+
+  const toggleAll = () => {
+    if (formTypes.length === FORM_OPTIONS.length) {
+      setFormTypes([]);
+    } else {
+      setFormTypes(FORM_OPTIONS.map(o => o.value));
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -131,7 +154,7 @@ export default function EdgarPage() {
     if (!token) return;
     setLoading(true);
     try {
-      await adminApi.startEdgar(token, "discover", discoverDays);
+      await adminApi.startEdgar(token, "discover", discoverDays, formTypes);
       await fetchData();
     } catch (e: any) {
       alert(e.message || "Failed to start discovery");
@@ -187,6 +210,30 @@ export default function EdgarPage() {
                   max={3650}
                 />
                 <span className="text-xs text-text-tertiary">days</span>
+              </div>
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-zinc-400">Form Types</span>
+                  <button
+                    onClick={toggleAll}
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    {formTypes.length === FORM_OPTIONS.length ? "None" : "All"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {FORM_OPTIONS.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formTypes.includes(opt.value)}
+                        onChange={() => toggleFormType(opt.value)}
+                        className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/20"
+                      />
+                      <span className="text-sm text-zinc-300">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </>
           )}
@@ -295,6 +342,16 @@ export default function EdgarPage() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {job?.progress_summary?.form_types && (
+          <div className="flex gap-1.5 mt-2">
+            {job.progress_summary.form_types.map((ft: string) => (
+              <span key={ft} className="px-2 py-0.5 text-xs rounded bg-zinc-700 text-zinc-300">
+                {ft}
+              </span>
+            ))}
           </div>
         )}
 

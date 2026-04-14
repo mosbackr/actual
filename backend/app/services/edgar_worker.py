@@ -117,6 +117,10 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
     enrichments_completed = 0
     enrichments_failed = 0
 
+    # Per-form-type counters
+    per_form_discovered = {}
+    per_form_created = {}
+
     for step in all_steps:
         if step.step_type == EdgarStepType.resolve_cik and step.status == EdgarStepStatus.completed:
             startups_scanned += 1
@@ -136,14 +140,22 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
                     valuations_added += 1
         elif step.step_type == EdgarStepType.discover_filings and step.status == EdgarStepStatus.completed:
             if step.result:
-                filings_discovered += step.result.get("extract_steps_created", 0)
+                count = step.result.get("extract_steps_created", 0)
+                filings_discovered += count
+                ft = step.params.get("form_type", "D")
+                per_form_discovered[ft] = per_form_discovered.get(ft, 0) + count
         elif step.step_type == EdgarStepType.extract_company and step.status == EdgarStepStatus.completed:
             companies_extracted += 1
             if step.result and step.result.get("action") == "duplicate":
                 duplicates_skipped += 1
         elif step.step_type == EdgarStepType.add_startup and step.status == EdgarStepStatus.completed:
             if step.result and step.result.get("action") == "created":
-                startups_created += 1
+                ft = step.params.get("form_type", step.result.get("form_type", "D"))
+                if step.result.get("entity_type") == "fund":
+                    duplicates_skipped += 1
+                else:
+                    startups_created += 1
+                    per_form_created[ft] = per_form_created.get(ft, 0) + 1
         elif step.step_type == EdgarStepType.enrich_startup and step.status == EdgarStepStatus.completed:
             if step.result:
                 if step.result.get("action") == "enriched":
@@ -191,6 +203,11 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
         summary["enrichments_completed"] = enrichments_completed
         summary["enrichments_failed"] = enrichments_failed
         summary["enrich_total"] = total_enrich
+
+    if per_form_discovered:
+        summary["per_form_discovered"] = per_form_discovered
+    if per_form_created:
+        summary["per_form_created"] = per_form_created
 
     job.progress_summary = summary
     job.updated_at = datetime.now(timezone.utc)

@@ -214,10 +214,13 @@ export const adminApi = {
   },
 
   // EDGAR pipeline
-  async startEdgar(token: string, scanMode: string, discoverDays?: number) {
+  async startEdgar(token: string, scanMode: string, discoverDays?: number, formTypes?: string[]) {
     const body: Record<string, any> = { scan_mode: scanMode };
     if (discoverDays !== undefined) {
       body.discover_days = discoverDays;
+    }
+    if (formTypes !== undefined && formTypes.length > 0) {
+      body.form_types = formTypes;
     }
     return apiFetch<{ job_id: string; status: string; total_steps: number }>(
       "/api/admin/edgar/start",
