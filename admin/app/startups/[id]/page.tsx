@@ -34,6 +34,23 @@ function EnrichmentBadge({ status }: { status: string }) {
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>{label}</span>;
 }
 
+function SourceBadge({ source }: { source: string | undefined }) {
+  if (!source) return null;
+  const labels: Record<string, string> = {
+    "D": "Form D", "S-1": "S-1", "10-K": "10-K",
+    "C": "Form C", "1-A": "Form 1-A",
+    "perplexity": "AI Research", "logo.dev": "Logo.dev",
+  };
+  return (
+    <span
+      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent/10 text-accent"
+      title={labels[source] || source}
+    >
+      {labels[source] || source}
+    </span>
+  );
+}
+
 export default function StartupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: session, status } = useSession();
@@ -194,6 +211,15 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-sm text-score-low">{logoError}</p>
             )}
 
+            {startup.form_sources?.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-text-tertiary">SEC Forms:</span>
+                {startup.form_sources.map((fs: string) => (
+                  <SourceBadge key={fs} source={fs} />
+                ))}
+              </div>
+            )}
+
             {/* 2. Enrichment error */}
             {startup.enrichment_status === "failed" && startup.enrichment_error && (
               <div className="rounded border border-score-low/30 bg-score-low/5 p-4">
@@ -317,49 +343,73 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {startup.employee_count && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Employees</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Employees</p>
+                        <SourceBadge source={startup.data_sources?.employee_count} />
+                      </div>
                       <p className="text-sm text-text-primary">{startup.employee_count}</p>
                     </div>
                   )}
                   {startup.total_funding && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Total Funding</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Total Funding</p>
+                        <SourceBadge source={startup.data_sources?.total_funding} />
+                      </div>
                       <p className="text-sm text-text-primary">{startup.total_funding}</p>
                     </div>
                   )}
                   {startup.founded_date && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Founded</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Founded</p>
+                        <SourceBadge source={startup.data_sources?.founded_date} />
+                      </div>
                       <p className="text-sm text-text-primary">{startup.founded_date}</p>
                     </div>
                   )}
                   {startup.key_metrics && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Key Metrics</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Key Metrics</p>
+                        <SourceBadge source={startup.data_sources?.key_metrics} />
+                      </div>
                       <p className="text-sm text-text-primary whitespace-pre-line">{startup.key_metrics}</p>
                     </div>
                   )}
                   {startup.competitors && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Competitors</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Competitors</p>
+                        <SourceBadge source={startup.data_sources?.competitors} />
+                      </div>
                       <p className="text-sm text-text-primary whitespace-pre-line">{startup.competitors}</p>
                     </div>
                   )}
                   {startup.tech_stack && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Tech Stack</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Tech Stack</p>
+                        <SourceBadge source={startup.data_sources?.tech_stack} />
+                      </div>
                       <p className="text-sm text-text-primary whitespace-pre-line">{startup.tech_stack}</p>
                     </div>
                   )}
                   {startup.hiring_signals && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Hiring Signals</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Hiring Signals</p>
+                        <SourceBadge source={startup.data_sources?.hiring_signals} />
+                      </div>
                       <p className="text-sm text-text-primary whitespace-pre-line">{startup.hiring_signals}</p>
                     </div>
                   )}
                   {startup.patents && (
                     <div className="rounded border border-border bg-surface p-4">
-                      <p className="text-xs text-text-tertiary mb-1">Patents</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-text-tertiary">Patents</p>
+                        <SourceBadge source={startup.data_sources?.patents} />
+                      </div>
                       <p className="text-sm text-text-primary whitespace-pre-line">{startup.patents}</p>
                     </div>
                   )}

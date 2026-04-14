@@ -191,6 +191,8 @@ export interface StartupFullDetail {
   founders: Founder[];
   funding_rounds: FundingRound[];
   ai_review: AIReview | null;
+  form_sources: string[];
+  data_sources: Record<string, string>;
 }
 
 // Scout types
