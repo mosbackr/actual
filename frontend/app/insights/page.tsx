@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -15,6 +16,14 @@ import { AnalystChat } from "@/components/analyst/AnalystChat";
 import { AnalystInput } from "@/components/analyst/AnalystInput";
 
 export default function InsightsPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-text-tertiary">Loading...</div>}>
+      <InsightsContent />
+    </Suspense>
+  );
+}
+
+function InsightsContent() {
   const { data: session } = useSession();
   const token = (session as any)?.backendToken;
   const router = useRouter();
