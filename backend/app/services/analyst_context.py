@@ -173,27 +173,24 @@ US_STATE_MAP = {
 US_ABBREV_SET = set(US_STATE_MAP.values())
 
 
-def _extract_location(message: str) -> tuple[str | None, str | None]:
-    """Extract US state code and/or city name from message text."""
+def _extract_locations(message: str) -> list[str]:
+    """Extract US state codes from message text. Returns all matched states."""
     msg_lower = message.lower()
+    matched = []
 
-    # Check full state names first (longer match wins)
-    matched_state = None
+    # Check full state names (longer match wins to avoid substring collisions)
     for state_name, code in sorted(US_STATE_MAP.items(), key=lambda x: -len(x[0])):
-        if state_name in msg_lower:
-            matched_state = code
-            break
+        if state_name in msg_lower and code not in matched:
+            matched.append(code)
 
     # Check abbreviations (2-letter uppercase in original message)
-    if not matched_state:
-        import re
-        abbrevs = re.findall(r'\b([A-Z]{2})\b', message)
-        for ab in abbrevs:
-            if ab in US_ABBREV_SET:
-                matched_state = ab
-                break
+    import re
+    abbrevs = re.findall(r'\b([A-Z]{2})\b', message)
+    for ab in abbrevs:
+        if ab in US_ABBREV_SET and ab not in matched:
+            matched.append(ab)
 
-    return matched_state, None
+    return matched
 
 
 async def find_startups_by_filter(
@@ -227,10 +224,10 @@ async def find_startups_by_filter(
             matched_industry_id = ind_id
             break
 
-    # Check for location keywords
-    matched_state, _ = _extract_location(message)
+    # Check for location keywords (supports multiple states)
+    matched_states = _extract_locations(message)
 
-    if not matched_stage and not matched_industry_id and not matched_state:
+    if not matched_stage and not matched_industry_id and not matched_states:
         return []
 
     query = select(Startup).options(selectinload(Startup.industries))
@@ -244,8 +241,19 @@ async def find_startups_by_filter(
                 )
             )
         )
-    if matched_state:
-        query = query.where(Startup.location_state == matched_state)
+    # For multiple states, query each state separately to ensure fair representation
+    if matched_states and len(matched_states) > 1:
+        all_startups = []
+        per_state_limit = max(limit // len(matched_states), 10)
+        for state in matched_states:
+            state_query = query.where(Startup.location_state == state)
+            state_query = state_query.order_by(Startup.ai_score.desc().nulls_last()).limit(per_state_limit)
+            result = await db.execute(state_query)
+            all_startups.extend(result.scalars().all())
+        return [_startup_to_context(s) for s in all_startups]
+
+    if matched_states:
+        query = query.where(Startup.location_state == matched_states[0])
     query = query.order_by(Startup.ai_score.desc().nulls_last()).limit(limit)
 
     result = await db.execute(query)
@@ -332,7 +340,8 @@ sec_cik (SEC filings), form_sources, data_sources, industries
 """
 
     if startup_profiles:
-        prompt += "\nSTARTUP PROFILES (from our database):\n"
+        prompt += f"\nSTARTUP PROFILES ({len(startup_profiles)} matching startups from our database):\n"
+        prompt += "NOTE: These are the actual startup profiles matching the user's query. Only use data from these profiles — do not invent additional startups or data points beyond what is listed here.\n"
         for sp in startup_profiles:
             prompt += f"\n--- {sp['name']} ---\n"
             for key, val in sp.items():
@@ -341,7 +350,11 @@ sec_cik (SEC filings), form_sources, data_sources, industries
                 prompt += f"  {key}: {val}\n"
 
     prompt += """
-When the user asks about specific companies in our database, their full profiles are provided above. For external companies, use your web access to research Crunchbase, PitchBook, and other sources.
+CRITICAL RULES:
+- Only reference startups whose profiles appear above. Do NOT fabricate startup names, scores, funding amounts, or other data.
+- If the user asks about a location or category with 0 matching profiles above, say "Our database has no matching startups for [X]" rather than inventing data.
+- The portfolio summary above shows aggregate counts. The individual profiles below are the actual data you can analyze. Do not conflate counts with available detail.
+- For companies NOT in our database, use your web access to research Crunchbase, PitchBook, and other sources — but clearly label external data as such.
 
 Respond with analysis, not just data. Interpret trends, flag risks, compare to benchmarks. When data supports it, include a chart using this exact JSON format:
 
