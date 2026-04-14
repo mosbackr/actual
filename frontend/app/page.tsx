@@ -162,6 +162,24 @@ export default async function LandingPage() {
         </section>
       )}
 
+      {/* Pitch Analysis CTA */}
+      <section className="px-6 lg:px-8 py-16 border-t border-border">
+        <div className="max-w-4xl mx-auto rounded border border-accent/20 bg-accent/5 p-8 text-center">
+          <h2 className="font-serif text-2xl text-text-primary mb-2">Free Pitch Analysis</h2>
+          <p className="text-text-secondary text-sm mb-4 max-w-lg mx-auto">
+            Upload your pitch deck and documents. Our AI evaluates your startup across 8 critical
+            factors — market, team, traction, technology, and more — with detailed reports and
+            fundraising projections.
+          </p>
+          <Link
+            href="/analyze"
+            className="inline-block px-6 py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
+          >
+            Analyze Your Pitch — Free
+          </Link>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="px-6 lg:px-8 py-20 border-t border-border text-center">
         <h2 className="font-serif text-2xl text-text-primary mb-4">
