@@ -16,6 +16,7 @@ from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from pptx import Presentation
 from pptx.util import Inches as PptxInches, Pt as PptxPt
@@ -37,7 +38,19 @@ from app.services import s3
 
 logger = logging.getLogger(__name__)
 
-CHART_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"]
+# Deep Thesis brand colors
+BRAND_ACCENT = "#F28C28"
+BRAND_ACCENT_HOVER = "#D97A1E"
+BRAND_BG = "#FAFAF8"
+BRAND_TEXT = "#1A1A1A"
+BRAND_TEXT_SECONDARY = "#6B6B6B"
+BRAND_TEXT_TERTIARY = "#9B9B9B"
+BRAND_BORDER = "#E8E6E3"
+BRAND_SCORE_HIGH = "#2D6A4F"
+BRAND_SCORE_MID = "#B8860B"
+BRAND_SCORE_LOW = "#A23B3B"
+
+CHART_COLORS = [BRAND_ACCENT, BRAND_SCORE_HIGH, BRAND_SCORE_MID, BRAND_SCORE_LOW, "#6366f1", "#ec4899", "#06b6d4", "#84cc16"]
 
 
 def _render_chart_image(chart_config: dict) -> bytes | None:
@@ -54,14 +67,14 @@ def _render_chart_image(chart_config: dict) -> bytes | None:
             return None
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        fig.patch.set_facecolor("#1a1a2e")
-        ax.set_facecolor("#1a1a2e")
-        ax.tick_params(colors="#a0a0b0")
-        ax.xaxis.label.set_color("#a0a0b0")
-        ax.yaxis.label.set_color("#a0a0b0")
-        ax.title.set_color("#e0e0e8")
+        fig.patch.set_facecolor(BRAND_BG)
+        ax.set_facecolor(BRAND_BG)
+        ax.tick_params(colors=BRAND_TEXT_SECONDARY)
+        ax.xaxis.label.set_color(BRAND_TEXT_SECONDARY)
+        ax.yaxis.label.set_color(BRAND_TEXT_SECONDARY)
+        ax.title.set_color(BRAND_TEXT)
         for spine in ax.spines.values():
-            spine.set_color("#2a2a3e")
+            spine.set_color(BRAND_BORDER)
 
         labels = [str(d.get(x_key, "")) for d in data]
 
@@ -69,13 +82,13 @@ def _render_chart_image(chart_config: dict) -> bytes | None:
             data_key = y_keys[0] if y_keys else "value"
             values = [d.get(data_key, 0) for d in data]
             ax.pie(values, labels=labels, colors=colors[:len(values)], autopct="%1.1f%%",
-                   textprops={"color": "#e0e0e8"})
+                   textprops={"color": BRAND_TEXT})
         elif chart_type == "scatter":
             for i, yk in enumerate(y_keys):
                 x_vals = [d.get(x_key, 0) for d in data]
                 y_vals = [d.get(yk, 0) for d in data]
                 ax.scatter(x_vals, y_vals, color=colors[i % len(colors)], label=yk, alpha=0.7)
-            ax.legend(facecolor="#1a1a2e", edgecolor="#2a2a3e", labelcolor="#a0a0b0")
+            ax.legend(facecolor=BRAND_BG, edgecolor=BRAND_BORDER, labelcolor=BRAND_TEXT_SECONDARY)
         else:
             x = range(len(labels))
             width = 0.8 / len(y_keys) if chart_type == "bar" else 0
@@ -96,7 +109,7 @@ def _render_chart_image(chart_config: dict) -> bytes | None:
             ax.set_xticks(list(x))
             ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
             if len(y_keys) > 1:
-                ax.legend(facecolor="#1a1a2e", edgecolor="#2a2a3e", labelcolor="#a0a0b0")
+                ax.legend(facecolor=BRAND_BG, edgecolor=BRAND_BORDER, labelcolor=BRAND_TEXT_SECONDARY)
 
         ax.set_title(title, fontsize=12, pad=10)
         plt.tight_layout()
@@ -122,7 +135,7 @@ def _generate_docx(conversation: AnalystConversation, messages: list[AnalystMess
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run("Deep Thesis Analyst Report")
     run.font.size = Pt(28)
-    run.font.color.rgb = RGBColor(99, 102, 241)
+    run.font.color.rgb = RGBColor(0xF2, 0x8C, 0x28)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -210,6 +223,14 @@ def _generate_xlsx(conversation: AnalystConversation, messages: list[AnalystMess
     ws.append([datetime.now(timezone.utc).strftime("%B %d, %Y")])
     ws.append([])
     ws.append(["Question", "Response Summary"])
+
+    # Brand the header row
+    header_fill = PatternFill(start_color="F28C28", end_color="F28C28", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for cell in ws[5]:
+        if cell.value:
+            cell.fill = header_fill
+            cell.font = header_font
 
     for msg in messages:
         role = msg.role.value if hasattr(msg.role, "value") else msg.role
@@ -322,7 +343,7 @@ def _generate_pdf(conversation: AnalystConversation, messages: list[AnalystMessa
     # Custom styles
     styles.add(ParagraphStyle(
         "CoverTitle", parent=styles["Title"], fontSize=28,
-        textColor=HexColor("#6366f1"), spaceAfter=12,
+        textColor=HexColor(BRAND_ACCENT), spaceAfter=12,
     ))
     styles.add(ParagraphStyle(
         "CoverSubtitle", parent=styles["Title"], fontSize=18,
@@ -334,7 +355,7 @@ def _generate_pdf(conversation: AnalystConversation, messages: list[AnalystMessa
     ))
     styles.add(ParagraphStyle(
         "UserQuestion", parent=styles["Heading2"], fontSize=14,
-        textColor=HexColor("#6366f1"), spaceBefore=16, spaceAfter=8,
+        textColor=HexColor(BRAND_ACCENT), spaceBefore=16, spaceAfter=8,
     ))
     styles.add(ParagraphStyle(
         "BodyText2", parent=styles["BodyText"], fontSize=10,
@@ -346,7 +367,7 @@ def _generate_pdf(conversation: AnalystConversation, messages: list[AnalystMessa
     ))
     styles.add(ParagraphStyle(
         "SectionH1", parent=styles["Heading2"], fontSize=16,
-        textColor=HexColor("#1a1a2e"), spaceBefore=14, spaceAfter=8,
+        textColor=HexColor(BRAND_TEXT), spaceBefore=14, spaceAfter=8,
     ))
     styles.add(ParagraphStyle(
         "SectionH2", parent=styles["Heading3"], fontSize=13,
@@ -439,7 +460,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank layout
     bg = slide.background.fill
     bg.solid()
-    bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+    bg.fore_color.rgb = PptxRGBColor(0xFA, 0xFA, 0xF8)
 
     txBox = slide.shapes.add_textbox(PptxInches(1), PptxInches(2), PptxInches(11.333), PptxInches(1.5))
     tf = txBox.text_frame
@@ -447,20 +468,20 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
     p = tf.paragraphs[0]
     p.text = "Deep Thesis Analyst Report"
     p.font.size = PptxPt(36)
-    p.font.color.rgb = PptxRGBColor(99, 102, 241)
+    p.font.color.rgb = PptxRGBColor(0xF2, 0x8C, 0x28)
     p.font.bold = True
     p.alignment = PP_ALIGN.CENTER
 
     p2 = tf.add_paragraph()
     p2.text = title
     p2.font.size = PptxPt(24)
-    p2.font.color.rgb = PptxRGBColor(224, 224, 232)
+    p2.font.color.rgb = PptxRGBColor(0x1A, 0x1A, 0x1A)
     p2.alignment = PP_ALIGN.CENTER
 
     p3 = tf.add_paragraph()
     p3.text = datetime.now(timezone.utc).strftime("%B %d, %Y")
     p3.font.size = PptxPt(14)
-    p3.font.color.rgb = PptxRGBColor(160, 160, 176)
+    p3.font.color.rgb = PptxRGBColor(0x6B, 0x6B, 0x6B)
     p3.alignment = PP_ALIGN.CENTER
 
     # Content slides
@@ -489,7 +510,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             bg = slide.background.fill
             bg.solid()
-            bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+            bg.fore_color.rgb = PptxRGBColor(0xFA, 0xFA, 0xF8)
 
             txBox = slide.shapes.add_textbox(PptxInches(0.75), PptxInches(0.5), PptxInches(11.833), PptxInches(6.5))
             tf = txBox.text_frame
@@ -500,12 +521,12 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
                 if para.startswith("# "):
                     p.text = para[2:]
                     p.font.size = PptxPt(24)
-                    p.font.color.rgb = PptxRGBColor(99, 102, 241)
+                    p.font.color.rgb = PptxRGBColor(0xF2, 0x8C, 0x28)
                     p.font.bold = True
                 elif para.startswith("## "):
                     p.text = para[3:]
                     p.font.size = PptxPt(20)
-                    p.font.color.rgb = PptxRGBColor(224, 224, 232)
+                    p.font.color.rgb = PptxRGBColor(0x1A, 0x1A, 0x1A)
                     p.font.bold = True
                 elif para.startswith("- "):
                     for line in para.split("\n"):
@@ -513,11 +534,11 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
                             bp = tf.add_paragraph() if p.text else p
                             bp.text = f"  •  {line.strip()[2:]}"
                             bp.font.size = PptxPt(14)
-                            bp.font.color.rgb = PptxRGBColor(200, 200, 210)
+                            bp.font.color.rgb = PptxRGBColor(0x6B, 0x6B, 0x6B)
                 else:
                     p.text = para[:500]
                     p.font.size = PptxPt(14)
-                    p.font.color.rgb = PptxRGBColor(200, 200, 210)
+                    p.font.color.rgb = PptxRGBColor(0x6B, 0x6B, 0x6B)
 
         # Chart slides
         if msg.charts:
@@ -527,7 +548,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
                     slide = prs.slides.add_slide(prs.slide_layouts[6])
                     bg = slide.background.fill
                     bg.solid()
-                    bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+                    bg.fore_color.rgb = PptxRGBColor(0xFA, 0xFA, 0xF8)
 
                     # Chart title
                     chart_title = chart_config.get("title", "")
@@ -537,7 +558,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
                         p = tf.paragraphs[0]
                         p.text = chart_title
                         p.font.size = PptxPt(20)
-                        p.font.color.rgb = PptxRGBColor(224, 224, 232)
+                        p.font.color.rgb = PptxRGBColor(0x1A, 0x1A, 0x1A)
                         p.alignment = PP_ALIGN.CENTER
 
                     img_buf = io.BytesIO(img_bytes)
@@ -553,7 +574,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         bg = slide.background.fill
         bg.solid()
-        bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+        bg.fore_color.rgb = PptxRGBColor(0xFA, 0xFA, 0xF8)
 
         txBox = slide.shapes.add_textbox(PptxInches(0.75), PptxInches(0.5), PptxInches(11.833), PptxInches(6.5))
         tf = txBox.text_frame
@@ -561,7 +582,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
         p = tf.paragraphs[0]
         p.text = "Sources"
         p.font.size = PptxPt(24)
-        p.font.color.rgb = PptxRGBColor(99, 102, 241)
+        p.font.color.rgb = PptxRGBColor(0xF2, 0x8C, 0x28)
         p.font.bold = True
 
         for i, cite in enumerate(all_citations[:20], 1):
@@ -570,7 +591,7 @@ def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMess
             p = tf.add_paragraph()
             p.text = f"{i}. {cite_title}"
             p.font.size = PptxPt(11)
-            p.font.color.rgb = PptxRGBColor(200, 200, 210)
+            p.font.color.rgb = PptxRGBColor(0x6B, 0x6B, 0x6B)
 
     buf = io.BytesIO()
     prs.save(buf)
@@ -603,7 +624,13 @@ async def generate_report(report_id: str) -> None:
                 .options(selectinload(AnalystConversation.messages))
             )
             conversation = result.scalar_one()
-            messages = list(conversation.messages)
+            all_messages = list(conversation.messages)
+            # Use only the last assistant message for the report
+            assistant_messages = [
+                m for m in all_messages
+                if (m.role.value if hasattr(m.role, "value") else m.role) == "assistant"
+            ]
+            messages = [assistant_messages[-1]] if assistant_messages else all_messages
 
             # Generate document
             fmt = report.format.value if hasattr(report.format, "value") else report.format
