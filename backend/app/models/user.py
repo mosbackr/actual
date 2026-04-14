@@ -26,6 +26,13 @@ class SubscriptionStatus(str, enum.Enum):
     none = "none"
     active = "active"
     cancelled = "cancelled"
+    past_due = "past_due"
+
+
+class SubscriptionTier(str, enum.Enum):
+    starter = "starter"
+    professional = "professional"
+    unlimited = "unlimited"
 
 
 class User(Base):
@@ -44,5 +51,10 @@ class User(Base):
     subscription_status: Mapped[SubscriptionStatus] = mapped_column(
         Enum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.none, server_default="none"
     )
+    # Stripe billing
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subscription_tier: Mapped[SubscriptionTier | None] = mapped_column(Enum(SubscriptionTier), nullable=True)
+    subscription_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
