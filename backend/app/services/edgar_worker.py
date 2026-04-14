@@ -22,7 +22,7 @@ from app.models.edgar_job import (
     EdgarStepStatus,
     EdgarStepType,
 )
-from app.models.startup import Startup
+from app.models.startup import EnrichmentStatus, Startup
 from app.services import edgar
 from app.services.edgar import (
     search_form_d_filings,
@@ -1026,7 +1026,7 @@ async def _execute_add_startup(
         sec_cik=cik,
         form_sources=[source_key],
         entity_type=entity_type,
-        enrichment_status="complete" if not is_startup else "none",
+        enrichment_status=EnrichmentStatus.complete if not is_startup else EnrichmentStatus.none,
     )
     db.add(startup)
     await db.flush()

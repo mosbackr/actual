@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +26,15 @@ class EdgarStartRequest(BaseModel):
     scan_mode: str = "full"
     discover_days: int = 365
     form_types: list[str] = ["D", "S-1", "10-K", "C", "1-A"]
+
+    @field_validator("form_types")
+    @classmethod
+    def validate_form_types(cls, v):
+        allowed = {"D", "S-1", "10-K", "C", "1-A"}
+        invalid = set(v) - allowed
+        if invalid:
+            raise ValueError(f"Invalid form types: {invalid}. Allowed: {allowed}")
+        return v
 
 
 @router.post("/api/admin/edgar/start")
