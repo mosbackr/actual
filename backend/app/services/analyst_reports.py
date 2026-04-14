@@ -318,7 +318,7 @@ async def generate_report(report_id: str) -> None:
                 logger.error("Report %s not found", report_id)
                 return
 
-            report.status = ReportGenStatus.generating
+            report.status = ReportGenStatus.generating.value
             await db.commit()
 
             # Load conversation with messages
@@ -347,7 +347,7 @@ async def generate_report(report_id: str) -> None:
 
             report.s3_key = s3_key
             report.file_size_bytes = len(file_bytes)
-            report.status = ReportGenStatus.complete
+            report.status = ReportGenStatus.complete.value
             await db.commit()
 
             logger.info("Report %s generated: %s (%d bytes)", report_id, s3_key, len(file_bytes))
@@ -355,7 +355,7 @@ async def generate_report(report_id: str) -> None:
         except Exception as e:
             logger.error("Report generation failed for %s: %s", report_id, e)
             try:
-                report.status = ReportGenStatus.failed
+                report.status = ReportGenStatus.failed.value
                 report.error = str(e)[:500]
                 await db.commit()
             except Exception:

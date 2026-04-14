@@ -263,7 +263,7 @@ async def send_message(
     # Save user message
     user_msg = AnalystMessage(
         conversation_id=conversation.id,
-        role=MessageRole.user,
+        role=MessageRole.user.value,
         content=body.content,
     )
     db.add(user_msg)
@@ -334,7 +334,7 @@ async def send_message(
             async with async_session() as save_db:
                 assistant_msg = AnalystMessage(
                     conversation_id=conv_id,
-                    role=MessageRole.assistant,
+                    role=MessageRole.assistant.value,
                     content=full_text,
                     charts=charts if charts else None,
                     citations=citations if citations else None,
@@ -395,8 +395,8 @@ async def create_report(
         conversation_id=conversation.id,
         user_id=user.id,
         title=body.title or conversation.title,
-        format=ReportFormat(body.format),
-        status=ReportGenStatus.pending,
+        format=body.format,
+        status=ReportGenStatus.pending.value,
     )
     db.add(report)
     await db.commit()
