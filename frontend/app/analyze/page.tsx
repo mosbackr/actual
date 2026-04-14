@@ -126,7 +126,7 @@ export default function AnalyzePage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-serif text-2xl text-text-primary">Analyze Your Pitch</h1>
+        <h1 className="font-serif text-2xl text-text-primary">Analyze Startup</h1>
         <Link href="/analyze/history" className="text-sm text-accent hover:text-accent-hover transition">
           View History
         </Link>
@@ -216,7 +216,7 @@ export default function AnalyzePage() {
         disabled={uploading || !companyName.trim() || files.length === 0}
         className="mt-5 w-full py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
       >
-        {uploading ? "Uploading..." : "Analyze My Pitch"}
+        {uploading ? "Uploading..." : "Analyze Startup"}
       </button>
     </div>
   );

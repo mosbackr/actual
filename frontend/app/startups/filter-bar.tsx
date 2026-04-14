@@ -105,6 +105,52 @@ function MultiSelect({
   );
 }
 
+/* ── Investor text search ── */
+function InvestorSearch({
+  value,
+  onSearch,
+}: {
+  value: string;
+  onSearch: (value: string) => void;
+}) {
+  const [text, setText] = useState(value);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSearch(text.trim());
+  }
+
+  function handleClear() {
+    setText("");
+    onSearch("");
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="relative flex items-center">
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Investor..."
+        className={`rounded border px-3 py-1.5 text-xs outline-none transition w-36 ${
+          value
+            ? "border-accent bg-accent/5 text-accent placeholder-accent/50"
+            : "border-border bg-surface text-text-primary placeholder-text-tertiary"
+        } focus:border-accent focus:ring-1 focus:ring-accent`}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute right-1.5 text-accent hover:text-accent-hover text-xs"
+        >
+          ✕
+        </button>
+      )}
+    </form>
+  );
+}
+
 export default function FilterBar({ industries, stages, regions, investors, currentParams }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(currentParams.q || "");
@@ -148,11 +194,9 @@ export default function FilterBar({ industries, stages, regions, investors, curr
         onChange={(vals) => handleMulti("region", vals)}
       />
 
-      <MultiSelect
-        label="All Investors"
-        options={investors.map((inv) => ({ value: inv, label: inv }))}
-        selected={activeInvestors}
-        onChange={(vals) => handleMulti("investor", vals)}
+      <InvestorSearch
+        value={currentParams.investor || ""}
+        onSearch={(val) => router.push(buildHref(currentParams, { investor: val || undefined, page: undefined, sort: "ai_score" }))}
       />
 
       <form onSubmit={handleSearch} className="flex items-center gap-1 ml-auto">

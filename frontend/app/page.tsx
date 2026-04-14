@@ -175,7 +175,7 @@ export default async function LandingPage() {
             href="/analyze"
             className="inline-block px-6 py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
           >
-            Analyze Your Pitch — Free
+            Analyze Startup — Free
           </Link>
         </div>
       </section>

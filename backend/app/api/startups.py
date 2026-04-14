@@ -13,7 +13,7 @@ from app.models.industry import Industry
 from app.models.media import StartupMedia
 from app.models.score import StartupScoreHistory
 from app.models.dimension import StartupDimension
-from app.models.startup import EntityType, Startup, StartupStatus, startup_industries
+from app.models.startup import EntityType, EnrichmentStatus, Startup, StartupStatus, startup_industries
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 
 router = APIRouter()
@@ -36,6 +36,7 @@ async def list_startups(
         .options(selectinload(Startup.industries))
         .where(Startup.status.in_([StartupStatus.approved, StartupStatus.featured]))
         .where(Startup.entity_type == EntityType.startup)
+        .where(Startup.enrichment_status == EnrichmentStatus.complete)
     )
 
     if stage:
@@ -327,32 +328,28 @@ async def list_stages():
     ]
 
 
+US_STATES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL",
+    "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
+    "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH",
+    "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+}
+
+
 @router.get("/api/filters")
 async def get_filter_options(db: AsyncSession = Depends(get_db)):
     """Return unique regions and investors for filter dropdowns."""
     approved = Startup.status.in_([StartupStatus.approved, StartupStatus.featured])
 
-    # Unique regions (location_state)
+    # Unique regions (US states only)
     region_result = await db.execute(
         select(Startup.location_state)
         .where(approved)
-        .where(Startup.location_state.isnot(None))
-        .where(Startup.location_state != "")
+        .where(Startup.location_state.in_(US_STATES))
         .distinct()
         .order_by(Startup.location_state)
     )
     regions = [r for (r,) in region_result.all()]
 
-    # Unique lead investors from funding rounds of approved startups
-    investor_result = await db.execute(
-        select(StartupFundingRound.lead_investor)
-        .join(Startup, StartupFundingRound.startup_id == Startup.id)
-        .where(approved)
-        .where(StartupFundingRound.lead_investor.isnot(None))
-        .where(StartupFundingRound.lead_investor != "")
-        .distinct()
-        .order_by(StartupFundingRound.lead_investor)
-    )
-    investors = [i for (i,) in investor_result.all()]
-
-    return {"regions": regions, "investors": investors}
+    return {"regions": regions}

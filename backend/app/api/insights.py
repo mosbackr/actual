@@ -453,13 +453,18 @@ async def get_insights(
     )
     available_countries = [r[0] for r in (await db.execute(countries_q)).all()]
 
+    us_states = {
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL",
+        "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
+        "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH",
+        "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+        "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    }
     states_q = (
         select(Startup.location_state)
         .where(approved)
         .where(Startup.entity_type == EntityType.startup)
-        .where(Startup.location_country == "US")
-        .where(Startup.location_state.isnot(None))
-        .where(Startup.location_state != "")
+        .where(Startup.location_state.in_(us_states))
         .distinct()
         .order_by(Startup.location_state)
     )

@@ -120,8 +120,6 @@ export default async function StartupsPage({
   const activeIndustries = params.industry ? params.industry.split(",") : [];
   const activeStages = params.stage ? params.stage.split(",") : [];
   const activeRegions = params.region ? params.region.split(",") : [];
-  const activeInvestors = params.investor ? params.investor.split(",") : [];
-
   return (
     <div>
       <div className="mb-6">
@@ -203,19 +201,15 @@ export default async function StartupsPage({
               </Link>
             );
           })}
-          {activeInvestors.map((val) => {
-            const remaining = activeInvestors.filter((s) => s !== val).join(",");
-            return (
-              <Link
-                key={val}
-                href={buildHref(currentParams, { investor: remaining || undefined, page: "1" })}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition"
-              >
-                {val}
-                <span>&times;</span>
-              </Link>
-            );
-          })}
+          {params.investor && (
+            <Link
+              href={buildHref(currentParams, { investor: undefined, page: "1" })}
+              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition"
+            >
+              Investor: {params.investor}
+              <span>&times;</span>
+            </Link>
+          )}
           {params.q && (
             <Link href={buildHref(currentParams, { q: undefined, page: "1" })} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-accent/10 text-accent hover:bg-accent/20 transition">
               &ldquo;{params.q}&rdquo;

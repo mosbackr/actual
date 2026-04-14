@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RegionFilter } from "./RegionFilter";
 import type { FilterOptions } from "@/lib/insights-types";
+
+const STATE_NAMES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
+  FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+  IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan",
+  MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+  NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+  NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota",
+  OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee",
+  TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+  WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+};
 
 const STAGE_OPTIONS = [
   { value: "pre_seed", label: "Pre-Seed" },
@@ -211,13 +225,14 @@ export function InsightsFilters({
   return (
     <div className="sticky top-0 z-40 bg-background border-b border-border py-3">
       <div className="flex flex-wrap items-center gap-3">
-        <RegionFilter
-          availableCountries={filterOptions.available_countries}
-          availableStates={filterOptions.available_states}
-          selectedCountries={filters.countries}
-          selectedStates={filters.states}
-          onCountriesChange={(countries) => onChange({ ...filters, countries })}
-          onStatesChange={(states) => onChange({ ...filters, states })}
+        <MultiSelect
+          label="State"
+          options={filterOptions.available_states
+            .filter((s) => STATE_NAMES[s])
+            .filter((s, i, arr) => arr.indexOf(s) === i)
+            .map((s) => ({ value: s, label: STATE_NAMES[s] || s }))}
+          selected={filters.states}
+          onChange={(states) => onChange({ ...filters, states })}
         />
         <MultiSelect
           label="Stage"
