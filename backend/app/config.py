@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     perplexity_api_key: str = ""
     anthropic_api_key: str = ""
     edgar_user_agent: str = "Acutal admin@deepthesis.org"
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "us-east-1"
+    s3_bucket_name: str = "deepthesis-pitch-documents"
 
     model_config = {"env_prefix": "ACUTAL_"}
 
