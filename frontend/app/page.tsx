@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import type { BillingStatus } from "@/lib/types";
 
 const TIERS = [
   {
+    key: "starter",
     name: "Starter",
     price: "$19.99",
     period: "/mo",
@@ -12,11 +19,10 @@ const TIERS = [
       "Unlimited company search & profiles",
       "VC Quant Agent access",
     ],
-    cta: "Start free",
-    href: "/auth/signup",
     highlighted: false,
   },
   {
+    key: "professional",
     name: "Professional",
     price: "$200",
     period: "/mo",
@@ -28,11 +34,10 @@ const TIERS = [
       "VC Quant Agent access",
       "Priority processing",
     ],
-    cta: "Get started",
-    href: "/auth/signup",
     highlighted: true,
   },
   {
+    key: "unlimited",
     name: "Unlimited",
     price: "$500",
     period: "/mo",
@@ -43,8 +48,6 @@ const TIERS = [
       "Priority processing",
       "API access",
     ],
-    cta: "Contact us",
-    href: "/auth/signup",
     highlighted: false,
   },
 ];
@@ -119,11 +122,55 @@ const TOOLS = [
     description:
       "Ask questions across our entire dataset. Draft investment memos. Run quantitative comparisons. Generate reports grounded in real transaction data, not vibes. The analyst you'd hire for $150K — available on demand.",
     cta: "Try it",
-    href: "/agent",
+    href: "/insights",
   },
 ];
 
 export default function LandingPage() {
+  const { data: session } = useSession();
+  const token = (session as any)?.backendToken;
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  const loadBilling = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.getBillingStatus(token);
+      setBilling(data);
+    } catch {
+      // silent
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadBilling();
+  }, [loadBilling]);
+
+  const handleCheckout = async (tierKey: string) => {
+    if (!token) return;
+    setCheckoutLoading(tierKey);
+    try {
+      const { url } = await api.createCheckoutSession(token, tierKey);
+      window.location.href = url;
+    } catch (err: any) {
+      alert(err.message || "Failed to start checkout");
+      setCheckoutLoading(null);
+    }
+  };
+
+  const handlePortal = async () => {
+    if (!token) return;
+    try {
+      const { url } = await api.createPortalSession(token);
+      window.location.href = url;
+    } catch (err: any) {
+      alert(err.message || "Failed to open billing portal");
+    }
+  };
+
+  const subStatus = billing?.subscription_status || "none";
+  const subTier = billing?.subscription_tier;
+
   return (
     <div className="-mx-6 lg:-mx-8 -mt-12">
       {/* Hero */}
@@ -178,7 +225,6 @@ export default function LandingPage() {
             The math doesn&apos;t work.
           </h2>
           <div className="grid md:grid-cols-2 gap-12 md:gap-16">
-            {/* Left — the problem */}
             <div>
               <div className="space-y-4">
                 {[
@@ -186,34 +232,20 @@ export default function LandingPage() {
                   { label: "Crunchbase Pro", value: "~$5,000/yr" },
                   { label: "Your average check size", value: "$25K–$50K" },
                 ].map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between py-3 border-b border-border"
-                  >
-                    <span className="text-sm text-text-secondary">
-                      {row.label}
-                    </span>
-                    <span className="text-sm font-medium text-text-primary tabular-nums">
-                      {row.value}
-                    </span>
+                  <div key={row.label} className="flex items-center justify-between py-3 border-b border-border">
+                    <span className="text-sm text-text-secondary">{row.label}</span>
+                    <span className="text-sm font-medium text-text-primary tabular-nums">{row.value}</span>
                   </div>
                 ))}
               </div>
               <p className="text-sm text-text-tertiary mt-6 italic">
-                You shouldn&apos;t need to spend more on data than you deploy in
-                a deal.
+                You shouldn&apos;t need to spend more on data than you deploy in a deal.
               </p>
             </div>
-
-            {/* Right — the shift */}
             <div className="flex items-center">
               <p className="text-lg text-text-secondary leading-relaxed">
-                Deep Thesis was built for investors who write their own checks —
-                angels, scouts, solo GPs, and emerging managers who need{" "}
-                <span className="text-text-primary font-medium">
-                  real data
-                </span>
-                , not a Bloomberg terminal budget.
+                Deep Thesis was built for investors who write their own checks — angels, scouts, solo GPs, and emerging managers who need{" "}
+                <span className="text-text-primary font-medium">real data</span>, not a Bloomberg terminal budget.
               </p>
             </div>
           </div>
@@ -228,25 +260,17 @@ export default function LandingPage() {
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
             {DATA_SOURCES.map((source) => (
-              <div
-                key={source.title}
-                className="rounded border border-border bg-background p-6 hover:border-text-tertiary transition"
-              >
+              <div key={source.title} className="rounded border border-border bg-background p-6 hover:border-text-tertiary transition">
                 <div className="w-10 h-10 rounded bg-accent/10 flex items-center justify-center mb-4 text-accent">
                   {source.icon}
                 </div>
-                <h3 className="text-sm font-medium text-text-primary mb-2">
-                  {source.title}
-                </h3>
-                <p className="text-sm text-text-secondary leading-relaxed">
-                  {source.description}
-                </p>
+                <h3 className="text-sm font-medium text-text-primary mb-2">{source.title}</h3>
+                <p className="text-sm text-text-secondary leading-relaxed">{source.description}</p>
               </div>
             ))}
           </div>
           <p className="text-sm text-text-tertiary text-center mt-8">
-            All of this feeds into every company profile, every analysis, and
-            every report you generate.
+            All of this feeds into every company profile, every analysis, and every report you generate.
           </p>
         </div>
       </section>
@@ -259,26 +283,14 @@ export default function LandingPage() {
           </h2>
           <div className="space-y-12">
             {TOOLS.map((tool) => (
-              <div
-                key={tool.number}
-                className="flex gap-6 md:gap-8"
-              >
+              <div key={tool.number} className="flex gap-6 md:gap-8">
                 <div className="shrink-0">
-                  <span className="font-serif text-3xl text-accent/30">
-                    {tool.number}
-                  </span>
+                  <span className="font-serif text-3xl text-accent/30">{tool.number}</span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-text-primary mb-2">
-                    {tool.title}
-                  </h3>
-                  <p className="text-sm text-text-secondary leading-relaxed mb-3">
-                    {tool.description}
-                  </p>
-                  <Link
-                    href={tool.href}
-                    className="text-sm text-accent hover:text-accent-hover transition"
-                  >
+                  <h3 className="text-lg font-medium text-text-primary mb-2">{tool.title}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed mb-3">{tool.description}</p>
+                  <Link href={tool.href} className="text-sm text-accent hover:text-accent-hover transition">
                     {tool.cta} &rarr;
                   </Link>
                 </div>
@@ -289,86 +301,96 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section
-        id="pricing"
-        className="px-6 lg:px-8 py-20 border-t border-border bg-surface scroll-mt-16"
-      >
+      <section id="pricing" className="px-6 lg:px-8 py-20 border-t border-border bg-surface scroll-mt-16">
         <div className="max-w-5xl mx-auto">
           <h2 className="font-serif text-3xl md:text-4xl text-text-primary text-center mb-14">
             A fraction of what you&apos;d pay anywhere else.
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
-            {TIERS.map((tier) => (
-              <div
-                key={tier.name}
-                className={`rounded p-6 flex flex-col ${
-                  tier.highlighted
-                    ? "border-2 border-accent bg-background ring-1 ring-accent/10"
-                    : "border border-border bg-background"
-                }`}
-              >
-                {tier.highlighted && (
-                  <span className="text-xs font-medium text-accent mb-3">
-                    Recommended
-                  </span>
-                )}
-                <h3 className="text-sm font-medium text-text-primary">
-                  {tier.name}
-                </h3>
-                <div className="mt-3 mb-5">
-                  <span className="text-3xl font-serif text-text-primary tabular-nums">
-                    {tier.price}
-                  </span>
-                  <span className="text-sm text-text-tertiary">
-                    {tier.period}
-                  </span>
-                </div>
-                <ul className="space-y-2.5 mb-6 flex-1">
-                  {tier.features.map((feature) => (
-                    <li
-                      key={feature}
-                      className="flex items-start gap-2 text-sm text-text-secondary"
-                    >
-                      <svg
-                        className="w-4 h-4 text-score-high shrink-0 mt-0.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={tier.href}
-                  className={`block text-center py-2.5 text-sm font-medium rounded transition ${
-                    tier.highlighted
-                      ? "bg-accent text-white hover:bg-accent-hover"
-                      : "border border-border text-text-primary hover:border-text-tertiary"
+            {TIERS.map((tier) => {
+              const isCurrent = subStatus === "active" && subTier === tier.key;
+              return (
+                <div
+                  key={tier.name}
+                  className={`rounded p-6 flex flex-col ${
+                    isCurrent
+                      ? "border-2 border-accent bg-background ring-1 ring-accent/10"
+                      : tier.highlighted
+                      ? "border-2 border-accent bg-background ring-1 ring-accent/10"
+                      : "border border-border bg-background"
                   }`}
                 >
-                  {tier.cta} &rarr;
-                </Link>
-              </div>
-            ))}
+                  {isCurrent && (
+                    <span className="text-xs font-medium text-accent mb-3">Current Plan</span>
+                  )}
+                  {!isCurrent && tier.highlighted && (
+                    <span className="text-xs font-medium text-accent mb-3">Recommended</span>
+                  )}
+                  <h3 className="text-sm font-medium text-text-primary">{tier.name}</h3>
+                  <div className="mt-3 mb-5">
+                    <span className="text-3xl font-serif text-text-primary tabular-nums">{tier.price}</span>
+                    <span className="text-sm text-text-tertiary">{tier.period}</span>
+                  </div>
+                  <ul className="space-y-2.5 mb-6 flex-1">
+                    {tier.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 text-sm text-text-secondary">
+                        <svg className="w-4 h-4 text-score-high shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Dynamic CTA */}
+                  {isCurrent ? (
+                    <button
+                      disabled
+                      className="block text-center py-2.5 text-sm font-medium rounded border border-accent/30 text-accent/60 cursor-not-allowed"
+                    >
+                      Current Plan
+                    </button>
+                  ) : session && subStatus === "active" ? (
+                    <button
+                      onClick={handlePortal}
+                      className="block text-center py-2.5 text-sm font-medium rounded border border-border text-text-primary hover:border-text-tertiary transition"
+                    >
+                      Switch Plan
+                    </button>
+                  ) : session ? (
+                    <button
+                      onClick={() => handleCheckout(tier.key)}
+                      disabled={!!checkoutLoading}
+                      className={`block text-center py-2.5 text-sm font-medium rounded transition ${
+                        tier.highlighted
+                          ? "bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
+                          : "border border-border text-text-primary hover:border-text-tertiary disabled:opacity-50"
+                      }`}
+                    >
+                      {checkoutLoading === tier.key ? "Redirecting..." : "Subscribe"}
+                    </button>
+                  ) : (
+                    <Link
+                      href="/auth/signup"
+                      className={`block text-center py-2.5 text-sm font-medium rounded transition ${
+                        tier.highlighted
+                          ? "bg-accent text-white hover:bg-accent-hover"
+                          : "border border-border text-text-primary hover:border-text-tertiary"
+                      }`}
+                    >
+                      Get Started &rarr;
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Comparison line */}
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm">
-            <span className="text-text-tertiary line-through">
-              PitchBook: $20,000/yr
-            </span>
-            <span className="text-text-tertiary line-through">
-              Crunchbase Pro: $5,000/yr
-            </span>
-            <span className="text-text-primary font-medium">
-              Deep Thesis Starter: $240/yr
-            </span>
+            <span className="text-text-tertiary line-through">PitchBook: $20,000/yr</span>
+            <span className="text-text-tertiary line-through">Crunchbase Pro: $5,000/yr</span>
+            <span className="text-text-primary font-medium">Deep Thesis Starter: $240/yr</span>
           </div>
         </div>
       </section>
