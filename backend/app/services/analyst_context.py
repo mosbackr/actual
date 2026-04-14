@@ -255,26 +255,41 @@ async def find_startups_by_filter(
 
 def _startup_to_context(s: Startup) -> dict:
     """Convert a Startup ORM object to a context dict for the system prompt."""
-    return {
+    d = {
         "id": str(s.id),
         "name": s.name,
+        "slug": s.slug,
         "tagline": s.tagline,
         "description": s.description,
         "stage": s.stage.value if s.stage else None,
+        "company_status": s.company_status.value if hasattr(s.company_status, "value") else s.company_status,
+        "entity_type": s.entity_type.value if hasattr(s.entity_type, "value") else s.entity_type,
         "ai_score": s.ai_score,
+        "expert_score": s.expert_score,
+        "user_score": s.user_score,
         "total_funding": s.total_funding,
         "employee_count": s.employee_count,
-        "business_model": s.business_model,
         "revenue_estimate": s.revenue_estimate,
-        "competitors": s.competitors,
-        "tech_stack": s.tech_stack,
-        "key_metrics": s.key_metrics,
-        "website_url": s.website_url,
+        "business_model": s.business_model,
+        "founded_date": s.founded_date.isoformat() if s.founded_date else None,
         "location_city": s.location_city,
         "location_state": s.location_state,
         "location_country": s.location_country,
+        "website_url": s.website_url,
+        "linkedin_url": s.linkedin_url,
+        "crunchbase_url": s.crunchbase_url,
+        "competitors": s.competitors,
+        "tech_stack": s.tech_stack,
+        "hiring_signals": s.hiring_signals,
+        "patents": s.patents,
+        "key_metrics": s.key_metrics,
+        "sec_cik": s.sec_cik,
+        "form_sources": s.form_sources if s.form_sources else None,
+        "data_sources": s.data_sources if s.data_sources else None,
         "industries": [ind.name for ind in s.industries] if s.industries else [],
     }
+    # Strip None values to keep context concise
+    return {k: v for k, v in d.items() if v is not None}
 
 
 def build_system_prompt(summary: dict, startup_profiles: list[dict] | None = None) -> str:
@@ -307,9 +322,13 @@ PORTFOLIO SUMMARY:
 - Score distribution: {score_lines}
 
 AVAILABLE DATA FIELDS PER STARTUP:
-name, tagline, description, stage, ai_score, total_funding, employee_count,
-business_model, revenue_estimate, competitors, tech_stack, key_metrics,
-website_url, location_city, location_state, location_country, industries
+name, slug, tagline, description, stage, company_status, entity_type,
+ai_score (0-100 AI assessment), expert_score, user_score,
+total_funding, employee_count, revenue_estimate, business_model,
+founded_date, location_city, location_state, location_country,
+website_url, linkedin_url, crunchbase_url,
+competitors, tech_stack, hiring_signals, patents, key_metrics,
+sec_cik (SEC filings), form_sources, data_sources, industries
 """
 
     if startup_profiles:
