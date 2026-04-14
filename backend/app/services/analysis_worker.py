@@ -16,7 +16,7 @@ from app.models.pitch_analysis import (
     PitchAnalysis,
     ReportStatus,
 )
-from app.models.startup import EnrichmentStatus, Startup, StartupStatus
+from app.models.startup import EnrichmentStatus, Startup, StartupStage, StartupStatus
 from app.services import s3
 from app.services.analysis_agents import run_agent, run_final_scoring
 from app.services.document_extractor import consolidate_documents, extract_text
@@ -153,6 +153,7 @@ async def _create_startup_from_analysis(
         name=analysis.company_name,
         slug=slug,
         description=f"Submitted for analysis on Deep Thesis",
+        stage=StartupStage.pre_seed,
         status=StartupStatus.approved,
         ai_score=analysis.overall_score,
         form_sources=["pitch_analysis"],

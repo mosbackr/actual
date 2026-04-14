@@ -277,8 +277,8 @@ export default function AnalysisResultPage() {
           )}
 
           {activeReport.report && (
-            <div className="rounded border border-border bg-surface p-4 prose prose-sm max-w-none text-text-primary">
-              <div dangerouslySetInnerHTML={{ __html: activeReport.report.replace(/\n/g, "<br />") }} />
+            <div className="rounded border border-border bg-surface p-4 text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+              {activeReport.report}
             </div>
           )}
 

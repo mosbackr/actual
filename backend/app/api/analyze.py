@@ -2,6 +2,7 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -294,12 +295,16 @@ async def delete_analysis(
     return {"ok": True}
 
 
+class UpdateAnalysisBody(BaseModel):
+    publish_consent: bool | None = None
+
+
 @router.patch("/api/analyze/{analysis_id}")
 async def update_analysis(
     analysis_id: uuid.UUID,
+    body: UpdateAnalysisBody,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    publish_consent: Optional[bool] = None,
 ):
     result = await db.execute(
         select(PitchAnalysis)
@@ -309,15 +314,15 @@ async def update_analysis(
     if not analysis:
         raise HTTPException(404, "Analysis not found")
 
-    if publish_consent is not None:
-        analysis.publish_consent = publish_consent
+    if body.publish_consent is not None:
+        analysis.publish_consent = body.publish_consent
         if analysis.startup_id:
             result = await db.execute(
                 select(Startup).where(Startup.id == analysis.startup_id)
             )
             startup = result.scalar_one_or_none()
             if startup:
-                startup.status = StartupStatus.approved if publish_consent else StartupStatus.rejected
+                startup.status = StartupStatus.approved if body.publish_consent else StartupStatus.rejected
 
     await db.commit()
     return {"ok": True}
