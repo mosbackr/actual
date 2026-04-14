@@ -127,7 +127,7 @@ function InsightsContent() {
   // Send message and handle SSE stream
   const sendMessage = async (content: string, overrideConvId?: string) => {
     const convId = overrideConvId || activeConvId;
-    if (!token || !convId || isStreaming) return;
+    if (!token || isStreaming) return;
 
     // Create conversation if none active
     let targetConvId = convId;
