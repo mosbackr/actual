@@ -243,16 +243,23 @@ async def _search_efts(
     hits = []
     for hit in raw_hits:
         source = hit.get("_source", {})
-        accession = hit.get("_id", "")
+        raw_id = hit.get("_id", "")
+
+        # _id is like "0001301204-26-000002:primary_doc.xml" — strip the filename
+        accession = raw_id.split(":")[0] if ":" in raw_id else raw_id
 
         display_names = source.get("display_names", [])
         entity_name = display_names[0] if display_names else ""
+        # Strip the " (CIK XXXXXXXXXX)" suffix from display names
+        if " (CIK " in entity_name:
+            entity_name = entity_name.split(" (CIK ")[0].strip()
         file_date = source.get("file_date", "")
-        file_num = source.get("file_num", "")
+        file_num_list = source.get("file_num", [])
+        file_num = file_num_list[0] if file_num_list else ""
 
-        # CIK is often in the entity_id or can be extracted from accession path
-        entity_id = source.get("entity_id", "")
-        cik = entity_id if entity_id else None
+        # CIK is in source.ciks array
+        ciks = source.get("ciks", [])
+        cik = ciks[0].lstrip("0") if ciks else None
 
         # Extract form type from the hit source
         hit_forms = source.get("forms", [])

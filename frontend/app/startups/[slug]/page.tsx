@@ -7,6 +7,23 @@ import { ReviewSection } from "@/components/ReviewSection";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatFundingDate(raw?: string | null): string | null {
+  if (!raw) return null;
+  // "2026-04-15" or "2026-04" → "Apr 2026"
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (isoMatch) {
+    const month = MONTH_NAMES[parseInt(isoMatch[2], 10) - 1];
+    return month ? `${month} ${isoMatch[1]}` : raw;
+  }
+  // "2026-Q1" → "Q1 2026"
+  const qMatch = raw.match(/^(\d{4})-(Q\d)$/i);
+  if (qMatch) return `${qMatch[2].toUpperCase()} ${qMatch[1]}`;
+  // "By 2023" or plain year "2023" — leave as-is
+  return raw;
+}
+
 const stageLabels: Record<string, string> = {
   pre_seed: "Pre-Seed", seed: "Seed", series_a: "Series A",
   series_b: "Series B", series_c: "Series C", growth: "Growth",
@@ -346,7 +363,7 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
                         ? `${fr.post_money_valuation ? fr.post_money_valuation + " post" : fr.pre_money_valuation + " pre"}`
                         : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-text-secondary">{fr.date || "—"}</td>
+                    <td className="px-4 py-2.5 text-text-secondary">{formatFundingDate(fr.date) || "—"}</td>
                     <td className="px-4 py-2.5 text-text-secondary">
                       {fr.lead_investor && <span className="font-medium">{fr.lead_investor}</span>}
                       {fr.lead_investor && fr.other_investors && <span className="text-text-tertiary">, </span>}

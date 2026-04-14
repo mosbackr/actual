@@ -8,6 +8,20 @@ import {
 } from "recharts";
 import type { FundingData } from "@/lib/insights-types";
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatFundingDate(raw?: string | null): string {
+  if (!raw) return "\u2014";
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (isoMatch) {
+    const month = MONTH_NAMES[parseInt(isoMatch[2], 10) - 1];
+    return month ? `${month} ${isoMatch[1]}` : raw;
+  }
+  const qMatch = raw.match(/^(\d{4})-(Q\d)$/i);
+  if (qMatch) return `${qMatch[2].toUpperCase()} ${qMatch[1]}`;
+  return raw;
+}
+
 function formatAmount(val: number): string {
   if (val >= 1_000_000_000) return `$${(val / 1_000_000_000).toFixed(1)}B`;
   if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(0)}M`;
@@ -118,7 +132,7 @@ export function FundingOverview({ data }: Props) {
                       </td>
                       <td className="px-3 py-2 text-right text-text-primary tabular-nums">{round.amount}</td>
                       <td className="px-3 py-2 text-text-secondary">{STAGE_LABELS[round.stage] || round.stage}</td>
-                      <td className="px-3 py-2 text-text-tertiary">{round.date || "\u2014"}</td>
+                      <td className="px-3 py-2 text-text-tertiary">{formatFundingDate(round.date)}</td>
                     </tr>
                   ))}
                 </tbody>

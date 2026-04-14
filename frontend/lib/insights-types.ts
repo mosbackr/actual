@@ -72,18 +72,19 @@ export interface MonthlyCount {
   count: number;
 }
 
-export interface RecentStartup {
+export interface RecentDealFlowRound {
   name: string;
   slug: string;
+  round_name: string;
+  amount: string | null;
+  date: string | null;
   industry: string;
-  stage: string;
   ai_score: number | null;
-  created_at: string | null;
 }
 
 export interface DealFlowData {
   monthly: MonthlyCount[];
-  recent: RecentStartup[];
+  recent: RecentDealFlowRound[];
 }
 
 export interface FilterOptions {

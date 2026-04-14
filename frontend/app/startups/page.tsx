@@ -90,7 +90,7 @@ export default async function StartupsPage({
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page || "1", 10));
-  const sort = params.sort || "ai_score";
+  const sort = params.sort || "newest";
 
   const [data, filterOptions] = await Promise.all([
     getStartups({

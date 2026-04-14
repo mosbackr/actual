@@ -13,7 +13,7 @@ from app.models.industry import Industry
 from app.models.media import StartupMedia
 from app.models.score import StartupScoreHistory
 from app.models.dimension import StartupDimension
-from app.models.startup import Startup, StartupStatus, startup_industries
+from app.models.startup import EntityType, Startup, StartupStatus, startup_industries
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 
 router = APIRouter()
@@ -35,6 +35,7 @@ async def list_startups(
         select(Startup)
         .options(selectinload(Startup.industries))
         .where(Startup.status.in_([StartupStatus.approved, StartupStatus.featured]))
+        .where(Startup.entity_type == EntityType.startup)
     )
 
     if stage:

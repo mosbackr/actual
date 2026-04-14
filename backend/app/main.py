@@ -1,7 +1,43 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # On startup: resume any running EDGAR jobs that were interrupted by restart
+    from sqlalchemy import select, update
+    from app.db.session import async_session
+    from app.models.edgar_job import EdgarJob, EdgarJobStep
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(EdgarJob).where(EdgarJob.status == "running")
+        )
+        jobs = result.scalars().all()
+        for job in jobs:
+            # Reset any steps stuck in 'running' state
+            await db.execute(
+                update(EdgarJobStep)
+                .where(EdgarJobStep.job_id == job.id)
+                .where(EdgarJobStep.status == "running")
+                .values(status="pending")
+            )
+            await db.commit()
+
+            # Re-launch worker in background
+            from app.services.edgar_worker import run_edgar_worker
+            asyncio.create_task(run_edgar_worker(str(job.id)))
+            logger.info(f"Resumed EDGAR worker for job {job.id}")
+
+    yield
 from app.api.users import router as users_router
 from app.api.admin import router as admin_router
 from app.api.startups import router as startups_router
@@ -21,7 +57,7 @@ from app.api.insights import router as insights_router
 from app.api.admin_batch import router as admin_batch_router
 from app.api.admin_edgar import router as admin_edgar_router
 
-app = FastAPI(title="Acutal API", version="0.1.0")
+app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

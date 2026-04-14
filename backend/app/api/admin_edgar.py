@@ -143,7 +143,7 @@ async def start_edgar_scan(
 
     return {
         "job_id": str(job.id),
-        "status": job.status.value,
+        "status": job.status,
         "total_steps": sort_order,
     }
 
@@ -159,7 +159,7 @@ async def pause_edgar(
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != EdgarJobStatus.running:
-        raise HTTPException(status_code=400, detail=f"Cannot pause job in {job.status.value} state")
+        raise HTTPException(status_code=400, detail=f"Cannot pause job in {job.status} state")
 
     job.status = EdgarJobStatus.paused
     job.updated_at = datetime.now(timezone.utc)
@@ -179,7 +179,7 @@ async def resume_edgar(
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status not in (EdgarJobStatus.paused, EdgarJobStatus.cancelled):
-        raise HTTPException(status_code=400, detail=f"Cannot resume job in {job.status.value} state")
+        raise HTTPException(status_code=400, detail=f"Cannot resume job in {job.status} state")
 
     stuck_steps = await db.execute(
         select(EdgarJobStep)
@@ -232,8 +232,8 @@ async def get_active_edgar(
     return {
         "id": str(job.id),
         "scan_mode": job.scan_mode,
-        "status": job.status.value,
-        "current_phase": job.current_phase.value,
+        "status": job.status,
+        "current_phase": job.current_phase,
         "progress_summary": job.progress_summary,
         "error": job.error,
         "created_at": job.created_at.isoformat(),
@@ -274,8 +274,8 @@ async def get_edgar_startups(
             "startup_id": p.get("startup_id", ""),
             "cik": cik,
             "filings_found": filings_found,
-            "status": s.status.value,
-            "step_type": s.step_type.value,
+            "status": s.status,
+            "step_type": s.step_type,
         })
 
     return {"total": len(items), "items": items}
@@ -307,7 +307,7 @@ async def get_edgar_filings(
             "amount": r.get("amount"),
             "rounds_extracted": r.get("rounds_extracted"),
             "valuation_added": r.get("valuation_added", False),
-            "status": s.status.value,
+            "status": s.status,
             "error": s.error,
         })
 
@@ -445,6 +445,8 @@ async def get_edgar_log(
                 action = r.get("action", "")
                 if action == "enriched":
                     msg = f"Enriched: {name}"
+                elif action == "filtered":
+                    msg = f"Filtered: {name} (not a startup)"
                 else:
                     msg = f"Enrichment failed: {name} — {r.get('error', '')}"
             elif s.status == EdgarStepStatus.running:
@@ -453,13 +455,13 @@ async def get_edgar_log(
                 msg = f"Enrichment failed for {name}: {s.error or 'unknown'}"
 
         else:
-            msg = f"Step {s.step_type.value}: {s.status.value}"
+            msg = f"Step {s.step_type}: {s.status}"
 
         items.append({
             "timestamp": (s.completed_at or s.created_at).isoformat(),
             "message": msg,
-            "step_type": s.step_type.value,
-            "status": s.status.value,
+            "step_type": s.step_type,
+            "status": s.status,
         })
 
     return {"items": items}

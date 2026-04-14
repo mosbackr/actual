@@ -294,13 +294,22 @@ async def _score_startup(
         f"Scoring dimensions:\n{dim_text}"
     )
 
-    raw = await _call_perplexity(
-        [
-            {"role": "system", "content": SCORING_SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ]
-    )
-    return _extract_json(raw)
+    messages = [
+        {"role": "system", "content": SCORING_SYSTEM_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
+
+    for attempt in range(2):
+        raw = await _call_perplexity(messages)
+        try:
+            return _extract_json(raw)
+        except (ValueError, json.JSONDecodeError) as e:
+            if attempt == 0:
+                logger.warning("Scoring JSON parse failed, retrying: %s", e)
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({"role": "user", "content": "Your response was not valid JSON. Please respond with ONLY a valid JSON object, no extra text."})
+            else:
+                raise
 
 
 async def _fetch_logo_if_needed(startup: Startup, db) -> None:
@@ -825,7 +834,7 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
             )
             startup = result.scalars().first()
             industry_name = startup.industries[0].name if startup and startup.industries else None
-            stage_value = startup.stage.value if startup and startup.stage else None
+            stage_value = startup.stage if startup and startup.stage else None
 
             # ----------------------------------------------------------
             # 8. Scoring: call Perplexity for VC-style scoring

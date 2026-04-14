@@ -10,7 +10,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session
@@ -152,7 +152,7 @@ async def _update_progress(db: AsyncSession, job: EdgarJob):
             if step.result and step.result.get("action") == "created":
                 ft = step.params.get("form_type", step.result.get("form_type", "D"))
                 if step.result.get("entity_type") == "fund":
-                    duplicates_skipped += 1
+                    duplicates_skipped += 1  # count funds as "skipped" in summary
                 else:
                     startups_created += 1
                     per_form_created[ft] = per_form_created.get(ft, 0) + 1
@@ -352,7 +352,11 @@ async def _execute_process_filing(
     filing_date = step.params["filing_date"]
     primary_doc = step.params["primary_document"]
 
-    doc_text = await edgar.download_filing(cik, accession, primary_doc)
+    # Strip XSL prefix (e.g. "xslFormDX01/primary_doc.xml" → "primary_doc.xml")
+    doc_name = primary_doc
+    if doc_name.startswith("xsl"):
+        doc_name = doc_name.split("/", 1)[-1] if "/" in doc_name else doc_name
+    doc_text = await edgar.download_filing(cik, accession, doc_name)
 
     filing_obj = edgar.EdgarFiling(
         accession_number=accession,
@@ -974,6 +978,8 @@ async def _execute_add_startup(
     from app.models.startup import EntityType, StartupStage, StartupStatus
     from app.services.edgar_processor import _format_amount
 
+    from app.models.startup import EntityType
+
     issuer_name = step.params["issuer_name"]
     cik = step.params["cik"]
     state = step.params.get("state", "")
@@ -1005,10 +1011,14 @@ async def _execute_add_startup(
         stage_str = infer_stage_from_amount(amount)
     stage = StartupStage(stage_str)
 
-    slug = slugify(issuer_name)
+    import uuid as _uuid
+    # Always include CIK in slug to avoid race conditions with parallel workers
+    slug = f"{slugify(issuer_name)}-{cik}"
     existing_slug = await db.execute(select(Startup).where(Startup.slug == slug))
     if existing_slug.scalar_one_or_none():
-        slug = f"{slug}-{cik}"
+        slug = f"{slugify(issuer_name)}-{str(_uuid.uuid4())[:8]}"
+
+    entity_type = EntityType.startup if is_startup else EntityType.fund
 
     description = f"Discovered via SEC {form_label} filing. {sic_description}".strip()
     # Override description from parsed_data if available
@@ -1120,6 +1130,7 @@ async def _execute_add_startup(
         "action": "created",
         "startup_id": str(startup.id),
         "startup_name": issuer_name,
+        "entity_type": entity_type.value,
         "stage": stage_str,
         "amount": _format_amount(amount) if amount else None,
         "form_type": form_type,
@@ -1149,7 +1160,7 @@ async def _execute_add_startup(
 async def _execute_enrich_startup(
     db: AsyncSession, step: EdgarJobStep, job: EdgarJob
 ) -> None:
-    """Execute enrich_startup step: run Perplexity enrichment pipeline."""
+    """Execute enrich_startup step: enrich via Perplexity (only called for actual startups)."""
     startup_id = step.params["startup_id"]
     startup_name = step.params.get("startup_name", "")
 
@@ -1235,7 +1246,7 @@ async def _worker_loop(job_id: str, worker_id: int, failure_event: asyncio.Event
                 return
 
             if job.status in (EdgarJobStatus.paused, EdgarJobStatus.cancelled):
-                logger.info(f"[edgar-worker-{worker_id}] Job {job_id} is {job.status.value}, exiting")
+                logger.info(f"[edgar-worker-{worker_id}] Job {job_id} is {job.status}, exiting")
                 return
 
             preferred = WORKER_PREFERENCES.get(worker_id)
@@ -1270,6 +1281,17 @@ async def _worker_loop(job_id: str, worker_id: int, failure_event: asyncio.Event
                 consecutive_failures = 0
             except Exception as e:
                 logger.exception(f"[edgar-worker-{worker_id}] Step {step.id} failed: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                # Re-fetch step and job after rollback
+                step = (await db.execute(
+                    select(EdgarJobStep).where(EdgarJobStep.id == step.id)
+                )).scalar_one()
+                job = (await db.execute(
+                    select(EdgarJob).where(EdgarJob.id == job_id)
+                )).scalar_one()
                 step.status = EdgarStepStatus.failed
                 step.error = str(e)[:500]
                 step.completed_at = datetime.now(timezone.utc)

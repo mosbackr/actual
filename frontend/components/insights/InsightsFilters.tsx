@@ -22,6 +22,65 @@ const DATE_OPTIONS = [
   { value: "1y", label: "Last year" },
 ];
 
+function SingleSelect({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const current = options.find((o) => o.value === value);
+  const isDefault = value === options[0]?.value;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-2 rounded border px-3 py-2 text-sm outline-none transition ${
+          !isDefault
+            ? "border-accent bg-accent/5 text-accent"
+            : "border-border bg-surface text-text-primary"
+        }`}
+      >
+        <span>{current?.label || value}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 w-44 rounded border border-border bg-surface shadow-lg">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full px-3 py-2 text-left text-sm transition ${
+                opt.value === value
+                  ? "text-accent bg-accent/5"
+                  : "text-text-primary hover:bg-hover-row"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MultiSelect({
   label,
   options,
@@ -201,17 +260,11 @@ export function InsightsFilters({
           />
         </div>
 
-        <select
+        <SingleSelect
+          options={DATE_OPTIONS}
           value={filters.dateRange}
-          onChange={(e) => onChange({ ...filters, dateRange: e.target.value })}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none"
-        >
-          {DATE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          onChange={(dateRange) => onChange({ ...filters, dateRange })}
+        />
 
         <div className="ml-auto flex items-center gap-4">
           {hasFilters && (

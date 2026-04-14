@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.models.ai_review import StartupAIReview
 from app.models.funding_round import StartupFundingRound
 from app.models.industry import Industry
-from app.models.startup import Startup, StartupStage, StartupStatus, startup_industries
+from app.models.startup import EntityType, Startup, StartupStage, StartupStatus, startup_industries
 
 router = APIRouter()
 
@@ -89,41 +89,47 @@ async def get_insights(
             .distinct()
         )
 
-    # Date filter
-    date_cutoff = None
+    # Date filter — based on funding round dates, not created_at
+    date_cutoff_str = None
     if date_range:
         now_utc = datetime.now(timezone.utc)
         mapping = {"30d": 30, "90d": 90, "6m": 180, "1y": 365}
         days = mapping.get(date_range)
         if days:
-            date_cutoff = now_utc - timedelta(days=days)
+            cutoff = now_utc - timedelta(days=days)
+            date_cutoff_str = cutoff.strftime("%Y-%m")
+
+    # Subquery: startup IDs with a funding round after cutoff
+    date_filter_ids = None
+    if date_cutoff_str:
+        date_filter_ids = (
+            select(StartupFundingRound.startup_id)
+            .where(StartupFundingRound.date.isnot(None))
+            .where(StartupFundingRound.date >= date_cutoff_str)
+            .where(StartupFundingRound.date <= datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+            .distinct()
+        )
 
     def apply_filters(q):
-        q = q.where(approved)
+        q = q.where(approved).where(Startup.entity_type == EntityType.startup)
         if stage:
             q = q.where(Startup.stage.in_(stage))
         if industry_filter is not None:
             q = q.where(Startup.id.in_(industry_filter))
         if country:
-            if state:
-                q = q.where(
-                    (Startup.location_country.in_(country))
-                    | (Startup.location_state.in_(state))
-                )
-            else:
-                q = q.where(Startup.location_country.in_(country))
-        elif state:
+            q = q.where(Startup.location_country.in_(country))
+        if state:
             q = q.where(Startup.location_state.in_(state))
         if score_min is not None:
             q = q.where(Startup.ai_score >= score_min)
         if score_max is not None:
             q = q.where(Startup.ai_score <= score_max)
-        if date_cutoff:
-            q = q.where(Startup.created_at >= date_cutoff)
+        if date_filter_ids is not None:
+            q = q.where(Startup.id.in_(date_filter_ids))
         return q
 
     # ── Total counts (unfiltered for "X of Y") ──
-    total_q = select(func.count(Startup.id)).where(approved)
+    total_q = select(func.count(Startup.id)).where(approved).where(Startup.entity_type == EntityType.startup)
     total_startups = (await db.execute(total_q)).scalar() or 0
 
     # ── Filtered startups: fetch all matching rows ──
@@ -207,7 +213,8 @@ async def get_insights(
     }
 
     # ── Scores section ──
-    scatter_ids = [r.id for r in startup_rows if r.ai_score is not None and r.expert_score is not None]
+    # Scatter: AI Score vs Funding (most startups have these)
+    scatter_ids = [r.id for r in startup_rows if r.ai_score is not None]
     scatter = []
     if scatter_ids:
         industry_q2 = (
@@ -226,16 +233,17 @@ async def get_insights(
                 startup_industry[sid] = ir.name
 
         for r in startup_rows:
-            if r.ai_score is not None and r.expert_score is not None:
+            if r.ai_score is not None:
+                funding_val = parse_funding_to_float(r.total_funding) or 0
                 scatter.append({
                     "id": str(r.id),
                     "slug": r.slug,
                     "name": r.name,
                     "ai_score": round(r.ai_score, 1),
-                    "expert_score": round(r.expert_score, 1),
+                    "expert_score": round(r.expert_score, 1) if r.expert_score is not None else None,
                     "industry": startup_industry.get(str(r.id), "Other"),
                     "stage": r.stage.value if hasattr(r.stage, "value") else str(r.stage),
-                    "total_funding_raw": parse_funding_to_float(r.total_funding) or 0,
+                    "total_funding_raw": funding_val,
                 })
 
     # Histogram: AI score buckets
@@ -245,12 +253,14 @@ async def get_insights(
         count = sum(1 for r in startup_rows if r.ai_score is not None and low <= r.ai_score < high)
         histogram.append({"bucket": f"{low}-{high}", "count": count})
 
-    # Verdicts
+    # Verdicts — exclude null/empty verdicts
     verdicts = []
     if startup_ids:
         verdict_all_q = (
             select(StartupAIReview.verdict, func.count(StartupAIReview.id).label("cnt"))
             .where(StartupAIReview.startup_id.in_(startup_ids))
+            .where(StartupAIReview.verdict.isnot(None))
+            .where(StartupAIReview.verdict != "")
             .group_by(StartupAIReview.verdict)
             .order_by(func.count(StartupAIReview.id).desc())
         )
@@ -272,7 +282,7 @@ async def get_insights(
             "count": len(matching),
         })
 
-    # Recent rounds
+    # Recent rounds — only include rows with ISO-ish dates (YYYY-MM or YYYY-MM-DD)
     recent_rounds = []
     if startup_ids:
         rounds_q = (
@@ -288,7 +298,10 @@ async def get_insights(
             .where(StartupFundingRound.startup_id.in_(startup_ids))
             .where(StartupFundingRound.amount.isnot(None))
             .where(StartupFundingRound.amount != "")
-            .order_by(StartupFundingRound.date.desc().nulls_last())
+            .where(StartupFundingRound.date.isnot(None))
+            .where(StartupFundingRound.date.regexp_match(r"^\d{4}-\d{2}"))
+            .where(StartupFundingRound.date <= datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+            .order_by(StartupFundingRound.date.desc())
             .limit(8)
         )
         for row in (await db.execute(rounds_q)).all():
@@ -341,63 +354,98 @@ async def get_insights(
                 "total_funding": ind_funding,
             })
 
-    # ── Deal flow section ──
-    monthly = []
+    # ── Deal flow section — funding rounds per month ──
+    now_str = now.strftime("%Y-%m-%d")
+    monthly: dict[str, int] = {}
+    if startup_ids:
+        deal_rounds_q = (
+            select(StartupFundingRound.date)
+            .where(StartupFundingRound.startup_id.in_(startup_ids))
+            .where(StartupFundingRound.date.isnot(None))
+            .where(StartupFundingRound.date.regexp_match(r"^\d{4}-\d{2}"))
+            .where(StartupFundingRound.date <= now_str)
+        )
+        for row in (await db.execute(deal_rounds_q)).all():
+            month_key = row.date[:7]  # "YYYY-MM"
+            monthly[month_key] = monthly.get(month_key, 0) + 1
+
+    # Build last 12 months ensuring all months present
+    monthly_list = []
     for i in range(11, -1, -1):
         d = now - timedelta(days=i * 30)
-        m_start = d.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if d.month == 12:
-            m_end = m_start.replace(year=m_start.year + 1, month=1)
-        else:
-            m_end = m_start.replace(month=m_start.month + 1)
-        count = sum(1 for r in startup_rows if r.created_at and m_start <= r.created_at < m_end)
-        monthly.append({"month": m_start.strftime("%Y-%m"), "count": count})
-
-    # Deduplicate months
+        key = d.strftime("%Y-%m")
+        monthly_list.append({"month": key, "count": monthly.get(key, 0)})
+    # Deduplicate (timedelta math can hit same month twice)
     seen_months: dict[str, dict] = {}
-    for m_item in monthly:
+    for m_item in monthly_list:
         if m_item["month"] not in seen_months:
             seen_months[m_item["month"]] = m_item
         else:
-            seen_months[m_item["month"]]["count"] += m_item["count"]
-    monthly = list(seen_months.values())
+            seen_months[m_item["month"]]["count"] = max(
+                seen_months[m_item["month"]]["count"], m_item["count"]
+            )
+    monthly_list = list(seen_months.values())
 
-    # Recent startups
+    # Recent funding rounds (most recent by date)
     recent = []
-    sorted_by_created = sorted(
-        [r for r in startup_rows if r.created_at],
-        key=lambda r: r.created_at,
-        reverse=True,
-    )[:8]
-    recent_ids = [r.id for r in sorted_by_created]
-    recent_industry: dict[str, str] = {}
-    if recent_ids:
-        ri_q = (
-            select(startup_industries.c.startup_id, Industry.name)
-            .join(Industry, startup_industries.c.industry_id == Industry.id)
-            .where(startup_industries.c.startup_id.in_(recent_ids))
+    if startup_ids:
+        recent_rounds_q = (
+            select(
+                StartupFundingRound.startup_id,
+                StartupFundingRound.date,
+                StartupFundingRound.round_name,
+                StartupFundingRound.amount,
+            )
+            .where(StartupFundingRound.startup_id.in_(startup_ids))
+            .where(StartupFundingRound.date.isnot(None))
+            .where(StartupFundingRound.date.regexp_match(r"^\d{4}-\d{2}"))
+            .where(StartupFundingRound.date <= now_str)
+            .order_by(StartupFundingRound.date.desc())
+            .limit(8)
         )
-        for ir in (await db.execute(ri_q)).all():
-            sid = str(ir.startup_id)
-            if sid not in recent_industry:
-                recent_industry[sid] = ir.name
+        recent_round_rows = (await db.execute(recent_rounds_q)).all()
 
-    for r in sorted_by_created:
-        recent.append({
-            "name": r.name,
-            "slug": r.slug,
-            "industry": recent_industry.get(str(r.id), "Other"),
-            "stage": r.stage.value if hasattr(r.stage, "value") else str(r.stage),
-            "ai_score": round(r.ai_score, 1) if r.ai_score is not None else None,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        })
+        # Look up startup names + industries
+        rr_startup_ids = list({r.startup_id for r in recent_round_rows})
+        rr_name_map: dict[str, tuple] = {}
+        if rr_startup_ids:
+            name_q = select(Startup.id, Startup.name, Startup.slug, Startup.ai_score).where(
+                Startup.id.in_(rr_startup_ids)
+            )
+            for sr in (await db.execute(name_q)).all():
+                rr_name_map[str(sr.id)] = (sr.name, sr.slug, sr.ai_score)
 
-    deal_flow = {"monthly": monthly, "recent": recent}
+            ri_q = (
+                select(startup_industries.c.startup_id, Industry.name)
+                .join(Industry, startup_industries.c.industry_id == Industry.id)
+                .where(startup_industries.c.startup_id.in_(rr_startup_ids))
+            )
+            rr_industry: dict[str, str] = {}
+            for ir in (await db.execute(ri_q)).all():
+                sid = str(ir.startup_id)
+                if sid not in rr_industry:
+                    rr_industry[sid] = ir.name
+
+        for rr in recent_round_rows:
+            sid = str(rr.startup_id)
+            info = rr_name_map.get(sid, ("Unknown", "unknown", None))
+            recent.append({
+                "name": info[0],
+                "slug": info[1],
+                "round_name": rr.round_name,
+                "amount": rr.amount,
+                "date": rr.date,
+                "industry": rr_industry.get(sid, "Other") if rr_startup_ids else "Other",
+                "ai_score": round(info[2], 1) if info[2] is not None else None,
+            })
+
+    deal_flow = {"monthly": monthly_list, "recent": recent}
 
     # ── Available filter options ──
     countries_q = (
         select(Startup.location_country)
         .where(approved)
+        .where(Startup.entity_type == EntityType.startup)
         .where(Startup.location_country.isnot(None))
         .where(Startup.location_country != "")
         .distinct()
@@ -408,6 +456,7 @@ async def get_insights(
     states_q = (
         select(Startup.location_state)
         .where(approved)
+        .where(Startup.entity_type == EntityType.startup)
         .where(Startup.location_country == "US")
         .where(Startup.location_state.isnot(None))
         .where(Startup.location_state != "")
@@ -421,6 +470,7 @@ async def get_insights(
         .join(startup_industries, startup_industries.c.industry_id == Industry.id)
         .join(Startup, startup_industries.c.startup_id == Startup.id)
         .where(approved)
+        .where(Startup.entity_type == EntityType.startup)
         .distinct()
         .order_by(Industry.name)
     )

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, func, text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -54,12 +54,12 @@ class EdgarJob(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     scan_mode: Mapped[str] = mapped_column(Text, default="full")
-    status: Mapped[EdgarJobStatus] = mapped_column(default=EdgarJobStatus.pending)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     progress_summary: Mapped[dict] = mapped_column(
         JSON, default=dict, server_default=text("'{}'::jsonb")
     )
-    current_phase: Mapped[EdgarJobPhase] = mapped_column(
-        default=EdgarJobPhase.resolving_ciks
+    current_phase: Mapped[str] = mapped_column(
+        String(30), default="resolving_ciks"
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -80,8 +80,8 @@ class EdgarJobStep(Base):
     job_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("edgar_jobs.id", ondelete="CASCADE")
     )
-    step_type: Mapped[EdgarStepType]
-    status: Mapped[EdgarStepStatus] = mapped_column(default=EdgarStepStatus.pending)
+    step_type: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     params: Mapped[dict] = mapped_column(JSON, default=dict)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

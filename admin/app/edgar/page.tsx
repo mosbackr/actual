@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "@/lib/api";
+import { Sidebar } from "@/components/Sidebar";
 
 type Tab = "startups" | "filings";
 
@@ -170,6 +171,8 @@ export default function EdgarPage() {
     : 0;
 
   return (
+    <>
+    <Sidebar />
     <div className="ml-56 p-8">
       <h1 className="font-serif text-2xl text-text-primary mb-6">EDGAR SEC Filings</h1>
 
@@ -501,5 +504,6 @@ export default function EdgarPage() {
         </div>
       )}
     </div>
+    </>
   );
 }
