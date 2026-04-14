@@ -310,7 +310,7 @@ function InsightsContent() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
+    <div className="flex h-[calc(100vh-4rem)] -my-12">
       <AnalystSidebar
         conversations={conversations}
         activeId={activeConvId}
