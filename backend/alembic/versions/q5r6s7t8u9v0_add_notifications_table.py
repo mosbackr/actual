@@ -15,24 +15,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "DO $$ BEGIN CREATE TYPE notificationtype AS ENUM ('analysis_complete', 'report_ready'); "
-        "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
-    )
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE notificationtype AS ENUM ('analysis_complete', 'report_ready');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
+    """)
 
-    op.create_table(
-        "notifications",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("type", sa.Enum("analysis_complete", "report_ready", name="notificationtype", create_type=False), nullable=False),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("message", sa.String(500), nullable=False),
-        sa.Column("link", sa.String(500), nullable=False),
-        sa.Column("read", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL REFERENCES users(id),
+            type notificationtype NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message VARCHAR(500) NOT NULL,
+            link VARCHAR(500) NOT NULL,
+            read BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ DEFAULT now()
+        )
+    """)
 
-    op.create_index("ix_notifications_user_read_created", "notifications", ["user_id", "read", sa.text("created_at DESC")])
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_notifications_user_read_created
+        ON notifications (user_id, read, created_at DESC)
+    """)
 
 
 def downgrade() -> None:
