@@ -20,6 +20,7 @@ from app.models.startup import EnrichmentStatus, Startup, StartupStage, StartupS
 from app.services import s3
 from app.services.analysis_agents import run_agent, run_final_scoring
 from app.services.document_extractor import consolidate_documents, extract_text
+from app.models.notification import Notification, NotificationType
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +280,17 @@ async def _process_job(analysis_id: uuid.UUID) -> None:
 
         analysis.status = AnalysisStatus.complete
         analysis.completed_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        # Create notification for user
+        notification = Notification(
+            user_id=analysis.user_id,
+            type=NotificationType.analysis_complete,
+            title="Analysis complete",
+            message=company_name or "Your startup analysis",
+            link=f"/analyze/{analysis.id}",
+        )
+        db.add(notification)
         await db.commit()
 
     logger.info(f"Analysis complete for {company_name}: score={scoring['overall_score']}")

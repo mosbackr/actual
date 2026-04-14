@@ -32,6 +32,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import async_session
 from app.models.analyst import AnalystConversation, AnalystMessage, AnalystReport, ReportGenStatus
+from app.models.notification import Notification, NotificationType
 from app.services import s3
 
 logger = logging.getLogger(__name__)
@@ -630,6 +631,18 @@ async def generate_report(report_id: str) -> None:
             report.s3_key = s3_key
             report.file_size_bytes = len(file_bytes)
             report.status = ReportGenStatus.complete.value
+            await db.commit()
+
+            # Create notification for user
+            fmt_label = ext.upper()
+            notification = Notification(
+                user_id=report.user_id,
+                type=NotificationType.report_ready,
+                title="Report ready",
+                message=f"{fmt_label} report",
+                link=f"/api/analyst/reports/{report.id}/download",
+            )
+            db.add(notification)
             await db.commit()
 
             logger.info("Report %s generated: %s (%d bytes)", report_id, s3_key, len(file_bytes))
