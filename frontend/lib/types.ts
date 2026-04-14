@@ -198,3 +198,65 @@ export interface AnalysisDetail {
   reports: AnalysisReportSummary[];
   documents: AnalysisDocument[];
 }
+
+// ── Analyst types ────────────────────────────────────────────────────
+
+export interface AnalystConversationSummary {
+  id: string;
+  title: string;
+  message_count: number;
+  is_free_conversation: boolean;
+  updated_at: string | null;
+}
+
+export interface AnalystMessageData {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  charts: AnalystChartConfig[] | null;
+  citations: AnalystCitation[] | null;
+  created_at: string | null;
+}
+
+export interface AnalystChartConfig {
+  type: "bar" | "line" | "pie" | "scatter" | "area";
+  title: string;
+  data: Record<string, unknown>[];
+  xKey?: string;
+  yKeys?: string[];
+  nameKey?: string;
+  dataKey?: string;
+  colors?: string[];
+}
+
+export interface AnalystCitation {
+  url: string;
+  title: string;
+}
+
+export interface AnalystReportSummary {
+  id: string;
+  title: string;
+  format: "docx" | "xlsx";
+  status: "pending" | "generating" | "complete" | "failed";
+  file_size_bytes: number | null;
+  created_at: string | null;
+}
+
+export interface AnalystConversationDetail {
+  id: string;
+  title: string;
+  is_free_conversation: boolean;
+  message_count: number;
+  share_token: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  messages: AnalystMessageData[];
+  reports?: AnalystReportSummary[];
+}
+
+export interface AnalystSharedConversation {
+  title: string;
+  message_count: number;
+  messages: AnalystMessageData[];
+}

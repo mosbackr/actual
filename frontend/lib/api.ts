@@ -1,3 +1,10 @@
+import type {
+  AnalystConversationSummary,
+  AnalystConversationDetail,
+  AnalystReportSummary,
+  AnalystSharedConversation,
+} from "./types";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -142,5 +149,101 @@ export const api = {
       throw new Error(err.detail || `Resubmit failed: ${res.status}`);
     }
     return res.json();
+  },
+
+  // ── Analyst ──────────────────────────────────────────────────────────
+
+  async createConversation(token: string) {
+    return apiFetch<{ id: string; title: string; is_free_conversation: boolean }>(
+      "/api/analyst/conversations",
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
+  async listConversations(token: string) {
+    return apiFetch<{ items: AnalystConversationSummary[] }>(
+      "/api/analyst/conversations",
+      { headers: authHeaders(token) }
+    );
+  },
+
+  async getConversation(token: string, id: string) {
+    return apiFetch<AnalystConversationDetail>(
+      `/api/analyst/conversations/${id}`,
+      { headers: authHeaders(token) }
+    );
+  },
+
+  async updateConversationTitle(token: string, id: string, title: string) {
+    return apiFetch<{ ok: boolean }>(
+      `/api/analyst/conversations/${id}`,
+      {
+        method: "PATCH",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      }
+    );
+  },
+
+  async deleteConversation(token: string, id: string) {
+    return apiFetch<{ ok: boolean }>(
+      `/api/analyst/conversations/${id}`,
+      { method: "DELETE", headers: authHeaders(token) }
+    );
+  },
+
+  streamMessage(token: string, conversationId: string, content: string) {
+    const url = `${API_URL}/api/analyst/conversations/${conversationId}/messages`;
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  async createReport(token: string, conversationId: string, format: "docx" | "xlsx", title?: string) {
+    return apiFetch<{ id: string; status: string }>(
+      `/api/analyst/conversations/${conversationId}/reports`,
+      {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ format, title }),
+      }
+    );
+  },
+
+  async listReports(token: string) {
+    return apiFetch<{ items: AnalystReportSummary[] }>(
+      "/api/analyst/reports",
+      { headers: authHeaders(token) }
+    );
+  },
+
+  async getReportStatus(token: string, reportId: string) {
+    return apiFetch<{ id: string; status: string; file_size_bytes: number | null; error: string | null }>(
+      `/api/analyst/reports/${reportId}`,
+      { headers: authHeaders(token) }
+    );
+  },
+
+  getReportDownloadUrl(reportId: string) {
+    return `${API_URL}/api/analyst/reports/${reportId}/download`;
+  },
+
+  async shareConversation(token: string, conversationId: string) {
+    return apiFetch<{ share_token: string; url: string }>(
+      `/api/analyst/conversations/${conversationId}/share`,
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
+  async getSharedConversation(token: string) {
+    return apiFetch<AnalystSharedConversation>(
+      `/api/analyst/shared/${token}`,
+      {}
+    );
   },
 };
