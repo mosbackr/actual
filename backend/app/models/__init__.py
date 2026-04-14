@@ -13,6 +13,7 @@ from app.models.funding_round import StartupFundingRound
 from app.models.ai_review import StartupAIReview
 from app.models.batch_job import BatchJob, BatchJobStep
 from app.models.edgar_job import EdgarJob, EdgarJobStep
+from app.models.pitch_analysis import PitchAnalysis, AnalysisDocument, AnalysisReport
 
 __all__ = [
     "User",
@@ -36,4 +37,7 @@ __all__ = [
     "BatchJobStep",
     "EdgarJob",
     "EdgarJobStep",
+    "PitchAnalysis",
+    "AnalysisDocument",
+    "AnalysisReport",
 ]
