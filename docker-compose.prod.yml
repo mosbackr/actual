@@ -61,5 +61,21 @@ services:
       - backend
     restart: unless-stopped
 
+  analysis_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.worker
+    environment:
+      - ACUTAL_DATABASE_URL=postgresql+asyncpg://postgres:${DB_PASSWORD}@db:5432/acutal
+      - ACUTAL_PERPLEXITY_API_KEY=${ACUTAL_PERPLEXITY_API_KEY}
+      - ACUTAL_ANTHROPIC_API_KEY=${ACUTAL_ANTHROPIC_API_KEY}
+      - ACUTAL_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - ACUTAL_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - ACUTAL_S3_BUCKET_NAME=${S3_BUCKET_NAME:-deepthesis-pitch-documents}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
