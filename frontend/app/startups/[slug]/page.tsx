@@ -26,6 +26,36 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
   );
 }
 
+function SourceBadge({ source }: { source: string | undefined }) {
+  if (!source) return null;
+  const labels: Record<string, string> = {
+    "D": "Form D",
+    "S-1": "S-1 Filing",
+    "10-K": "10-K Filing",
+    "C": "Form C",
+    "1-A": "Form 1-A",
+    "perplexity": "AI Research",
+    "logo.dev": "Logo.dev",
+  };
+  const colors: Record<string, string> = {
+    "D": "bg-amber-500/10 text-amber-400",
+    "S-1": "bg-blue-500/10 text-blue-400",
+    "10-K": "bg-green-500/10 text-green-400",
+    "C": "bg-purple-500/10 text-purple-400",
+    "1-A": "bg-cyan-500/10 text-cyan-400",
+    "perplexity": "bg-zinc-500/10 text-zinc-400",
+    "logo.dev": "bg-zinc-500/10 text-zinc-400",
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[source] || "bg-zinc-500/10 text-zinc-400"}`}
+      title={labels[source] || source}
+    >
+      {labels[source] || source}
+    </span>
+  );
+}
+
 async function getStartup(slug: string): Promise<StartupDetail | null> {
   const res = await fetch(`${API_URL}/api/startups/${slug}`, { cache: "no-store" });
   if (!res.ok) return null;
@@ -55,6 +85,13 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
           {startup.tagline && (
             <p className="text-text-tertiary mt-1 text-sm">{startup.tagline}</p>
           )}
+          {startup.form_sources?.length > 0 && (
+            <div className="flex gap-1 mt-1">
+              {startup.form_sources.map((fs: string) => (
+                <SourceBadge key={fs} source={fs} />
+              ))}
+            </div>
+          )}
           <p className="text-text-secondary mt-2 break-words">{startup.description}</p>
           <div className="flex flex-wrap gap-2 mt-3 items-center">
             <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
@@ -76,23 +113,27 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
               </span>
             )}
             {startup.total_funding && (
-              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary inline-flex items-center gap-1">
                 {startup.total_funding} raised
+                <SourceBadge source={startup.data_sources?.total_funding} />
               </span>
             )}
             {startup.revenue_estimate && (
-              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary inline-flex items-center gap-1">
                 {startup.revenue_estimate}
+                <SourceBadge source={startup.data_sources?.revenue_estimate} />
               </span>
             )}
             {startup.business_model && (
-              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary inline-flex items-center gap-1">
                 {startup.business_model}
+                <SourceBadge source={startup.data_sources?.business_model} />
               </span>
             )}
             {startup.employee_count && (
-              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary">
+              <span className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary inline-flex items-center gap-1">
                 {startup.employee_count} employees
+                <SourceBadge source={startup.data_sources?.employee_count} />
               </span>
             )}
             {startup.industries.map((ind) => (
@@ -319,19 +360,28 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
           <div className="rounded border border-border bg-surface p-6 space-y-5">
             {startup.key_metrics && (
               <div>
-                <h3 className="text-sm font-medium text-text-primary mb-1">Key Metrics</h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-medium text-text-primary">Key Metrics</h3>
+                  <SourceBadge source={startup.data_sources?.key_metrics} />
+                </div>
                 <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.key_metrics}</p>
               </div>
             )}
             {startup.competitors && (
               <div>
-                <h3 className="text-sm font-medium text-text-primary mb-1">Competitors</h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-medium text-text-primary">Competitors</h3>
+                  <SourceBadge source={startup.data_sources?.competitors} />
+                </div>
                 <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.competitors}</p>
               </div>
             )}
             {startup.tech_stack && (
               <div>
-                <h3 className="text-sm font-medium text-text-primary mb-1">Tech Stack</h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-medium text-text-primary">Tech Stack</h3>
+                  <SourceBadge source={startup.data_sources?.tech_stack} />
+                </div>
                 <p className="text-sm text-text-secondary whitespace-pre-wrap">{startup.tech_stack}</p>
               </div>
             )}

@@ -20,6 +20,7 @@ export interface StartupCard {
   expert_score: number | null;
   user_score: number | null;
   industries: Industry[];
+  form_sources: string[];
 }
 
 export interface MediaItem {
@@ -63,6 +64,8 @@ export interface StartupDetail extends StartupCard {
   media: MediaItem[];
   score_history: ScoreHistory[];
   dimensions: StartupDimension[];
+  form_sources: string[];
+  data_sources: Record<string, string>;
 }
 
 export interface PaginatedStartups {
