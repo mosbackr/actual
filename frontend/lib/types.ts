@@ -139,3 +139,62 @@ export interface ExpertApplication {
   skills: string[];
   created_at: string;
 }
+
+export interface AnalysisListItem {
+  id: string;
+  company_name: string;
+  status: string;
+  overall_score: number | null;
+  created_at: string | null;
+  completed_at: string | null;
+}
+
+export interface AnalysisDocument {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size_bytes: number;
+}
+
+export interface AnalysisReportSummary {
+  id: string;
+  agent_type: string;
+  status: string;
+  score: number | null;
+  summary: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface AnalysisReportFull {
+  id: string;
+  agent_type: string;
+  status: string;
+  score: number | null;
+  summary: string | null;
+  report: string | null;
+  key_findings: string[] | null;
+  error: string | null;
+}
+
+export interface AnalysisDetail {
+  id: string;
+  company_name: string;
+  status: string;
+  current_agent: string | null;
+  overall_score: number | null;
+  fundraising_likelihood: number | null;
+  recommended_raise: string | null;
+  exit_likelihood: number | null;
+  expected_exit_value: string | null;
+  expected_exit_timeline: string | null;
+  executive_summary: string | null;
+  publish_consent: boolean;
+  is_free_analysis: boolean;
+  startup_id: string | null;
+  error: string | null;
+  created_at: string | null;
+  completed_at: string | null;
+  reports: AnalysisReportSummary[];
+  documents: AnalysisDocument[];
+}

@@ -87,4 +87,60 @@ export const api = {
     apiFetch<import("./insights-types").InsightsResponse>(
       `/api/insights${params ? `?${params}` : ""}`
     ),
+
+  createAnalysis: async (token: string, formData: FormData): Promise<{ id: string; status: string }> => {
+    const res = await fetch(`${API_URL}/api/analyze`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  listAnalyses: (token: string) =>
+    apiFetch<{ items: import("./types").AnalysisListItem[] }>("/api/analyze", {
+      headers: authHeaders(token),
+    }),
+
+  getAnalysis: (token: string, id: string) =>
+    apiFetch<import("./types").AnalysisDetail>(`/api/analyze/${id}`, {
+      headers: authHeaders(token),
+    }),
+
+  getAnalysisReports: (token: string, id: string) =>
+    apiFetch<{ items: import("./types").AnalysisReportFull[] }>(`/api/analyze/${id}/reports`, {
+      headers: authHeaders(token),
+    }),
+
+  deleteAnalysis: async (token: string, id: string) => {
+    await apiFetch(`/api/analyze/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
+  updateAnalysisConsent: async (token: string, id: string, publish_consent: boolean) => {
+    await apiFetch(`/api/analyze/${id}`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ publish_consent }),
+    });
+  },
+
+  resubmitAnalysis: async (token: string, id: string, formData: FormData): Promise<{ id: string; status: string }> => {
+    const res = await fetch(`${API_URL}/api/analyze/${id}/resubmit`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Resubmit failed: ${res.status}`);
+    }
+    return res.json();
+  },
 };
