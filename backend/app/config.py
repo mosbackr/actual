@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     s3_bucket_name: str = "deepthesis-pitch-documents"
 
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_starter: str = ""
+    stripe_price_professional: str = ""
+    stripe_price_unlimited: str = ""
+    frontend_url: str = "https://deepthesis.org"
+
     model_config = {"env_prefix": "ACUTAL_"}
 
 
