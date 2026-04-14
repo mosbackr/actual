@@ -7,6 +7,14 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -16,7 +24,8 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail || `API error: ${res.status} ${res.statusText}`);
   }
   return res.json();
 }
@@ -204,7 +213,7 @@ export const api = {
     });
   },
 
-  async createReport(token: string, conversationId: string, format: "docx" | "xlsx", title?: string) {
+  async createReport(token: string, conversationId: string, format: "docx" | "xlsx" | "pdf" | "pptx", title?: string) {
     return apiFetch<{ id: string; status: string }>(
       `/api/analyst/conversations/${conversationId}/reports`,
       {

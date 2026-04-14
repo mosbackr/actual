@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { AuthButton } from "./AuthButton";
 import { LogoIcon } from "./LogoIcon";
 
 export function Navbar() {
+  const { data: session } = useSession();
+
   return (
     <nav className="border-b border-border bg-surface">
       <div className="mx-auto max-w-6xl px-6 lg:px-8">
@@ -12,20 +17,25 @@ export function Navbar() {
               <LogoIcon size={28} />
               Deep Thesis
             </Link>
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/startups" className="text-sm text-text-secondary hover:text-text-primary transition">
-                Companies
-              </Link>
-              <Link href="/analyze" className="text-sm text-text-secondary hover:text-text-primary transition">
-                Analyze
-              </Link>
-              <Link href="/insights" className="text-sm text-text-secondary hover:text-text-primary transition">
-                Insights
-              </Link>
-              <Link href="/experts/apply" className="text-sm text-text-secondary hover:text-text-primary transition">
-                Become a Contributor
-              </Link>
-            </div>
+            {session && (
+              <div className="hidden md:flex items-center gap-6">
+                <Link href="/startups" className="text-sm text-text-secondary hover:text-text-primary transition">
+                  Companies
+                </Link>
+                <Link href="/analyze" className="text-sm text-text-secondary hover:text-text-primary transition">
+                  Analyze
+                </Link>
+                <Link href="/insights" className="text-sm text-text-secondary hover:text-text-primary transition">
+                  Insights
+                </Link>
+                <Link
+                  href="/experts/apply"
+                  className="text-sm px-3 py-1 rounded border border-accent text-accent hover:bg-accent/5 transition"
+                >
+                  Contribute
+                </Link>
+              </div>
+            )}
           </div>
           <AuthButton />
         </div>

@@ -177,6 +177,7 @@ export default function EdgarPage() {
       <h1 className="font-serif text-2xl text-text-primary mb-6">EDGAR SEC Filings</h1>
 
       {/* Control Bar */}
+      {/* Active job controls */}
       <div className="rounded border border-border bg-surface p-5 mb-6">
         <div className="flex items-center gap-3 mb-4">
           {canStart && (
@@ -195,49 +196,6 @@ export default function EdgarPage() {
               >
                 Scan New Only
               </button>
-              <div className="w-px h-6 bg-border mx-1" />
-              <button
-                onClick={handleDiscover}
-                disabled={loading}
-                className="px-4 py-2 text-sm font-medium rounded bg-score-high text-white hover:opacity-90 disabled:opacity-50 transition"
-              >
-                Discover New
-              </button>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  value={discoverDays}
-                  onChange={(e) => setDiscoverDays(Math.max(1, parseInt(e.target.value) || 365))}
-                  className="w-16 px-2 py-1.5 text-sm rounded border border-border bg-background text-text-primary text-center tabular-nums"
-                  min={1}
-                  max={3650}
-                />
-                <span className="text-xs text-text-tertiary">days</span>
-              </div>
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400">Form Types</span>
-                  <button
-                    onClick={toggleAll}
-                    className="text-xs text-blue-400 hover:text-blue-300"
-                  >
-                    {formTypes.length === FORM_OPTIONS.length ? "None" : "All"}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {FORM_OPTIONS.map(opt => (
-                    <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formTypes.includes(opt.value)}
-                        onChange={() => toggleFormType(opt.value)}
-                        className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/20"
-                      />
-                      <span className="text-sm text-zinc-300">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
             </>
           )}
           {job?.status === "running" && (
@@ -364,6 +322,58 @@ export default function EdgarPage() {
             {summary.current_filing && ` / ${summary.current_filing}`}
           </p>
         )}
+      </div>
+
+      {/* Discover section — always visible */}
+      <div className="rounded border border-border bg-surface p-5 mb-6">
+        <h3 className="text-sm font-medium text-text-primary mb-3">Discover New Companies from SEC Filings</h3>
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            onClick={handleDiscover}
+            disabled={loading || isActive}
+            className="px-4 py-2 text-sm font-medium rounded bg-score-high text-white hover:opacity-90 disabled:opacity-50 transition"
+          >
+            Discover New
+          </button>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              value={discoverDays}
+              onChange={(e) => setDiscoverDays(Math.max(1, parseInt(e.target.value) || 365))}
+              className="w-16 px-2 py-1.5 text-sm rounded border border-border bg-background text-text-primary text-center tabular-nums"
+              min={1}
+              max={3650}
+            />
+            <span className="text-xs text-text-tertiary">days</span>
+          </div>
+          {isActive && (
+            <span className="text-xs text-text-tertiary">Cancel current job to start a new discovery</span>
+          )}
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-text-secondary">Form Types</span>
+            <button
+              onClick={toggleAll}
+              className="text-xs text-accent hover:text-accent-hover"
+            >
+              {formTypes.length === FORM_OPTIONS.length ? "None" : "All"}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {FORM_OPTIONS.map(opt => (
+              <label key={opt.value} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formTypes.includes(opt.value)}
+                  onChange={() => toggleFormType(opt.value)}
+                  className="rounded border-border bg-background text-accent focus:ring-accent/20"
+                />
+                <span className="text-sm text-text-primary">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
 
       {job && (

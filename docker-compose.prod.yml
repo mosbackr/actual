@@ -25,7 +25,12 @@ services:
       ACUTAL_JWT_SECRET: ${JWT_SECRET}
       ACUTAL_CORS_ORIGINS: '["https://deepthesis.org","https://www.deepthesis.org","https://admin.deepthesis.org","http://localhost:3000","http://localhost:3001"]'
       ACUTAL_PERPLEXITY_API_KEY: ${ACUTAL_PERPLEXITY_API_KEY:-}
+      ACUTAL_ANTHROPIC_API_KEY: ${ACUTAL_ANTHROPIC_API_KEY:-}
+      ACUTAL_DATABASE_READONLY_URL: ${ACUTAL_DATABASE_READONLY_URL:-}
       ACUTAL_LOGO_DEV_TOKEN: ${ACUTAL_LOGO_DEV_TOKEN:-}
+      ACUTAL_AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      ACUTAL_AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      ACUTAL_S3_BUCKET_NAME: ${S3_BUCKET_NAME:-deepthesis-pitch-documents}
     depends_on:
       db:
         condition: service_healthy

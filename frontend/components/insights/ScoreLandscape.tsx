@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Line, ComposedChart,
+  ResponsiveContainer, BarChart, Bar, Line, ComposedChart, Cell,
 } from "recharts";
 import type { ScoresData } from "@/lib/insights-types";
 
 const INDUSTRY_COLORS: Record<string, string> = {
-  "AI/ML": "#B8553A",
+  "AI/ML": "#F28C28",
   "FinTech": "#2D6A4F",
   "BioTech": "#7B2D8E",
   "HealthTech": "#1A6B8A",
@@ -23,7 +23,7 @@ const VERDICT_COLORS: Record<string, string> = {
   "Invest": "#2D6A4F",
   "Lean Invest": "#5A9E6F",
   "Lean Pass": "#C4883A",
-  "Pass": "#B8553A",
+  "Pass": "#F28C28",
   "Strong Pass": "#8B3A2A",
 };
 
@@ -121,7 +121,7 @@ export function ScoreLandscape({ data }: Props) {
                 data={regressionLine}
                 type="linear"
                 dataKey="funding_log"
-                stroke="#B8553A"
+                stroke="#F28C28"
                 strokeWidth={2}
                 strokeDasharray="6 3"
                 dot={false}
@@ -140,11 +140,10 @@ export function ScoreLandscape({ data }: Props) {
                 cursor="pointer"
               >
                 {scatterData.map((entry, i) => (
-                  <circle
+                  <Cell
                     key={i}
                     fill={getIndustryColor(entry.industry)}
                     fillOpacity={0.65}
-                    r={5}
                   />
                 ))}
               </Scatter>
@@ -183,7 +182,7 @@ export function ScoreLandscape({ data }: Props) {
                     fontSize: "12px",
                   }}
                 />
-                <Bar dataKey="count" fill="#B8553A" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="count" fill="#F28C28" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

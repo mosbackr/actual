@@ -155,7 +155,7 @@ def _get_readonly_engine():
 
 _FORBIDDEN_SQL = {
     "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE",
-    "GRANT", "REVOKE", "COPY", "EXECUTE", "INTO",
+    "GRANT", "REVOKE", "COPY", "EXECUTE",
 }
 _FORBIDDEN_TABLES = {
     "users", "analyst_conversations", "analyst_messages", "analyst_reports",
@@ -191,8 +191,8 @@ async def _execute_sql(query: str) -> list[dict]:
 
     engine = _get_readonly_engine()
     async with engine.connect() as conn:
-        # Set statement timeout for safety
-        await conn.execute(text(f"SET statement_timeout = '{SQL_TIMEOUT_MS}'"))
+        # SET LOCAL scopes timeout to this transaction only, preventing pool leak
+        await conn.execute(text(f"SET LOCAL statement_timeout = '{SQL_TIMEOUT_MS}'"))
         result = await conn.execute(text(query))
         columns = list(result.keys())
         rows = result.fetchmany(MAX_ROWS)

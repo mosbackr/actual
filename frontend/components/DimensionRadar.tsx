@@ -41,7 +41,7 @@ export function DimensionRadar({ history }: DimensionRadarProps) {
         <PolarGrid stroke="#E8E6E3" />
         <PolarAngleAxis dataKey="dimension" stroke="#6B6B6B" fontSize={11} />
         <PolarRadiusAxis domain={[0, 100]} stroke="#E8E6E3" fontSize={10} />
-        <Radar name="AI" dataKey="ai" stroke="#B8553A" fill="#B8553A" fillOpacity={0.1} />
+        <Radar name="AI" dataKey="ai" stroke="#F28C28" fill="#F28C28" fillOpacity={0.1} />
         <Radar name="Contributor" dataKey="expert" stroke="#2D6A4F" fill="#2D6A4F" fillOpacity={0.1} />
         <Radar name="Community" dataKey="community" stroke="#B8860B" fill="#B8860B" fillOpacity={0.1} />
         <Legend />

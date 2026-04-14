@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 
 interface Props {
   onSend: (message: string) => void;
-  onGenerateReport: (format: "docx" | "xlsx") => void;
+  onGenerateReport: (format: "docx" | "xlsx" | "pdf" | "pptx") => void;
   isStreaming: boolean;
   hasMessages: boolean;
   isSubscriber: boolean;
@@ -75,10 +75,22 @@ export function AnalystInput({ onSend, onGenerateReport, isStreaming, hasMessage
             {showReportMenu && (
               <div className="absolute bottom-full right-0 mb-1 bg-surface border border-border rounded shadow-lg py-1 z-10">
                 <button
+                  onClick={() => { onGenerateReport("pdf"); setShowReportMenu(false); }}
+                  className="block w-full text-left px-4 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-alt"
+                >
+                  PDF (.pdf)
+                </button>
+                <button
                   onClick={() => { onGenerateReport("docx"); setShowReportMenu(false); }}
                   className="block w-full text-left px-4 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-alt"
                 >
                   Word (.docx)
+                </button>
+                <button
+                  onClick={() => { onGenerateReport("pptx"); setShowReportMenu(false); }}
+                  className="block w-full text-left px-4 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-alt"
+                >
+                  PowerPoint (.pptx)
                 </button>
                 <button
                   onClick={() => { onGenerateReport("xlsx"); setShowReportMenu(false); }}

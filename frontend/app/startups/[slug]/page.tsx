@@ -55,17 +55,17 @@ function SourceBadge({ source }: { source: string | undefined }) {
     "logo.dev": "Logo.dev",
   };
   const colors: Record<string, string> = {
-    "D": "bg-amber-500/10 text-amber-400",
-    "S-1": "bg-blue-500/10 text-blue-400",
-    "10-K": "bg-green-500/10 text-green-400",
-    "C": "bg-purple-500/10 text-purple-400",
-    "1-A": "bg-cyan-500/10 text-cyan-400",
-    "perplexity": "bg-zinc-500/10 text-zinc-400",
-    "logo.dev": "bg-zinc-500/10 text-zinc-400",
+    "D": "bg-accent/10 text-accent",
+    "S-1": "bg-score-high/10 text-score-high",
+    "10-K": "bg-score-high/10 text-score-high",
+    "C": "bg-score-mid/10 text-score-mid",
+    "1-A": "bg-accent/10 text-accent",
+    "perplexity": "bg-text-tertiary/10 text-text-tertiary",
+    "logo.dev": "bg-text-tertiary/10 text-text-tertiary",
   };
   return (
     <span
-      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[source] || "bg-zinc-500/10 text-zinc-400"}`}
+      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[source] || "bg-text-tertiary/10 text-text-tertiary"}`}
       title={labels[source] || source}
     >
       {labels[source] || source}

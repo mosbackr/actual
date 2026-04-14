@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import { AlertModal, ConfirmModal } from "@/components/Modal";
+import { Modal, AlertModal, ConfirmModal } from "@/components/Modal";
 import type {
   AnalystConversationSummary,
   AnalystMessageData,
@@ -40,6 +40,7 @@ function InsightsContent() {
   const [loading, setLoading] = useState(true);
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: "info" | "success" | "error" } | null>(null);
   const [deleteConvId, setDeleteConvId] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   // Let backend 402 responses handle subscription gating rather than
   // relying on a client-side session field that isn't wired through NextAuth.
@@ -249,7 +250,7 @@ function InsightsContent() {
   };
 
   // Generate report
-  const handleGenerateReport = async (format: "docx" | "xlsx") => {
+  const handleGenerateReport = async (format: "docx" | "xlsx" | "pdf" | "pptx") => {
     if (!token || !activeConvId) return;
 
     try {
@@ -331,10 +332,12 @@ function InsightsContent() {
               <button
                 onClick={async () => {
                   if (!token || !activeConvId) return;
-                  const result = await api.shareConversation(token, activeConvId);
-                  const fullUrl = `${window.location.origin}${result.url}`;
-                  navigator.clipboard.writeText(fullUrl);
-                  setAlertModal({ title: "Link Copied", message: "Share link copied to clipboard.", variant: "success" });
+                  try {
+                    const result = await api.shareConversation(token, activeConvId);
+                    setShareUrl(`${window.location.origin}${result.url}`);
+                  } catch {
+                    setAlertModal({ title: "Error", message: "Failed to create share link.", variant: "error" });
+                  }
                 }}
                 className="text-xs text-text-tertiary hover:text-text-secondary"
               >
@@ -376,6 +379,30 @@ function InsightsContent() {
         message={alertModal?.message || ""}
         variant={alertModal?.variant}
       />
+      <Modal open={!!shareUrl} onClose={() => setShareUrl(null)} title="Share Link" actions={
+        <button onClick={() => setShareUrl(null)} className="px-4 py-2 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition">Done</button>
+      }>
+        <div className="flex gap-2">
+          <input
+            readOnly
+            value={shareUrl || ""}
+            className="flex-1 px-3 py-2 text-sm rounded border border-border bg-background text-text-primary select-all"
+            onFocus={(e) => e.target.select()}
+          />
+          <button
+            onClick={() => {
+              if (shareUrl) {
+                navigator.clipboard.writeText(shareUrl).catch(() => {});
+                setAlertModal({ title: "Copied", message: "Link copied to clipboard.", variant: "success" });
+                setShareUrl(null);
+              }
+            }}
+            className="px-3 py-2 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition whitespace-nowrap"
+          >
+            Copy
+          </button>
+        </div>
+      </Modal>
       <ConfirmModal
         open={!!deleteConvId}
         onClose={() => setDeleteConvId(null)}

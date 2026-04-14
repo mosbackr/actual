@@ -27,7 +27,7 @@ export function AuthButton() {
           <span className="text-sm text-text-secondary">{session.user?.name}</span>
         </Link>
         <button
-          onClick={() => signOut()}
+          onClick={() => signOut({ callbackUrl: "/" })}
           className="text-sm px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text-primary hover:border-text-tertiary transition"
         >
           Sign Out

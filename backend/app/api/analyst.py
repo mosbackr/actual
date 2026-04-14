@@ -343,13 +343,20 @@ async def send_message(
 
         yield f"event: done\ndata: {json.dumps({'full_text': full_text})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── reports ──────────────────────────────────────────────────────────
 
 class CreateReportBody(BaseModel):
-    format: str  # "docx" or "xlsx"
+    format: str  # "docx", "xlsx", "pdf", or "pptx"
     title: str | None = None
 
 
@@ -375,8 +382,8 @@ async def create_report(
     if not conversation:
         raise HTTPException(404, "Conversation not found")
 
-    if body.format not in ("docx", "xlsx"):
-        raise HTTPException(400, "Format must be 'docx' or 'xlsx'")
+    if body.format not in ("docx", "xlsx", "pdf", "pptx"):
+        raise HTTPException(400, "Format must be 'docx', 'xlsx', 'pdf', or 'pptx'")
 
     report = AnalystReport(
         conversation_id=conversation.id,
@@ -467,12 +474,14 @@ async def download_report(
 
     file_data = s3.download_file(report.s3_key)
     fmt = report.format.value if hasattr(report.format, "value") else report.format
-    if fmt == "docx":
-        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        filename = f"{report.title}.docx"
-    else:
-        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        filename = f"{report.title}.xlsx"
+    media_types = {
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "pdf": "application/pdf",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }
+    media_type = media_types.get(fmt, "application/octet-stream")
+    filename = f"{report.title}.{fmt}"
 
     from fastapi.responses import Response
     return Response(

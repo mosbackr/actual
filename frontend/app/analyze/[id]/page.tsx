@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { ConfirmModal } from "@/components/Modal";
 import type { AnalysisDetail, AnalysisReportFull } from "@/lib/types";
 
 const AGENT_LABELS: Record<string, string> = {
@@ -48,6 +49,7 @@ export default function AnalysisResultPage() {
   const [reports, setReports] = useState<AnalysisReportFull[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!token || !id) return;
@@ -158,11 +160,23 @@ export default function AnalysisResultPage() {
             History
           </Link>
           <button
-            onClick={async () => { if (confirm("Delete this analysis?")) { await api.deleteAnalysis(token, id); router.push("/analyze/history"); } }}
-            className="text-xs text-red-500 hover:text-red-700"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-xs text-score-low hover:text-score-low/80"
           >
             Delete
           </button>
+          <ConfirmModal
+            open={showDeleteConfirm}
+            onClose={() => setShowDeleteConfirm(false)}
+            onConfirm={async () => {
+              await api.deleteAnalysis(token, id);
+              router.push("/analyze/history");
+            }}
+            title="Delete Analysis"
+            message="Are you sure you want to delete this analysis? This action cannot be undone."
+            confirmLabel="Delete"
+            destructive
+          />
         </div>
       </div>
 
@@ -283,7 +297,7 @@ export default function AnalysisResultPage() {
           )}
 
           {activeReport.status === "failed" && (
-            <div className="rounded border border-red-200 bg-red-50 p-4 text-red-700 text-sm">
+            <div className="rounded border border-score-low/20 bg-score-low/10 p-4 text-score-low text-sm">
               Agent failed: {activeReport.error || "Unknown error"}
             </div>
           )}

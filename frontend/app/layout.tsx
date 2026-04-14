@@ -13,9 +13,25 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   title: "Deep Thesis — Startup Investment Intelligence",
-  description: "AI scoring, expert due diligence, and community reviews for startup investments.",
+  description:
+    "Institutional-grade deal intelligence at angel investor pricing. 1,000+ buy-side VC transactions, secondaries data, AI agents, and quantitative analysis tools — starting at $19.99/mo.",
   icons: {
     icon: "/favicon.svg",
+  },
+  metadataBase: new URL("https://deepthesis.org"),
+  openGraph: {
+    title: "Deep Thesis — Startup Investment Intelligence",
+    description:
+      "1,000+ buy-side VC transactions, secondaries data, Crunchbase, PitchBook, and AI agents — so you can make quantitative investment decisions without a $20K/yr data subscription.",
+    url: "https://deepthesis.org",
+    siteName: "Deep Thesis",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Deep Thesis — Startup Investment Intelligence",
+    description:
+      "1,000+ buy-side VC transactions, secondaries data, and AI agents. Starting at $19.99/mo.",
   },
 };
 

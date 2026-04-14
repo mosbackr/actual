@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#FAFAF8"/>
+  <!-- Logo wireframe network mark -->
+  <circle cx="100" cy="200" r="8" stroke="#F28C28" stroke-width="2.5" fill="none"/>
+  <circle cx="68" cy="230" r="6" stroke="#F28C28" stroke-width="2" fill="none"/>
+  <circle cx="132" cy="230" r="6" stroke="#F28C28" stroke-width="2" fill="none"/>
+  <circle cx="80" cy="260" r="6" stroke="#F28C28" stroke-width="2" fill="none"/>
+  <circle cx="120" cy="260" r="6" stroke="#F28C28" stroke-width="2" fill="none"/>
+  <line x1="94" y1="206" x2="73" y2="225" stroke="#F28C28" stroke-width="1.5"/>
+  <line x1="106" y1="206" x2="127" y2="225" stroke="#F28C28" stroke-width="1.5"/>
+  <line x1="72" y1="235" x2="80" y2="254" stroke="#F28C28" stroke-width="1.5"/>
+  <line x1="128" y1="235" x2="120" y2="254" stroke="#F28C28" stroke-width="1.5"/>
+  <line x1="96" y1="207" x2="82" y2="254" stroke="#F28C28" stroke-width="1" opacity="0.4"/>
+  <line x1="104" y1="207" x2="118" y2="254" stroke="#F28C28" stroke-width="1" opacity="0.4"/>
+  <!-- Title -->
+  <text x="170" y="235" font-family="Georgia, serif" font-size="48" font-weight="400" fill="#1A1A1A">Deep Thesis</text>
+  <!-- Tagline -->
+  <text x="80" y="350" font-family="system-ui, sans-serif" font-size="36" fill="#F28C28">Institutional-grade deal intelligence.</text>
+  <text x="80" y="400" font-family="system-ui, sans-serif" font-size="36" fill="#F28C28">Angel investor price.</text>
+  <!-- Stats -->
+  <text x="80" y="490" font-family="system-ui, sans-serif" font-size="22" fill="#9B9B9B">1,000+ transactions  |  2,800+ companies  |  8 AI agents per analysis</text>
+  <!-- URL -->
+  <text x="80" y="570" font-family="system-ui, sans-serif" font-size="20" fill="#6B6B6B">deepthesis.org</text>
+</svg>

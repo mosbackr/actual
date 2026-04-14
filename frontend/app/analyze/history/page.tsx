@@ -16,12 +16,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-zinc-100 text-zinc-600",
-  extracting: "bg-yellow-100 text-yellow-800",
-  analyzing: "bg-blue-100 text-blue-800",
-  enriching: "bg-purple-100 text-purple-800",
-  complete: "bg-green-100 text-green-800",
-  failed: "bg-red-100 text-red-800",
+  pending: "bg-border text-text-tertiary",
+  extracting: "bg-accent/10 text-accent",
+  analyzing: "bg-accent/10 text-accent",
+  enriching: "bg-accent/10 text-accent",
+  complete: "bg-score-high/10 text-score-high",
+  failed: "bg-score-low/10 text-score-low",
 };
 
 export default function AnalysisHistoryPage() {

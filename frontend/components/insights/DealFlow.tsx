@@ -63,7 +63,7 @@ export function DealFlow({ data }: Props) {
                 }}
                 formatter={(value) => [String(value), "Rounds"]}
               />
-              <Bar dataKey="count" fill="#B8553A" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="count" fill="#F28C28" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -205,7 +205,7 @@ export default function AnalyzePage() {
 
       {/* Error */}
       {error && (
-        <div className="mt-3 px-3 py-2 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="mt-3 px-3 py-2 rounded bg-score-low/10 border border-score-low/20 text-score-low text-sm">
           {error}
         </div>
       )}

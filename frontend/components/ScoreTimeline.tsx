@@ -32,7 +32,7 @@ export function ScoreTimeline({ history }: ScoreTimelineProps) {
         <YAxis domain={[0, 100]} stroke="#9B9B9B" fontSize={12} />
         <Tooltip contentStyle={{ backgroundColor: "#FFFFFF", border: "1px solid #E8E6E3", borderRadius: "4px", color: "#1A1A1A" }} />
         <Legend />
-        <Line type="monotone" dataKey="ai" name="AI Score" stroke="#B8553A" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="ai" name="AI Score" stroke="#F28C28" strokeWidth={2} dot={false} />
         <Line type="monotone" dataKey="expert_aggregate" name="Contributor Score" stroke="#2D6A4F" strokeWidth={2} dot={false} />
         <Line type="monotone" dataKey="user_aggregate" name="Community Score" stroke="#B8860B" strokeWidth={2} dot={false} />
       </LineChart>

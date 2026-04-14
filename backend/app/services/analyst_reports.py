@@ -1,7 +1,7 @@
 """Report generation for the AI analyst.
 
-Generates Word (.docx) and Excel (.xlsx) reports from conversation data.
-Charts are rendered as images via matplotlib.
+Generates Word (.docx), Excel (.xlsx), PDF, and PowerPoint (.pptx) reports
+from conversation data. Charts are rendered as images via matplotlib.
 """
 
 import io
@@ -17,6 +17,15 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+from pptx import Presentation
+from pptx.util import Inches as PptxInches, Pt as PptxPt
+from pptx.dml.color import RGBColor as PptxRGBColor
+from pptx.enum.text import PP_ALIGN
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.colors import HexColor
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, PageBreak
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -303,6 +312,271 @@ def _generate_xlsx(conversation: AnalystConversation, messages: list[AnalystMess
     return buf.getvalue()
 
 
+def _generate_pdf(conversation: AnalystConversation, messages: list[AnalystMessage], title: str) -> bytes:
+    """Generate a PDF document from conversation data."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.75 * inch, bottomMargin=0.75 * inch)
+    styles = getSampleStyleSheet()
+
+    # Custom styles
+    styles.add(ParagraphStyle(
+        "CoverTitle", parent=styles["Title"], fontSize=28,
+        textColor=HexColor("#6366f1"), spaceAfter=12,
+    ))
+    styles.add(ParagraphStyle(
+        "CoverSubtitle", parent=styles["Title"], fontSize=18,
+        textColor=HexColor("#333333"), spaceAfter=6,
+    ))
+    styles.add(ParagraphStyle(
+        "CoverDate", parent=styles["Normal"], fontSize=12,
+        textColor=HexColor("#808080"), alignment=1, spaceAfter=24,
+    ))
+    styles.add(ParagraphStyle(
+        "UserQuestion", parent=styles["Heading2"], fontSize=14,
+        textColor=HexColor("#6366f1"), spaceBefore=16, spaceAfter=8,
+    ))
+    styles.add(ParagraphStyle(
+        "BodyText2", parent=styles["BodyText"], fontSize=10,
+        leading=14, spaceAfter=8,
+    ))
+    styles.add(ParagraphStyle(
+        "BulletItem", parent=styles["BodyText"], fontSize=10,
+        leading=14, leftIndent=20, bulletIndent=10, spaceAfter=4,
+    ))
+    styles.add(ParagraphStyle(
+        "SectionH1", parent=styles["Heading2"], fontSize=16,
+        textColor=HexColor("#1a1a2e"), spaceBefore=14, spaceAfter=8,
+    ))
+    styles.add(ParagraphStyle(
+        "SectionH2", parent=styles["Heading3"], fontSize=13,
+        textColor=HexColor("#333333"), spaceBefore=10, spaceAfter=6,
+    ))
+    styles.add(ParagraphStyle(
+        "FooterStyle", parent=styles["Normal"], fontSize=8,
+        textColor=HexColor("#808080"), alignment=1,
+    ))
+
+    story = []
+
+    # Cover page
+    story.append(Spacer(1, 2 * inch))
+    story.append(Paragraph("Deep Thesis Analyst Report", styles["CoverTitle"]))
+    story.append(Paragraph(title, styles["CoverSubtitle"]))
+    story.append(Paragraph(datetime.now(timezone.utc).strftime("%B %d, %Y"), styles["CoverDate"]))
+    story.append(PageBreak())
+
+    # Conversation content
+    for msg in messages:
+        role = msg.role.value if hasattr(msg.role, "value") else msg.role
+        if role == "user":
+            story.append(Paragraph(msg.content[:200], styles["UserQuestion"]))
+        else:
+            for paragraph_text in msg.content.split("\n\n"):
+                paragraph_text = paragraph_text.strip()
+                if not paragraph_text:
+                    continue
+                # Escape XML entities for reportlab
+                safe = paragraph_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                if paragraph_text.startswith("# "):
+                    story.append(Paragraph(safe[2:], styles["SectionH1"]))
+                elif paragraph_text.startswith("## "):
+                    story.append(Paragraph(safe[3:], styles["SectionH2"]))
+                elif paragraph_text.startswith("- "):
+                    for line in paragraph_text.split("\n"):
+                        if line.strip().startswith("- "):
+                            safe_line = line.strip()[2:].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                            story.append(Paragraph(f"• {safe_line}", styles["BulletItem"]))
+                else:
+                    story.append(Paragraph(safe, styles["BodyText2"]))
+
+            # Charts as images
+            if msg.charts:
+                for chart_config in msg.charts:
+                    img_bytes = _render_chart_image(chart_config)
+                    if img_bytes:
+                        img_buf = io.BytesIO(img_bytes)
+                        story.append(Spacer(1, 12))
+                        story.append(RLImage(img_buf, width=6 * inch, height=3.75 * inch))
+                        cap_text = chart_config.get("title", "")
+                        if cap_text:
+                            safe_cap = cap_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                            story.append(Paragraph(safe_cap, styles["CoverDate"]))
+                        story.append(Spacer(1, 12))
+
+    # Citations
+    all_citations = []
+    for msg in messages:
+        if msg.citations:
+            all_citations.extend(msg.citations)
+
+    if all_citations:
+        story.append(PageBreak())
+        story.append(Paragraph("Sources", styles["SectionH1"]))
+        for i, cite in enumerate(all_citations, 1):
+            url = cite.get("url", "") if isinstance(cite, dict) else str(cite)
+            cite_title = cite.get("title", url) if isinstance(cite, dict) else str(cite)
+            safe_title = str(cite_title).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            safe_url = str(url).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            story.append(Paragraph(f"{i}. {safe_title}<br/><font size='8' color='#808080'>{safe_url}</font>", styles["BodyText2"]))
+
+    # Footer
+    story.append(Spacer(1, 24))
+    story.append(Paragraph("Generated by Deep Thesis AI Analyst", styles["FooterStyle"]))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _generate_pptx(conversation: AnalystConversation, messages: list[AnalystMessage], title: str) -> bytes:
+    """Generate a PowerPoint presentation from conversation data."""
+    prs = Presentation()
+    prs.slide_width = PptxInches(13.333)
+    prs.slide_height = PptxInches(7.5)
+
+    # Title slide
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank layout
+    bg = slide.background.fill
+    bg.solid()
+    bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+
+    txBox = slide.shapes.add_textbox(PptxInches(1), PptxInches(2), PptxInches(11.333), PptxInches(1.5))
+    tf = txBox.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.text = "Deep Thesis Analyst Report"
+    p.font.size = PptxPt(36)
+    p.font.color.rgb = PptxRGBColor(99, 102, 241)
+    p.font.bold = True
+    p.alignment = PP_ALIGN.CENTER
+
+    p2 = tf.add_paragraph()
+    p2.text = title
+    p2.font.size = PptxPt(24)
+    p2.font.color.rgb = PptxRGBColor(224, 224, 232)
+    p2.alignment = PP_ALIGN.CENTER
+
+    p3 = tf.add_paragraph()
+    p3.text = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    p3.font.size = PptxPt(14)
+    p3.font.color.rgb = PptxRGBColor(160, 160, 176)
+    p3.alignment = PP_ALIGN.CENTER
+
+    # Content slides
+    for msg in messages:
+        role = msg.role.value if hasattr(msg.role, "value") else msg.role
+        if role == "user":
+            continue
+
+        # Split long assistant content into slide-sized chunks
+        paragraphs = [p.strip() for p in msg.content.split("\n\n") if p.strip()]
+        slide_text_chunks = []
+        current_chunk = []
+        current_len = 0
+
+        for para in paragraphs:
+            if current_len + len(para) > 1200 and current_chunk:
+                slide_text_chunks.append(current_chunk)
+                current_chunk = []
+                current_len = 0
+            current_chunk.append(para)
+            current_len += len(para)
+        if current_chunk:
+            slide_text_chunks.append(current_chunk)
+
+        for chunk in slide_text_chunks:
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            bg = slide.background.fill
+            bg.solid()
+            bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+
+            txBox = slide.shapes.add_textbox(PptxInches(0.75), PptxInches(0.5), PptxInches(11.833), PptxInches(6.5))
+            tf = txBox.text_frame
+            tf.word_wrap = True
+
+            for i, para in enumerate(chunk):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                if para.startswith("# "):
+                    p.text = para[2:]
+                    p.font.size = PptxPt(24)
+                    p.font.color.rgb = PptxRGBColor(99, 102, 241)
+                    p.font.bold = True
+                elif para.startswith("## "):
+                    p.text = para[3:]
+                    p.font.size = PptxPt(20)
+                    p.font.color.rgb = PptxRGBColor(224, 224, 232)
+                    p.font.bold = True
+                elif para.startswith("- "):
+                    for line in para.split("\n"):
+                        if line.strip().startswith("- "):
+                            bp = tf.add_paragraph() if p.text else p
+                            bp.text = f"  •  {line.strip()[2:]}"
+                            bp.font.size = PptxPt(14)
+                            bp.font.color.rgb = PptxRGBColor(200, 200, 210)
+                else:
+                    p.text = para[:500]
+                    p.font.size = PptxPt(14)
+                    p.font.color.rgb = PptxRGBColor(200, 200, 210)
+
+        # Chart slides
+        if msg.charts:
+            for chart_config in msg.charts:
+                img_bytes = _render_chart_image(chart_config)
+                if img_bytes:
+                    slide = prs.slides.add_slide(prs.slide_layouts[6])
+                    bg = slide.background.fill
+                    bg.solid()
+                    bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+
+                    # Chart title
+                    chart_title = chart_config.get("title", "")
+                    if chart_title:
+                        txBox = slide.shapes.add_textbox(PptxInches(0.75), PptxInches(0.3), PptxInches(11.833), PptxInches(0.6))
+                        tf = txBox.text_frame
+                        p = tf.paragraphs[0]
+                        p.text = chart_title
+                        p.font.size = PptxPt(20)
+                        p.font.color.rgb = PptxRGBColor(224, 224, 232)
+                        p.alignment = PP_ALIGN.CENTER
+
+                    img_buf = io.BytesIO(img_bytes)
+                    slide.shapes.add_picture(img_buf, PptxInches(1.5), PptxInches(1.2), PptxInches(10.333), PptxInches(5.8))
+
+    # Sources slide
+    all_citations = []
+    for msg in messages:
+        if msg.citations:
+            all_citations.extend(msg.citations)
+
+    if all_citations:
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        bg = slide.background.fill
+        bg.solid()
+        bg.fore_color.rgb = PptxRGBColor(26, 26, 46)
+
+        txBox = slide.shapes.add_textbox(PptxInches(0.75), PptxInches(0.5), PptxInches(11.833), PptxInches(6.5))
+        tf = txBox.text_frame
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.text = "Sources"
+        p.font.size = PptxPt(24)
+        p.font.color.rgb = PptxRGBColor(99, 102, 241)
+        p.font.bold = True
+
+        for i, cite in enumerate(all_citations[:20], 1):
+            url = cite.get("url", "") if isinstance(cite, dict) else str(cite)
+            cite_title = cite.get("title", url) if isinstance(cite, dict) else str(cite)
+            p = tf.add_paragraph()
+            p.text = f"{i}. {cite_title}"
+            p.font.size = PptxPt(11)
+            p.font.color.rgb = PptxRGBColor(200, 200, 210)
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
 async def generate_report(report_id: str) -> None:
     """Generate a report (background task). Updates status in DB and uploads to S3."""
     rid = uuid.UUID(report_id)
@@ -336,6 +610,14 @@ async def generate_report(report_id: str) -> None:
                 file_bytes = _generate_docx(conversation, messages, report.title)
                 ext = "docx"
                 content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            elif fmt == "pdf":
+                file_bytes = _generate_pdf(conversation, messages, report.title)
+                ext = "pdf"
+                content_type = "application/pdf"
+            elif fmt == "pptx":
+                file_bytes = _generate_pptx(conversation, messages, report.title)
+                ext = "pptx"
+                content_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             else:
                 file_bytes = _generate_xlsx(conversation, messages, report.title)
                 ext = "xlsx"

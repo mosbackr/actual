@@ -16,6 +16,8 @@ class MessageRole(enum.Enum):
 class ReportFormat(enum.Enum):
     docx = "docx"
     xlsx = "xlsx"
+    pdf = "pdf"
+    pptx = "pptx"
 
 
 class ReportGenStatus(enum.Enum):
@@ -26,7 +28,7 @@ class ReportGenStatus(enum.Enum):
 
 
 messagerole_enum = ENUM("user", "assistant", name="messagerole", create_type=False)
-reportformat_enum = ENUM("docx", "xlsx", name="reportformat", create_type=False)
+reportformat_enum = ENUM("docx", "xlsx", "pdf", "pptx", name="reportformat", create_type=False)
 reportgenstatus_enum = ENUM(
     "pending", "generating", "complete", "failed", name="reportgenstatus", create_type=False
 )
