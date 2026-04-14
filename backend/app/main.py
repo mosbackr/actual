@@ -58,6 +58,7 @@ from app.api.admin_batch import router as admin_batch_router
 from app.api.admin_edgar import router as admin_edgar_router
 from app.api.analyze import router as analyze_router
 from app.api.analyst import router as analyst_router
+from app.api.billing import router as billing_router
 
 app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
 
@@ -89,6 +90,7 @@ app.include_router(admin_batch_router)
 app.include_router(admin_edgar_router)
 app.include_router(analyze_router)
 app.include_router(analyst_router)
+app.include_router(billing_router)
 
 
 @app.get("/api/health")
