@@ -6,25 +6,31 @@ Create Date: 2026-04-14
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSON, ENUM
 
 revision = "m1n2o3p4q5r6"
 down_revision = "g7h8i9j0k1l2"
 branch_labels = None
 depends_on = None
 
+# Pre-define enum types so they're created once and referenced by name
+analysisstatus = ENUM('pending', 'extracting', 'analyzing', 'enriching', 'complete', 'failed', name='analysisstatus', create_type=False)
+agenttype = ENUM('problem_solution', 'market_tam', 'traction', 'technology_ip', 'competition_moat', 'team', 'gtm_business_model', 'financials_fundraising', name='agenttype', create_type=False)
+reportstatus = ENUM('pending', 'running', 'complete', 'failed', name='reportstatus', create_type=False)
+subscriptionstatus = ENUM('none', 'active', 'cancelled', name='subscriptionstatus', create_type=False)
+
 
 def upgrade() -> None:
-    # Create enum types
-    op.execute("CREATE TYPE analysisstatus AS ENUM ('pending', 'extracting', 'analyzing', 'enriching', 'complete', 'failed')")
-    op.execute("CREATE TYPE agenttype AS ENUM ('problem_solution', 'market_tam', 'traction', 'technology_ip', 'competition_moat', 'team', 'gtm_business_model', 'financials_fundraising')")
-    op.execute("CREATE TYPE reportstatus AS ENUM ('pending', 'running', 'complete', 'failed')")
-    op.execute("CREATE TYPE subscriptionstatus AS ENUM ('none', 'active', 'cancelled')")
+    # Create enum types explicitly
+    op.execute("DO $$ BEGIN CREATE TYPE analysisstatus AS ENUM ('pending', 'extracting', 'analyzing', 'enriching', 'complete', 'failed'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE agenttype AS ENUM ('problem_solution', 'market_tam', 'traction', 'technology_ip', 'competition_moat', 'team', 'gtm_business_model', 'financials_fundraising'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE reportstatus AS ENUM ('pending', 'running', 'complete', 'failed'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+    op.execute("DO $$ BEGIN CREATE TYPE subscriptionstatus AS ENUM ('none', 'active', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
 
     # Add subscription_status column to users
     op.add_column(
         "users",
-        sa.Column("subscription_status", sa.Enum("none", "active", "cancelled", name="subscriptionstatus", create_type=False), nullable=False, server_default="none"),
+        sa.Column("subscription_status", subscriptionstatus, nullable=False, server_default="none"),
     )
 
     # Create pitch_analyses table
@@ -33,7 +39,7 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("company_name", sa.String(500), nullable=False),
-        sa.Column("status", sa.Enum("pending", "extracting", "analyzing", "enriching", "complete", "failed", name="analysisstatus", create_type=False), nullable=False, server_default="pending"),
+        sa.Column("status", analysisstatus, nullable=False, server_default="pending"),
         sa.Column("current_agent", sa.String(100), nullable=True),
         sa.Column("overall_score", sa.Float(), nullable=True),
         sa.Column("fundraising_likelihood", sa.Float(), nullable=True),
@@ -69,8 +75,8 @@ def upgrade() -> None:
         "analysis_reports",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("analysis_id", UUID(as_uuid=True), sa.ForeignKey("pitch_analyses.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("agent_type", sa.Enum("problem_solution", "market_tam", "traction", "technology_ip", "competition_moat", "team", "gtm_business_model", "financials_fundraising", name="agenttype", create_type=False), nullable=False),
-        sa.Column("status", sa.Enum("pending", "running", "complete", "failed", name="reportstatus", create_type=False), nullable=False, server_default="pending"),
+        sa.Column("agent_type", agenttype, nullable=False),
+        sa.Column("status", reportstatus, nullable=False, server_default="pending"),
         sa.Column("score", sa.Float(), nullable=True),
         sa.Column("summary", sa.Text(), nullable=True),
         sa.Column("report", sa.Text(), nullable=True),
