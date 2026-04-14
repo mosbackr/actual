@@ -274,6 +274,19 @@ export default async function StartupsPage({
                     </span>
                   )}
                 </div>
+                {startup.form_sources?.length > 0 && (
+                  <div className="flex gap-1 mt-1.5">
+                    {startup.form_sources.map((fs: string) => (
+                      <span
+                        key={fs}
+                        className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent/5 text-text-tertiary"
+                        title={`Data from ${fs}`}
+                      >
+                        {fs}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </Link>
             ))}
           </div>
