@@ -410,6 +410,7 @@ async def list_reports(
         select(AnalystReport)
         .where(AnalystReport.user_id == user.id)
         .order_by(AnalystReport.created_at.desc())
+        .options(selectinload(AnalystReport.conversation))
     )
     reports = result.scalars().all()
     return {
@@ -418,6 +419,7 @@ async def list_reports(
                 "id": str(r.id),
                 "conversation_id": str(r.conversation_id),
                 "title": r.title,
+                "conversation_title": r.conversation.title if r.conversation else r.title,
                 "format": r.format.value if hasattr(r.format, "value") else r.format,
                 "status": r.status.value if hasattr(r.status, "value") else r.status,
                 "file_size_bytes": r.file_size_bytes,

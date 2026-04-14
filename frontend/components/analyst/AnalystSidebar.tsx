@@ -1,6 +1,9 @@
 "use client";
 
-import type { AnalystConversationSummary } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { api } from "@/lib/api";
+import type { AnalystConversationSummary, ReportListItem } from "@/lib/types";
 
 const SUGGESTED_ANALYSES = [
   "Portfolio sector breakdown",
@@ -22,6 +25,27 @@ interface Props {
   onToggle: () => void;
 }
 
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const seconds = Math.floor((now - then) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+const FORMAT_LABELS: Record<string, string> = {
+  pdf: "PDF",
+  docx: "DOCX",
+  pptx: "PPTX",
+  xlsx: "XLSX",
+};
+
 export function AnalystSidebar({
   conversations,
   activeId,
@@ -31,6 +55,53 @@ export function AnalystSidebar({
   isOpen,
   onToggle,
 }: Props) {
+  const { data: session } = useSession();
+  const token = (session as any)?.backendToken;
+  const [activeTab, setActiveTab] = useState<"conversations" | "reports">("conversations");
+  const [reports, setReports] = useState<ReportListItem[]>([]);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
+
+  const loadReports = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.listAllReports(token);
+      setReports(data.items);
+    } catch {
+      // silent
+    } finally {
+      setReportsLoaded(true);
+    }
+  }, [token]);
+
+  // Load reports when tab switches to reports
+  useEffect(() => {
+    if (activeTab === "reports" && !reportsLoaded) {
+      loadReports();
+    }
+  }, [activeTab, reportsLoaded, loadReports]);
+
+  const handleReportClick = async (report: ReportListItem) => {
+    if (report.status !== "complete" || !token) return;
+    const url = api.getReportDownloadUrl(report.id);
+    try {
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${report.conversation_title || report.title}.${report.format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // silent
+    }
+  };
+
   return (
     <>
       {/* Mobile toggle */}
@@ -65,45 +136,121 @@ export function AnalystSidebar({
           </button>
         </div>
 
-        {/* History */}
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setActiveTab("conversations")}
+            className={`flex-1 px-3 py-2 text-xs font-medium transition ${
+              activeTab === "conversations"
+                ? "text-text-primary border-b-2 border-accent"
+                : "text-text-tertiary hover:text-text-secondary"
+            }`}
+          >
+            Conversations
+          </button>
+          <button
+            onClick={() => setActiveTab("reports")}
+            className={`flex-1 px-3 py-2 text-xs font-medium transition ${
+              activeTab === "reports"
+                ? "text-text-primary border-b-2 border-accent"
+                : "text-text-tertiary hover:text-text-secondary"
+            }`}
+          >
+            Reports
+          </button>
+        </div>
+
+        {/* Tab content */}
         <div className="flex-1 overflow-y-auto">
-          {conversations.length > 0 && (
-            <div className="p-3">
-              <p className="text-[10px] uppercase tracking-wider text-text-tertiary mb-2">History</p>
-              <div className="space-y-0.5">
-                {conversations.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => onSelect(c.id)}
-                    className={`w-full text-left px-2 py-1.5 rounded text-sm truncate transition ${
-                      activeId === c.id
-                        ? "bg-accent/10 text-accent"
-                        : "text-text-secondary hover:text-text-primary hover:bg-surface-alt"
-                    }`}
-                    title={c.title}
-                  >
-                    {c.title}
-                  </button>
-                ))}
+          {activeTab === "conversations" ? (
+            <>
+              {conversations.length > 0 && (
+                <div className="p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-text-tertiary mb-2">History</p>
+                  <div className="space-y-0.5">
+                    {conversations.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => onSelect(c.id)}
+                        className={`w-full text-left px-2 py-1.5 rounded text-sm truncate transition ${
+                          activeId === c.id
+                            ? "bg-accent/10 text-accent"
+                            : "text-text-secondary hover:text-text-primary hover:bg-surface-alt"
+                        }`}
+                        title={c.title}
+                      >
+                        {c.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Suggestions */}
+              <div className="p-3 border-t border-border">
+                <p className="text-[10px] uppercase tracking-wider text-text-tertiary mb-2">Suggested</p>
+                <div className="space-y-0.5">
+                  {SUGGESTED_ANALYSES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onSuggestion(s)}
+                      className="w-full text-left px-2 py-1.5 rounded text-xs text-text-tertiary hover:text-text-secondary hover:bg-surface-alt transition truncate"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
+            </>
+          ) : (
+            <div className="p-3">
+              {!reportsLoaded ? (
+                <p className="text-xs text-text-tertiary text-center py-4">Loading...</p>
+              ) : reports.length === 0 ? (
+                <p className="text-xs text-text-tertiary text-center py-4">No reports generated yet</p>
+              ) : (
+                <div className="space-y-1">
+                  {reports.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => handleReportClick(r)}
+                      className={`w-full text-left px-2 py-2 rounded transition ${
+                        r.status === "complete"
+                          ? "hover:bg-surface-alt cursor-pointer"
+                          : "cursor-default opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/10 text-accent shrink-0">
+                          {FORMAT_LABELS[r.format] || r.format.toUpperCase()}
+                        </span>
+                        <span className="text-sm text-text-secondary truncate flex-1">
+                          {r.title}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 ml-8">
+                        {r.status === "complete" && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-score-high shrink-0" />
+                        )}
+                        {r.status === "generating" && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
+                        )}
+                        {r.status === "failed" && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-score-low shrink-0" />
+                        )}
+                        {r.status === "pending" && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary shrink-0" />
+                        )}
+                        <span className="text-[10px] text-text-tertiary">
+                          {timeAgo(r.created_at)}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-
-          {/* Suggestions */}
-          <div className="p-3 border-t border-border">
-            <p className="text-[10px] uppercase tracking-wider text-text-tertiary mb-2">Suggested</p>
-            <div className="space-y-0.5">
-              {SUGGESTED_ANALYSES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => onSuggestion(s)}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs text-text-tertiary hover:text-text-secondary hover:bg-surface-alt transition truncate"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </aside>
     </>
