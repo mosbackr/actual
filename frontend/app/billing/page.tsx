@@ -8,6 +8,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { BillingStatus } from "@/lib/types";
 import { TIERS } from "@/lib/pricing";
+import { AlertModal } from "@/components/Modal";
 
 export default function BillingPage() {
   return (
@@ -26,6 +27,7 @@ function BillingContent() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: "info" | "success" | "error" } | null>(null);
 
   const loadBilling = useCallback(async () => {
     if (!token) return;
@@ -72,7 +74,7 @@ function BillingContent() {
       const { url } = await api.createCheckoutSession(token, tier);
       window.location.href = url;
     } catch (err: any) {
-      alert(err.message || "Failed to start checkout");
+      setAlertModal({ title: "Checkout Error", message: err.message || "Failed to start checkout.", variant: "error" });
       setCheckoutLoading(null);
     }
   };
@@ -83,7 +85,7 @@ function BillingContent() {
       const { url } = await api.createPortalSession(token);
       window.location.href = url;
     } catch (err: any) {
-      alert(err.message || "Failed to open billing portal");
+      setAlertModal({ title: "Error", message: err.message || "Failed to open billing portal.", variant: "error" });
     }
   };
 
@@ -151,7 +153,7 @@ function BillingContent() {
               </div>
               <button
                 onClick={handlePortal}
-                className="px-4 py-2 text-sm rounded border border-border text-text-secondary hover:text-text-primary hover:border-text-tertiary transition"
+                className="px-4 py-2 text-sm rounded bg-accent text-white hover:bg-accent-hover transition"
               >
                 Manage Subscription
               </button>
@@ -187,7 +189,7 @@ function BillingContent() {
             <p className="text-text-secondary">Your last payment failed. Please update your payment method to continue your subscription.</p>
             <button
               onClick={handlePortal}
-              className="mt-4 px-4 py-2 text-sm rounded bg-score-low text-white hover:opacity-90 transition"
+              className="mt-4 px-4 py-2 text-sm rounded bg-accent text-white hover:bg-accent-hover transition"
             >
               Update Payment Method
             </button>
@@ -247,14 +249,14 @@ function BillingContent() {
               {isCurrent ? (
                 <button
                   disabled
-                  className="block text-center py-2.5 text-sm font-medium rounded border border-accent/30 text-accent/60 cursor-not-allowed"
+                  className="block w-full text-center py-2.5 text-sm font-medium rounded border border-accent/30 text-accent/60 cursor-not-allowed"
                 >
                   Current Plan
                 </button>
               ) : status === "active" ? (
                 <button
                   onClick={handlePortal}
-                  className="block text-center py-2.5 text-sm font-medium rounded border border-border text-text-primary hover:border-text-tertiary transition"
+                  className="block w-full text-center py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
                 >
                   Switch Plan
                 </button>
@@ -262,11 +264,7 @@ function BillingContent() {
                 <button
                   onClick={() => handleCheckout(t.key)}
                   disabled={!!checkoutLoading}
-                  className={`block text-center py-2.5 text-sm font-medium rounded transition ${
-                    t.highlighted
-                      ? "bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
-                      : "border border-border text-text-primary hover:border-text-tertiary disabled:opacity-50"
-                  }`}
+                  className="block w-full text-center py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
                 >
                   {checkoutLoading === t.key ? "Redirecting..." : "Subscribe"}
                 </button>
@@ -275,6 +273,14 @@ function BillingContent() {
           );
         })}
       </div>
+
+      <AlertModal
+        open={!!alertModal}
+        onClose={() => setAlertModal(null)}
+        title={alertModal?.title || ""}
+        message={alertModal?.message || ""}
+        variant={alertModal?.variant}
+      />
     </div>
   );
 }

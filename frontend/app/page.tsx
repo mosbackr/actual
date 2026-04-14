@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { BillingStatus } from "@/lib/types";
 import { TIERS } from "@/lib/pricing";
+import { AlertModal } from "@/components/Modal";
 
 const DATA_SOURCES = [
   {
@@ -86,6 +87,7 @@ export default function LandingPage() {
   const token = (session as any)?.backendToken;
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: "info" | "success" | "error" } | null>(null);
 
   const loadBilling = useCallback(async () => {
     if (!token) return;
@@ -108,7 +110,7 @@ export default function LandingPage() {
       const { url } = await api.createCheckoutSession(token, tierKey);
       window.location.href = url;
     } catch (err: any) {
-      alert(err.message || "Failed to start checkout");
+      setAlertModal({ title: "Checkout Error", message: err.message || "Failed to start checkout.", variant: "error" });
       setCheckoutLoading(null);
     }
   };
@@ -119,7 +121,7 @@ export default function LandingPage() {
       const { url } = await api.createPortalSession(token);
       window.location.href = url;
     } catch (err: any) {
-      alert(err.message || "Failed to open billing portal");
+      setAlertModal({ title: "Error", message: err.message || "Failed to open billing portal.", variant: "error" });
     }
   };
 
@@ -308,7 +310,7 @@ export default function LandingPage() {
                   ) : session && subStatus === "active" ? (
                     <button
                       onClick={handlePortal}
-                      className="block text-center py-2.5 text-sm font-medium rounded border border-border text-text-primary hover:border-text-tertiary transition"
+                      className="block w-full text-center py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
                     >
                       Switch Plan
                     </button>
@@ -316,22 +318,14 @@ export default function LandingPage() {
                     <button
                       onClick={() => handleCheckout(tier.key)}
                       disabled={!!checkoutLoading}
-                      className={`block text-center py-2.5 text-sm font-medium rounded transition ${
-                        tier.highlighted
-                          ? "bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
-                          : "border border-border text-text-primary hover:border-text-tertiary disabled:opacity-50"
-                      }`}
+                      className="block w-full text-center py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
                     >
                       {checkoutLoading === tier.key ? "Redirecting..." : "Subscribe"}
                     </button>
                   ) : (
                     <Link
                       href="/auth/signup"
-                      className={`block text-center py-2.5 text-sm font-medium rounded transition ${
-                        tier.highlighted
-                          ? "bg-accent text-white hover:bg-accent-hover"
-                          : "border border-border text-text-primary hover:border-text-tertiary"
-                      }`}
+                      className="block w-full text-center py-2.5 text-sm font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
                     >
                       Get Started &rarr;
                     </Link>
@@ -365,6 +359,14 @@ export default function LandingPage() {
           Analyze a Startup — Free
         </Link>
       </section>
+
+      <AlertModal
+        open={!!alertModal}
+        onClose={() => setAlertModal(null)}
+        title={alertModal?.title || ""}
+        message={alertModal?.message || ""}
+        variant={alertModal?.variant}
+      />
     </div>
   );
 }
