@@ -354,7 +354,7 @@ async def send_message(
         if is_sub and msg_count >= SUBSCRIBER_WARNING_AT:
             yield f"event: warning\ndata: {json.dumps({'message': f'{SUBSCRIBER_MESSAGE_LIMIT - msg_count} messages remaining in this conversation.'})}\n\n"
 
-        yield f"event: done\ndata: {json.dumps({})}\n\n"
+        yield f"event: done\ndata: {json.dumps({'full_text': full_text})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

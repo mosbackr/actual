@@ -16,31 +16,82 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 CHART_PATTERN = re.compile(r":::chart\s*\n?(.*?)\n?:::", re.DOTALL)
+# Also match ```json blocks or bare JSON blocks that look like charts
+JSON_BLOCK_PATTERN = re.compile(r"```(?:json)?\s*\n(\{[^`]*?\})\s*\n```", re.DOTALL)
+# Bare JSON objects on their own lines that look like chart configs
+BARE_JSON_PATTERN = re.compile(
+    r'(?:^|\n)\s*(\{"type"\s*:\s*"(?:bar|line|pie|scatter|area)"[^}]*\{[^}]*\}[^}]*\})',
+    re.DOTALL,
+)
 
 REQUIRED_CHART_KEYS = {"type", "data"}
+CHART_TYPES = {"bar", "line", "pie", "scatter", "area"}
+
+
+def _try_parse_chart(raw: str) -> dict | None:
+    """Try to parse a string as a chart config JSON."""
+    try:
+        chart = json.loads(raw)
+        if isinstance(chart, dict) and REQUIRED_CHART_KEYS.issubset(chart.keys()):
+            if chart.get("type") in CHART_TYPES:
+                return chart
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return None
 
 
 def extract_charts(text: str) -> tuple[str, list[dict]]:
-    """Extract :::chart JSON::: blocks from text.
+    """Extract chart JSON blocks from text.
 
+    Supports :::chart JSON:::, ```json blocks, and bare JSON chart objects.
     Returns (cleaned_text, list_of_chart_configs).
-    Invalid chart JSON is silently skipped.
     """
     charts = []
-    for match in CHART_PATTERN.finditer(text):
-        raw = match.group(1).strip()
-        try:
-            chart = json.loads(raw)
-            if REQUIRED_CHART_KEYS.issubset(chart.keys()):
-                charts.append(chart)
-            else:
-                logger.warning("Chart missing required keys: %s", chart.keys())
-        except json.JSONDecodeError as e:
-            logger.warning("Invalid chart JSON: %s", e)
+    cleaned = text
 
-    cleaned = CHART_PATTERN.sub("", text).strip()
-    # Remove double blank lines left by chart removal
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    # 1. Try :::chart::: format first
+    for match in CHART_PATTERN.finditer(text):
+        chart = _try_parse_chart(match.group(1).strip())
+        if chart:
+            charts.append(chart)
+    if charts:
+        cleaned = CHART_PATTERN.sub("", cleaned).strip()
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned, charts
+
+    # 2. Try ```json code blocks
+    for match in JSON_BLOCK_PATTERN.finditer(text):
+        chart = _try_parse_chart(match.group(1).strip())
+        if chart:
+            charts.append(chart)
+    if charts:
+        cleaned = JSON_BLOCK_PATTERN.sub("", cleaned).strip()
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned, charts
+
+    # 3. Try finding bare JSON that looks like a chart (has "type": "bar|line|...")
+    # Find all JSON-like blocks
+    brace_depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == '{' and start is None:
+            start = i
+            brace_depth = 1
+        elif ch == '{' and start is not None:
+            brace_depth += 1
+        elif ch == '}' and start is not None:
+            brace_depth -= 1
+            if brace_depth == 0:
+                candidate = text[start:i+1]
+                chart = _try_parse_chart(candidate)
+                if chart:
+                    charts.append(chart)
+                    cleaned = cleaned.replace(candidate, "", 1)
+                start = None
+
+    if charts:
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
     return cleaned, charts
 
 

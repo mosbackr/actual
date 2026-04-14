@@ -196,6 +196,11 @@ function InsightsContent() {
                 charts = data.charts || [];
               } else if (currentEvent === "citations") {
                 citations = data.citations || [];
+              } else if (currentEvent === "done") {
+                // Use cleaned text (chart JSON stripped) from backend
+                if (data.full_text) {
+                  fullText = data.full_text;
+                }
               } else if (currentEvent === "error") {
                 throw new Error(data.message);
               }
