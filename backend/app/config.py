@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     stripe_price_professional: str = ""
     stripe_price_unlimited: str = ""
     frontend_url: str = "https://deepthesis.org"
+    promo_code_unlimited: str = "DEEPTHESIS2026"
 
     model_config = {"env_prefix": "ACUTAL_"}
 

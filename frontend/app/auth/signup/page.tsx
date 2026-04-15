@@ -60,6 +60,7 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [ecosystemRole, setEcosystemRole] = useState("");
   const [region, setRegion] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -99,6 +100,7 @@ export default function SignUpPage() {
           name,
           ecosystem_role: ecosystemRole,
           region,
+          promo_code: promoCode || undefined,
         }),
       });
 
@@ -223,6 +225,19 @@ export default function SignUpPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               placeholder="Confirm your password"
+              className={inputClasses}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1">
+              Promo Code <span className="text-text-tertiary font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value)}
+              placeholder="Enter promo code"
               className={inputClasses}
             />
           </div>

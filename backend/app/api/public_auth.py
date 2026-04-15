@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models.user import AuthProvider, User
+from app.models.user import AuthProvider, SubscriptionStatus, SubscriptionTier, User
 
 
 router = APIRouter()
@@ -20,6 +20,7 @@ class RegisterIn(BaseModel):
     name: str
     ecosystem_role: str | None = None
     region: str | None = None
+    promo_code: str | None = None
 
 
 class LoginIn(BaseModel):
@@ -72,6 +73,12 @@ async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="An account with this email already exists")
 
+    # Check promo code for free unlimited subscription
+    promo_valid = (
+        body.promo_code
+        and body.promo_code.strip().upper() == settings.promo_code_unlimited.upper()
+    )
+
     user = User(
         email=body.email,
         name=body.name,
@@ -80,12 +87,18 @@ async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
         password_hash=hash_password(body.password),
         ecosystem_role=body.ecosystem_role,
         region=body.region,
+        subscription_status=SubscriptionStatus.active if promo_valid else SubscriptionStatus.none,
+        subscription_tier=SubscriptionTier.unlimited if promo_valid else None,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    return {"token": make_token(user), "user": _user_dict(user)}
+    return {
+        "token": make_token(user),
+        "user": _user_dict(user),
+        "promo_applied": bool(promo_valid),
+    }
 
 
 @router.post("/api/credentials/login")
