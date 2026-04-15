@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { ConfirmModal } from "@/components/Modal";
-import type { AnalysisDetail, AnalysisReportFull } from "@/lib/types";
+import type { AnalysisDetail, AnalysisReportFull, InvestmentMemo } from "@/lib/types";
 
 const AGENT_LABELS: Record<string, string> = {
   problem_solution: "Problem & Solution",
@@ -50,6 +50,8 @@ export default function AnalysisResultPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [memo, setMemo] = useState<InvestmentMemo | null>(null);
+  const [memoLoading, setMemoLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!token || !id) return;
@@ -67,7 +69,21 @@ export default function AnalysisResultPage() {
     setLoading(false);
   }, [token, id]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchMemo = useCallback(async () => {
+    if (!token || !id) return;
+    try {
+      const m = await api.getMemo(token, id);
+      setMemo(m);
+    } catch {
+      // 404 = no memo yet, that's fine
+      setMemo(null);
+    }
+  }, [token, id]);
+
+  useEffect(() => {
+    fetchData();
+    fetchMemo();
+  }, [fetchData, fetchMemo]);
 
   useEffect(() => {
     if (!analysis) return;
@@ -75,6 +91,52 @@ export default function AnalysisResultPage() {
     const timer = setInterval(fetchData, 3000);
     return () => clearInterval(timer);
   }, [analysis?.status, fetchData]);
+
+  // Poll memo status while generating
+  useEffect(() => {
+    if (!memo) return;
+    if (["complete", "failed"].includes(memo.status)) return;
+    const timer = setInterval(fetchMemo, 3000);
+    return () => clearInterval(timer);
+  }, [memo?.status, fetchMemo]);
+
+  async function handleGenerateMemo() {
+    if (!token || !id) return;
+    setMemoLoading(true);
+    try {
+      await api.generateMemo(token, id);
+      await fetchMemo();
+    } catch {
+      // ignore — user may get 409 if already generating
+    }
+    setMemoLoading(false);
+  }
+
+  async function handleRegenerateMemo() {
+    if (!token || !id) return;
+    setMemoLoading(true);
+    try {
+      await api.regenerateMemo(token, id);
+      await fetchMemo();
+    } catch {
+      // ignore
+    }
+    setMemoLoading(false);
+  }
+
+  async function handleDownload(format: "pdf" | "docx") {
+    if (!token || !id || !analysis) return;
+    const res = await fetch(api.getMemoDownloadUrl(id, format), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `investment-memo-${analysis.company_name}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   if (loading || !analysis) {
     return <div className="text-center py-20 text-text-tertiary">Loading...</div>;
@@ -142,7 +204,8 @@ export default function AnalysisResultPage() {
   }
 
   // RESULTS VIEW
-  const tabs = ["overview", ...Object.keys(AGENT_LABELS)];
+  const hasMemo = memo !== null;
+  const tabs = ["overview", ...Object.keys(AGENT_LABELS), ...(hasMemo ? ["memo"] : [])];
   const activeReport = reports.find((r) => r.agent_type === activeTab);
 
   return (
@@ -156,6 +219,15 @@ export default function AnalysisResultPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {analysis.status === "complete" && !memo && (
+            <button
+              onClick={handleGenerateMemo}
+              disabled={memoLoading}
+              className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
+            >
+              {memoLoading ? "Starting..." : "Generate Investment Memo"}
+            </button>
+          )}
           <Link href="/analyze/history" className="text-xs text-text-tertiary hover:text-text-secondary">
             History
           </Link>
@@ -192,7 +264,7 @@ export default function AnalysisResultPage() {
                 : "border-transparent text-text-tertiary hover:text-text-secondary"
             }`}
           >
-            {t === "overview" ? "Overview" : AGENT_LABELS[t]}
+            {t === "overview" ? "Overview" : t === "memo" ? "Investment Memo" : AGENT_LABELS[t]}
           </button>
         ))}
       </div>
@@ -269,7 +341,7 @@ export default function AnalysisResultPage() {
       )}
 
       {/* Agent report tabs */}
-      {activeTab !== "overview" && activeReport && (
+      {activeTab !== "overview" && activeTab !== "memo" && activeReport && (
         <div>
           <div className="flex items-center gap-3 mb-4">
             <ScoreBadge score={activeReport.score} size="lg" />
@@ -299,6 +371,71 @@ export default function AnalysisResultPage() {
           {activeReport.status === "failed" && (
             <div className="rounded border border-score-low/20 bg-score-low/10 p-4 text-score-low text-sm">
               Agent failed: {activeReport.error || "Unknown error"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Investment Memo tab */}
+      {activeTab === "memo" && memo && (
+        <div>
+          {/* Generating state */}
+          {["pending", "researching", "generating", "formatting"].includes(memo.status) && (
+            <div className="text-center py-12">
+              <div className="animate-spin inline-block w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full mb-4" />
+              <p className="text-sm text-text-secondary">
+                {memo.status === "pending" && "Starting memo generation..."}
+                {memo.status === "researching" && "Researching market data..."}
+                {memo.status === "generating" && "Writing investment memo..."}
+                {memo.status === "formatting" && "Formatting documents..."}
+              </p>
+            </div>
+          )}
+
+          {/* Complete state */}
+          {memo.status === "complete" && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  onClick={() => handleDownload("pdf")}
+                  className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
+                >
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => handleDownload("docx")}
+                  className="px-3 py-1.5 text-xs font-medium rounded border border-border text-text-primary hover:border-accent/50 transition"
+                >
+                  Download DOCX
+                </button>
+                <button
+                  onClick={handleRegenerateMemo}
+                  disabled={memoLoading}
+                  className="text-xs text-text-tertiary hover:text-text-secondary ml-auto"
+                >
+                  Regenerate
+                </button>
+              </div>
+              {memo.content && (
+                <div className="rounded border border-border bg-surface p-6 text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+                  {memo.content}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Failed state */}
+          {memo.status === "failed" && (
+            <div className="text-center py-12">
+              <p className="text-score-low text-sm mb-3">Memo generation failed</p>
+              <p className="text-text-tertiary text-xs mb-4">{memo.error || "An unexpected error occurred"}</p>
+              <button
+                onClick={handleRegenerateMemo}
+                disabled={memoLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
+              >
+                Retry
+              </button>
             </div>
           )}
         </div>
