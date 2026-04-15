@@ -15,7 +15,7 @@ from app.config import settings
 from app.db.session import get_db
 from app.models.expert import ApplicationStatus, ExpertProfile
 from app.models.industry import Industry
-from app.models.startup import Startup, StartupStage, StartupStatus, startup_industries
+from app.models.startup import EntityType, EnrichmentStatus, Startup, StartupStage, StartupStatus, startup_industries
 from app.models.user import User, UserRole
 
 router = APIRouter()
@@ -125,6 +125,49 @@ async def update_startup(
         "description": startup.description,
         "stage": startup.stage.value,
         "status": startup.status.value,
+    }
+
+
+@router.post("/api/admin/startups/re-enrich-failed")
+async def re_enrich_failed(
+    background_tasks: BackgroundTasks,
+    _user: User = Depends(require_role("superadmin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-run enrichment on all approved startups with failed enrichment, and fix unknown entity_type."""
+    from app.services.enrichment import run_enrichment_pipeline
+
+    # Fix entity_type for approved startups stuck as 'unknown'
+    result = await db.execute(
+        select(Startup).where(
+            Startup.status.in_([StartupStatus.approved, StartupStatus.featured]),
+            Startup.entity_type == EntityType.unknown,
+        )
+    )
+    unknown_startups = result.scalars().all()
+    for s in unknown_startups:
+        s.entity_type = EntityType.startup
+
+    # Find all failed enrichments
+    result = await db.execute(
+        select(Startup).where(
+            Startup.status == StartupStatus.approved,
+            Startup.enrichment_status == EnrichmentStatus.failed,
+        )
+    )
+    failed = result.scalars().all()
+
+    # Reset enrichment status and queue re-enrichment
+    for s in failed:
+        s.enrichment_status = EnrichmentStatus.none
+        s.enrichment_error = None
+        background_tasks.add_task(run_enrichment_pipeline, str(s.id))
+
+    await db.commit()
+
+    return {
+        "entity_type_fixed": len(unknown_startups),
+        "re_enrichment_queued": len(failed),
     }
 
 

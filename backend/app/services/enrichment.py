@@ -28,6 +28,13 @@ from app.models.industry import Industry
 from app.models.startup import CompanyStatus, EnrichmentStatus, Startup, StartupStage, startup_industries
 from app.models.template import DueDiligenceTemplate, TemplateDimension
 
+
+def _ensure_str(value) -> str:
+    """Convert a value to string, joining list items if needed."""
+    if isinstance(value, list):
+        return "\n".join(str(item) for item in value)
+    return str(value)
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -594,23 +601,23 @@ async def run_enrichment_pipeline(startup_id: str) -> None:
                     data_sources["crunchbase_url"] = "perplexity"
             if enriched.get("competitors"):
                 if should_overwrite("competitors", "perplexity", data_sources):
-                    startup.competitors = enriched["competitors"]
+                    startup.competitors = _ensure_str(enriched["competitors"])
                     data_sources["competitors"] = "perplexity"
             if enriched.get("tech_stack"):
                 if should_overwrite("tech_stack", "perplexity", data_sources):
-                    startup.tech_stack = enriched["tech_stack"]
+                    startup.tech_stack = _ensure_str(enriched["tech_stack"])
                     data_sources["tech_stack"] = "perplexity"
             if enriched.get("key_metrics"):
                 if should_overwrite("key_metrics", "perplexity", data_sources):
-                    startup.key_metrics = enriched["key_metrics"]
+                    startup.key_metrics = _ensure_str(enriched["key_metrics"])
                     data_sources["key_metrics"] = "perplexity"
             if enriched.get("hiring_signals"):
                 if should_overwrite("hiring_signals", "perplexity", data_sources):
-                    startup.hiring_signals = enriched["hiring_signals"]
+                    startup.hiring_signals = _ensure_str(enriched["hiring_signals"])
                     data_sources["hiring_signals"] = "perplexity"
             if enriched.get("patents"):
                 if should_overwrite("patents", "perplexity", data_sources):
-                    startup.patents = enriched["patents"]
+                    startup.patents = _ensure_str(enriched["patents"])
                     data_sources["patents"] = "perplexity"
             if enriched.get("company_status"):
                 if should_overwrite("company_status", "perplexity", data_sources):

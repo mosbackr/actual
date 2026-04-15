@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.startup import Startup, StartupStage, StartupStatus
+from app.models.startup import EntityType, Startup, StartupStage, StartupStatus
 from app.services.dedup import find_duplicate, normalize_domain, normalize_name
 
 
@@ -190,6 +190,7 @@ async def add_startups_to_triage(
             website_url=candidate.website_url,
             stage=StartupStage(stage),
             status=StartupStatus.pending,
+            entity_type=EntityType.startup,
             location_city=candidate.location_city,
             location_state=candidate.location_state,
             location_country=candidate.location_country or "US",
