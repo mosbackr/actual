@@ -15,6 +15,7 @@ from app.models.batch_job import BatchJob, BatchJobStep
 from app.models.edgar_job import EdgarJob, EdgarJobStep
 from app.models.pitch_analysis import PitchAnalysis, AnalysisDocument, AnalysisReport
 from app.models.notification import Notification
+from app.models.investment_memo import InvestmentMemo
 
 __all__ = [
     "User",
@@ -42,4 +43,5 @@ __all__ = [
     "AnalysisDocument",
     "AnalysisReport",
     "Notification",
+    "InvestmentMemo",
 ]

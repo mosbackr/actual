@@ -71,6 +71,9 @@ class PitchAnalysis(Base):
     reports: Mapped[list["AnalysisReport"]] = relationship(
         back_populates="analysis", cascade="all, delete-orphan"
     )
+    memo: Mapped["InvestmentMemo | None"] = relationship(
+        back_populates="analysis", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class AnalysisDocument(Base):
