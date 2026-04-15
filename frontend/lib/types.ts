@@ -297,3 +297,14 @@ export interface ReportListItem {
   file_size_bytes: number | null;
   created_at: string | null;
 }
+
+export interface InvestmentMemo {
+  id: string;
+  status: "pending" | "researching" | "generating" | "formatting" | "complete" | "failed";
+  content: string | null;
+  pdf_url: string | null;
+  docx_url: string | null;
+  error: string | null;
+  created_at: string | null;
+  completed_at: string | null;
+}

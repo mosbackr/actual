@@ -308,4 +308,31 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  // ── Investment Memo ────────────────────────────────────────────────
+
+  async generateMemo(token: string, analysisId: string) {
+    return apiFetch<{ id: string; status: string }>(
+      `/api/analyze/${analysisId}/memo`,
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
+  async regenerateMemo(token: string, analysisId: string) {
+    return apiFetch<{ id: string; status: string }>(
+      `/api/analyze/${analysisId}/memo/regenerate`,
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
+  async getMemo(token: string, analysisId: string) {
+    return apiFetch<import("./types").InvestmentMemo>(
+      `/api/analyze/${analysisId}/memo`,
+      { headers: authHeaders(token) }
+    );
+  },
+
+  getMemoDownloadUrl(analysisId: string, format: "pdf" | "docx") {
+    return `${API_URL}/api/analyze/${analysisId}/memo/download/${format}`;
+  },
 };
