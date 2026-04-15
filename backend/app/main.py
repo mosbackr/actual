@@ -60,6 +60,7 @@ from app.api.analyze import router as analyze_router
 from app.api.analyst import router as analyst_router
 from app.api.billing import router as billing_router
 from app.api.notifications import router as notifications_router
+from app.api.memo import router as memo_router
 
 app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
 
@@ -93,6 +94,7 @@ app.include_router(analyze_router)
 app.include_router(analyst_router)
 app.include_router(billing_router)
 app.include_router(notifications_router)
+app.include_router(memo_router)
 
 
 @app.get("/api/health")
