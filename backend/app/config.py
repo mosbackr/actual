@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     frontend_url: str = "https://deepthesis.org"
     promo_code_unlimited: str = "DEEPTHESIS2026"
 
+    # Email (Resend)
+    resend_api_key: str = ""
+    email_from: str = "gaius@deepthesis.org"
+
     model_config = {"env_prefix": "ACUTAL_"}
 
 
