@@ -104,7 +104,11 @@ async def _run_single_agent(
         await db.commit()
 
     try:
-        agent_result = await run_agent(agent_type, consolidated_text, company_name)
+        # Run agent with its own DB session for tool call persistence
+        async with db_factory() as db:
+            agent_result = await run_agent(
+                agent_type, consolidated_text, company_name, analysis_id, db
+            )
 
         async with db_factory() as db:
             result = await db.execute(
