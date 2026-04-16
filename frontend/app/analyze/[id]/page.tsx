@@ -2,11 +2,11 @@
 
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { ConfirmModal } from "@/components/Modal";
-import type { AnalysisDetail, AnalysisReportFull, InvestmentMemo } from "@/lib/types";
+import type { AnalysisDetail, AnalysisReportFull, InvestmentMemo, ToolCallItem } from "@/lib/types";
 
 const AGENT_LABELS: Record<string, string> = {
   problem_solution: "Problem & Solution",
@@ -38,6 +38,87 @@ function StatusIcon({ status }: { status: string }) {
   return <span className="text-text-tertiary">&mdash;</span>;
 }
 
+const TOOL_LABELS: Record<string, string> = {
+  perplexity_search: "Perplexity Search",
+  db_search_startups: "DB: Startups",
+  db_get_analysis: "DB: Analysis",
+  db_list_experts: "DB: Experts",
+};
+
+const AGENT_COLORS: Record<string, string> = {
+  problem_solution: "bg-blue-100 text-blue-700",
+  market_tam: "bg-emerald-100 text-emerald-700",
+  traction: "bg-amber-100 text-amber-700",
+  technology_ip: "bg-purple-100 text-purple-700",
+  competition_moat: "bg-red-100 text-red-700",
+  team: "bg-cyan-100 text-cyan-700",
+  gtm_business_model: "bg-orange-100 text-orange-700",
+  financials_fundraising: "bg-pink-100 text-pink-700",
+};
+
+function ActivityLog({ toolCalls, open, onToggle }: { toolCalls: ToolCallItem[]; open: boolean; onToggle: () => void }) {
+  if (toolCalls.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded border border-border bg-surface">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-text-primary hover:bg-bg-secondary/50 transition"
+      >
+        <span>Activity Log ({toolCalls.length} tool calls)</span>
+        <span className="text-text-tertiary text-xs">{open ? "\u25B2" : "\u25BC"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-border max-h-96 overflow-y-auto divide-y divide-border">
+          {toolCalls.map((tc) => (
+            <ToolCallEntry key={tc.id} tc={tc} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolCallEntry({ tc }: { tc: ToolCallItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const agentLabel = AGENT_LABELS[tc.agent_type] || tc.agent_type;
+  const toolLabel = TOOL_LABELS[tc.tool_name] || tc.tool_name;
+  const agentColor = AGENT_COLORS[tc.agent_type] || "bg-gray-100 text-gray-700";
+  const queryText = (tc.input?.query as string) || JSON.stringify(tc.input);
+
+  return (
+    <div className="px-4 py-2.5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${agentColor}`}>
+          {agentLabel}
+        </span>
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-border text-text-secondary">
+          {toolLabel}
+        </span>
+        <span className="text-xs text-text-tertiary font-mono truncate max-w-xs" title={queryText}>
+          {queryText}
+        </span>
+        <span className="ml-auto text-[10px] text-text-tertiary tabular-nums">
+          {tc.duration_ms != null ? `${(tc.duration_ms / 1000).toFixed(1)}s` : ""}
+        </span>
+      </div>
+      {tc.output && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-[10px] text-accent hover:text-accent-hover mt-1"
+        >
+          {expanded ? "Hide output" : "Show output"}
+        </button>
+      )}
+      {expanded && tc.output && (
+        <pre className="mt-1 text-[10px] text-text-tertiary bg-bg-secondary rounded p-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
+          {typeof tc.output === "object" ? JSON.stringify(tc.output, null, 2) : String(tc.output)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export default function AnalysisResultPage() {
   const { data: session } = useSession();
   const token = (session as any)?.backendToken;
@@ -52,6 +133,9 @@ export default function AnalysisResultPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memo, setMemo] = useState<InvestmentMemo | null>(null);
   const [memoLoading, setMemoLoading] = useState(false);
+  const [toolCalls, setToolCalls] = useState<ToolCallItem[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
+  const lastToolCallTs = useRef<string | undefined>(undefined);
 
   const fetchData = useCallback(async () => {
     if (!token || !id) return;
@@ -80,10 +164,29 @@ export default function AnalysisResultPage() {
     }
   }, [token, id]);
 
+  const fetchToolCalls = useCallback(async () => {
+    if (!token || !id) return;
+    try {
+      const data = await api.getToolCalls(token, id, lastToolCallTs.current);
+      if (data.tool_calls.length > 0) {
+        const newest = data.tool_calls[data.tool_calls.length - 1];
+        if (newest.created_at) lastToolCallTs.current = newest.created_at;
+        setToolCalls((prev) => {
+          const existingIds = new Set(prev.map((tc) => tc.id));
+          const newCalls = data.tool_calls.filter((tc) => !existingIds.has(tc.id));
+          return [...prev, ...newCalls];
+        });
+      }
+    } catch {
+      // silent
+    }
+  }, [token, id]);
+
   useEffect(() => {
     fetchData();
     fetchMemo();
-  }, [fetchData, fetchMemo]);
+    fetchToolCalls();
+  }, [fetchData, fetchMemo, fetchToolCalls]);
 
   useEffect(() => {
     if (!analysis) return;
@@ -99,6 +202,17 @@ export default function AnalysisResultPage() {
     const timer = setInterval(fetchMemo, 3000);
     return () => clearInterval(timer);
   }, [memo?.status, fetchMemo]);
+
+  // Poll tool calls while analysis is running
+  useEffect(() => {
+    if (!analysis) return;
+    if (analysis.status === "complete" || analysis.status === "failed") {
+      fetchToolCalls();
+      return;
+    }
+    const timer = setInterval(fetchToolCalls, 3000);
+    return () => clearInterval(timer);
+  }, [analysis?.status, fetchToolCalls]);
 
   async function handleGenerateMemo() {
     if (!token || !id) return;
@@ -185,6 +299,7 @@ export default function AnalysisResultPage() {
             );
           })}
         </div>
+        <ActivityLog toolCalls={toolCalls} open={logOpen} onToggle={() => setLogOpen(!logOpen)} />
       </div>
     );
   }
@@ -440,6 +555,9 @@ export default function AnalysisResultPage() {
           )}
         </div>
       )}
+
+      {/* Activity Log */}
+      <ActivityLog toolCalls={toolCalls} open={logOpen} onToggle={() => setLogOpen(!logOpen)} />
     </div>
   );
 }
