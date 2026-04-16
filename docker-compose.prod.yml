@@ -37,6 +37,8 @@ services:
       ACUTAL_STRIPE_PRICE_PROFESSIONAL: ${STRIPE_PRICE_PROFESSIONAL:-}
       ACUTAL_STRIPE_PRICE_UNLIMITED: ${STRIPE_PRICE_UNLIMITED:-}
       ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://deepthesis.org}
+      ACUTAL_RESEND_API_KEY: ${RESEND_API_KEY:-}
+      ACUTAL_EMAIL_FROM: ${EMAIL_FROM:-gaius@deepthesis.org}
     depends_on:
       db:
         condition: service_healthy
@@ -83,6 +85,9 @@ services:
       - ACUTAL_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - ACUTAL_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - ACUTAL_S3_BUCKET_NAME=${S3_BUCKET_NAME:-deepthesis-pitch-documents}
+      - ACUTAL_RESEND_API_KEY=${RESEND_API_KEY:-}
+      - ACUTAL_EMAIL_FROM=${EMAIL_FROM:-gaius@deepthesis.org}
+      - ACUTAL_FRONTEND_URL=${FRONTEND_URL:-https://deepthesis.org}
     depends_on:
       db:
         condition: service_healthy
