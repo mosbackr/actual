@@ -1,12 +1,14 @@
 import json
 import logging
+import uuid
 from datetime import datetime
 
 import anthropic
-import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.pitch_analysis import AgentType
+from app.services.agent_tools import AGENT_TOOLS, execute_tool
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,8 @@ AGENT_LABELS = {
 
 AGENT_PROMPTS: dict[AgentType, str] = {
     AgentType.problem_solution: """You are a venture capital analyst evaluating a startup's Problem & Solution.
+
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools aggressively to validate claims in the pitch deck, find comparable companies, and research market conditions.
 
 EVALUATION RUBRIC (score 0-100):
 
@@ -52,6 +56,8 @@ Be skeptical. Flag vague problem statements, solutions that don't match the prob
 
     AgentType.market_tam: """You are a venture capital analyst evaluating Market Size & TAM.
 
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools to independently research and verify market size claims.
+
 EVALUATION RUBRIC (score 0-100):
 
 **Market Size Accuracy (30 points)**
@@ -75,9 +81,11 @@ EVALUATION RUBRIC (score 0-100):
 - Can they actually reach their claimed customers?
 - Are there geographic, regulatory, or structural barriers?
 
-You MUST independently research market size using the provided research context. Compare their claims against third-party data. Flag markets that are smaller than claimed or markets with declining growth.""",
+You MUST independently research market size using your Perplexity search tool. Compare their claims against third-party data. Flag markets that are smaller than claimed or markets with declining growth.""",
 
     AgentType.traction: """You are a venture capital analyst evaluating Traction & Metrics.
+
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools to verify claims and find comparable benchmarks.
 
 EVALUATION RUBRIC (score 0-100):
 
@@ -110,6 +118,8 @@ Be tough on vanity metrics. If they report downloads, ask about active users. If
 
     AgentType.technology_ip: """You are a skeptical technical analyst evaluating Technology & IP.
 
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools to verify technical claims, check patents, and assess feasibility.
+
 EVALUATION RUBRIC (score 0-100):
 
 **Technical Feasibility (30 points)**
@@ -139,6 +149,8 @@ Be scientifically rigorous. If they claim AI/ML, ask what's novel vs. fine-tunin
 
     AgentType.competition_moat: """You are a venture capital analyst evaluating Competition & Moat.
 
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools aggressively to identify ALL competitors — especially ones the startup may have omitted.
+
 EVALUATION RUBRIC (score 0-100):
 
 **Competitive Landscape (30 points)**
@@ -164,9 +176,11 @@ EVALUATION RUBRIC (score 0-100):
 - Are there well-funded startups already ahead?
 - What's the risk of a fast-follower with better distribution?
 
-You MUST independently research competitors using the provided research context. Identify competitors the startup may have omitted. Be especially skeptical of claims like "no direct competitors" — there are always alternatives.""",
+You MUST independently research competitors using your Perplexity search tool. Identify competitors the startup may have omitted. Be especially skeptical of claims like "no direct competitors" — there are always alternatives.""",
 
     AgentType.team: """You are a venture capital analyst evaluating the founding Team.
+
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools to research founders' backgrounds, previous companies, and track records.
 
 EVALUATION RUBRIC (score 0-100):
 
@@ -193,9 +207,11 @@ EVALUATION RUBRIC (score 0-100):
 - Evidence of ability to recruit talent?
 - References or endorsements from credible people?
 
-You MUST research founders' backgrounds using the provided research context. Look up LinkedIn profiles, previous companies, and any public information. Be skeptical of inflated titles and vague experience claims. Flag single-founder risk and teams with no industry experience.""",
+You MUST research founders' backgrounds using your Perplexity search tool. Look up LinkedIn profiles, previous companies, and any public information. Be skeptical of inflated titles and vague experience claims. Flag single-founder risk and teams with no industry experience.""",
 
     AgentType.gtm_business_model: """You are a venture capital analyst evaluating GTM Strategy & Business Model.
+
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools to verify pricing, benchmark unit economics, and assess GTM viability.
 
 EVALUATION RUBRIC (score 0-100):
 
@@ -228,6 +244,8 @@ Be skeptical of "we'll go viral" as a GTM strategy. Flag unrealistic unit econom
 
     AgentType.financials_fundraising: """You are a venture capital analyst evaluating Financials & Fundraising Viability.
 
+You have access to Perplexity web search (which can query Crunchbase, PitchBook, and the open web) and the DeepThesis startup database. Use your tools to benchmark fundraising, check comparable deals, and verify financial claims.
+
 EVALUATION RUBRIC (score 0-100):
 
 **Financial Projections (25 points)**
@@ -258,17 +276,6 @@ EVALUATION RUBRIC (score 0-100):
 Benchmark their raise against stage norms: Pre-seed ($250K-$2M), Seed ($1-5M), Series A ($5-20M). Flag unrealistic valuations. For exit analysis, cite specific comparable transactions where possible.""",
 }
 
-PERPLEXITY_QUERIES: dict[AgentType, str] = {
-    AgentType.problem_solution: "{company} problem they solve market need validation",
-    AgentType.market_tam: "{company} market size TAM total addressable market industry growth rate 2024 2025",
-    AgentType.traction: "{company} revenue users growth metrics traction funding",
-    AgentType.technology_ip: "{company} technology stack patents intellectual property technical approach",
-    AgentType.competition_moat: "{company} competitors competitive landscape alternatives market share",
-    AgentType.team: "{company} founders team background experience LinkedIn previous companies",
-    AgentType.gtm_business_model: "{company} business model pricing go to market strategy customers",
-    AgentType.financials_fundraising: "{company} funding raised valuation investors fundraising round",
-}
-
 RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -281,90 +288,99 @@ RESPONSE_SCHEMA = {
 }
 
 
-async def _research_with_perplexity(query: str) -> str:
-    if not settings.perplexity_api_key:
-        return "[No Perplexity API key configured — skipping web research]"
-    try:
-        async with httpx.AsyncClient(timeout=90) as client:
-            response = await client.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.perplexity_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "sonar-pro",
-                    "messages": [
-                        {"role": "system", "content": "Provide factual research data. Include specific numbers, dates, and sources where available."},
-                        {"role": "user", "content": query},
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 4096,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.warning(f"Perplexity research failed: {e}")
-        return f"[Web research unavailable: {e}]"
-
-
 async def run_agent(
     agent_type: AgentType,
     consolidated_text: str,
     company_name: str,
+    analysis_id: uuid.UUID,
+    db: AsyncSession,
 ) -> dict:
+    """Run a single agent in a tool-use loop until it produces a final report."""
     system_prompt = AGENT_PROMPTS[agent_type]
-    query = PERPLEXITY_QUERIES[agent_type].format(company=company_name)
-    research = await _research_with_perplexity(query)
 
     user_message = f"""# Company: {company_name}
-
-## Web Research Context
-{research}
 
 ## Uploaded Documents
 {consolidated_text}
 
 ---
 
-Analyze this startup and return your evaluation as JSON with these fields:
+First, use your tools to research this company — validate their claims, find competitors, check market data, look up founders, etc. Be thorough.
+
+Then, once you have enough information, provide your final evaluation as JSON with these fields:
 - "score": number 0-100 based on the rubric
 - "summary": one paragraph verdict (2-3 sentences)
 - "report": detailed markdown report (500-1500 words) with sections matching the rubric
 - "key_findings": array of 3-5 key findings as short strings
 
-Return ONLY valid JSON, no markdown fencing."""
+Return ONLY valid JSON when you're ready to submit your final evaluation, no markdown fencing."""
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    messages = [{"role": "user", "content": user_message}]
 
     for attempt in range(2):
         try:
-            response = await client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4096,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
-            )
-            content = response.content[0].text
-            content = content.strip()
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1]
-                if content.endswith("```"):
-                    content = content[:-3]
-                content = content.strip()
+            # Tool-use conversation loop
+            while True:
+                response = await client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=messages,
+                    tools=AGENT_TOOLS,
+                )
 
-            result = json.loads(content)
-            return {
-                "score": max(0, min(100, float(result["score"]))),
-                "summary": str(result["summary"]),
-                "report": str(result["report"]),
-                "key_findings": [str(f) for f in result.get("key_findings", [])],
-            }
+                # Check if Claude wants to use tools
+                if response.stop_reason == "tool_use":
+                    # Process all tool calls in this response
+                    assistant_content = response.content
+                    tool_results = []
+
+                    for block in assistant_content:
+                        if block.type == "tool_use":
+                            result_text = await execute_tool(
+                                tool_name=block.name,
+                                tool_input=block.input,
+                                analysis_id=analysis_id,
+                                agent_type=agent_type.value,
+                                db=db,
+                            )
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result_text,
+                            })
+
+                    # Add assistant message and tool results to conversation
+                    messages.append({"role": "assistant", "content": assistant_content})
+                    messages.append({"role": "user", "content": tool_results})
+                    continue
+
+                # Claude is done — extract the final text response
+                text_content = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        text_content += block.text
+
+                text_content = text_content.strip()
+                if text_content.startswith("```"):
+                    text_content = text_content.split("\n", 1)[1]
+                    if text_content.endswith("```"):
+                        text_content = text_content[:-3]
+                    text_content = text_content.strip()
+
+                result = json.loads(text_content)
+                return {
+                    "score": max(0, min(100, float(result["score"]))),
+                    "summary": str(result["summary"]),
+                    "report": str(result["report"]),
+                    "key_findings": [str(f) for f in result.get("key_findings", [])],
+                }
+
         except Exception as e:
             if attempt == 0:
-                logger.warning(f"Agent {agent_type.value} attempt 1 failed: {e}, retrying...")
+                logger.warning("Agent %s attempt 1 failed: %s, retrying...", agent_type.value, e)
+                messages = [{"role": "user", "content": user_message}]
                 continue
             raise
 
@@ -372,6 +388,7 @@ Return ONLY valid JSON, no markdown fencing."""
 
 
 async def run_final_scoring(reports: list[dict], company_name: str) -> dict:
+    """Synthesize all agent reports into a final score. No tools needed."""
     reports_text = ""
     for r in reports:
         reports_text += f"\n\n## {AGENT_LABELS.get(AgentType(r['agent_type']), r['agent_type'])}\n"
