@@ -16,6 +16,7 @@ from app.models.edgar_job import EdgarJob, EdgarJobStep
 from app.models.pitch_analysis import PitchAnalysis, AnalysisDocument, AnalysisReport
 from app.models.notification import Notification
 from app.models.investment_memo import InvestmentMemo
+from app.models.tool_call import ToolCall
 
 __all__ = [
     "User",
@@ -44,4 +45,5 @@ __all__ = [
     "AnalysisReport",
     "Notification",
     "InvestmentMemo",
+    "ToolCall",
 ]
