@@ -2,8 +2,10 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 
@@ -61,8 +63,25 @@ from app.api.analyst import router as analyst_router
 from app.api.billing import router as billing_router
 from app.api.notifications import router as notifications_router
 from app.api.memo import router as memo_router
+from app.api.tool_calls import router as tool_calls_router
 
 app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
+
+MAX_REQUEST_BODY_SIZE = 52_428_800  # 50 MB
+
+
+class LimitRequestBodyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_REQUEST_BODY_SIZE:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Request body too large. Max size is {MAX_REQUEST_BODY_SIZE} bytes."},
+            )
+        return await call_next(request)
+
+
+app.add_middleware(LimitRequestBodyMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -95,6 +114,7 @@ app.include_router(analyst_router)
 app.include_router(billing_router)
 app.include_router(notifications_router)
 app.include_router(memo_router)
+app.include_router(tool_calls_router)
 
 
 @app.get("/api/health")
