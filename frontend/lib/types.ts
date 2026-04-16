@@ -177,6 +177,16 @@ export interface AnalysisReportFull {
   error: string | null;
 }
 
+export interface ToolCallItem {
+  id: string;
+  agent_type: string;
+  tool_name: string;
+  input: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  created_at: string | null;
+  duration_ms: number | null;
+}
+
 export interface AnalysisDetail {
   id: string;
   company_name: string;

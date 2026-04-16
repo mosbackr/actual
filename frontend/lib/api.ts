@@ -7,7 +7,7 @@ import type {
   ReportListItem,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 class ApiError extends Error {
   status: number;
@@ -160,6 +160,16 @@ export const api = {
       throw new Error(err.detail || `Resubmit failed: ${res.status}`);
     }
     return res.json();
+  },
+
+  getToolCalls: (token: string, id: string, since?: string) => {
+    const params = new URLSearchParams();
+    if (since) params.set("since", since);
+    const qs = params.toString();
+    return apiFetch<{ tool_calls: import("./types").ToolCallItem[] }>(
+      `/api/analyze/${id}/tool-calls${qs ? `?${qs}` : ""}`,
+      { headers: authHeaders(token) }
+    );
   },
 
   // ── Analyst ──────────────────────────────────────────────────────────
