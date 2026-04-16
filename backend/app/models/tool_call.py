@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.industry import Base
@@ -19,7 +19,7 @@ class ToolCall(Base):
     )
     agent_type: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    input: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    output: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    input: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    output: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

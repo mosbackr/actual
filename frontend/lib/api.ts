@@ -165,6 +165,7 @@ export const api = {
   getToolCalls: (token: string, id: string, since?: string) => {
     const params = new URLSearchParams();
     if (since) params.set("since", since);
+    params.set("include_output", "true");
     const qs = params.toString();
     return apiFetch<{ tool_calls: import("./types").ToolCallItem[] }>(
       `/api/analyze/${id}/tool-calls${qs ? `?${qs}` : ""}`,

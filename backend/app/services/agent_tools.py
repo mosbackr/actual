@@ -6,11 +6,13 @@ import uuid
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.pitch_analysis import AgentType, AnalysisReport, PitchAnalysis
 from app.models.startup import Startup
 from app.models.expert import ExpertProfile, ApplicationStatus
+from app.models.industry import Industry
 from app.models.tool_call import ToolCall
 
 logger = logging.getLogger(__name__)
@@ -228,7 +230,15 @@ async def execute_db_list_experts(industry: str | None, limit: int, db: AsyncSes
     try:
         query = select(ExpertProfile).where(
             ExpertProfile.application_status == ApplicationStatus.approved
+        ).options(
+            selectinload(ExpertProfile.user),
+            selectinload(ExpertProfile.industries),
+            selectinload(ExpertProfile.skills),
         )
+        if industry:
+            query = query.join(ExpertProfile.industries).where(
+                Industry.name.ilike(f"%{industry}%")
+            )
         result = await db.execute(query.limit(min(limit, 20)))
         experts = result.scalars().all()
         if not experts:
