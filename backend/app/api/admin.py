@@ -17,6 +17,7 @@ from app.models.expert import ApplicationStatus, ExpertProfile
 from app.models.industry import Industry
 from app.models.startup import EntityType, EnrichmentStatus, Startup, StartupStage, StartupStatus, startup_industries
 from app.models.user import User, UserRole
+from app.services import email_service
 
 router = APIRouter()
 
@@ -363,6 +364,7 @@ async def approve_expert(
     user.role = UserRole.expert
 
     await db.commit()
+    email_service.send_expert_approved(user_email=user.email, user_name=user.name)
     await db.refresh(profile)
 
     return {
@@ -385,6 +387,9 @@ async def reject_expert(
 
     profile.application_status = ApplicationStatus.rejected
     await db.commit()
+    user_result = await db.execute(select(User).where(User.id == profile.user_id))
+    user = user_result.scalar_one()
+    email_service.send_expert_rejected(user_email=user.email, user_name=user.name)
     await db.refresh(profile)
 
     return {

@@ -34,7 +34,8 @@ from sqlalchemy.orm import selectinload
 from app.db.session import async_session
 from app.models.analyst import AnalystConversation, AnalystMessage, AnalystReport, ReportGenStatus
 from app.models.notification import Notification, NotificationType
-from app.services import s3
+from app.models.user import User
+from app.services import email_service, s3
 
 logger = logging.getLogger(__name__)
 
@@ -671,6 +672,16 @@ async def generate_report(report_id: str) -> None:
             )
             db.add(notification)
             await db.commit()
+
+            # Send email notification
+            user_result = await db.execute(select(User).where(User.id == report.user_id))
+            user = user_result.scalar_one_or_none()
+            if user:
+                email_service.send_report_ready(
+                    user_email=user.email,
+                    user_name=user.name,
+                    report_format=ext,
+                )
 
             logger.info("Report %s generated: %s (%d bytes)", report_id, s3_key, len(file_bytes))
 

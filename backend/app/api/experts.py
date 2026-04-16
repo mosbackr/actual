@@ -12,6 +12,7 @@ from app.models.industry import Industry
 from app.models.skill import Skill
 from app.models.user import User
 from app.schemas.expert import ExpertApplicationIn
+from app.services import email_service
 
 router = APIRouter()
 
@@ -52,6 +53,8 @@ async def apply_as_expert(
 
     db.add(profile)
     await db.commit()
+
+    email_service.send_expert_applied(user_email=user.email, user_name=user.name)
 
     # Re-fetch with eager loading to avoid lazy-load issues in async context
     result = await db.execute(

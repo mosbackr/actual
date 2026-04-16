@@ -27,7 +27,8 @@ from app.config import settings
 from app.db.session import async_session
 from app.models.investment_memo import InvestmentMemo, MemoStatus
 from app.models.pitch_analysis import AnalysisReport, PitchAnalysis
-from app.services import s3
+from app.models.user import User
+from app.services import email_service, s3
 
 logger = logging.getLogger(__name__)
 
@@ -418,20 +419,20 @@ async def run_memo_generation(memo_id: str) -> None:
                     stage = "pre_seed"
 
             # ── Phase 1: Research ──
-            memo.status = MemoStatus.researching
+            memo.status = "researching"
             await db.commit()
 
             research = await _run_research(company_name, market_context, stage)
 
             # ── Phase 2: Synthesis ──
-            memo.status = MemoStatus.generating
+            memo.status = "generating"
             await db.commit()
 
             content = await _synthesize_memo(company_name, analysis_data, reports_data, research)
             memo.content = content
 
             # ── Phase 3: Formatting ──
-            memo.status = MemoStatus.formatting
+            memo.status = "formatting"
             await db.commit()
 
             pdf_bytes = _generate_memo_pdf(company_name, content)
@@ -445,9 +446,20 @@ async def run_memo_generation(memo_id: str) -> None:
 
             memo.s3_key_pdf = pdf_key
             memo.s3_key_docx = docx_key
-            memo.status = MemoStatus.complete
+            memo.status = "complete"
             memo.completed_at = datetime.now(timezone.utc)
             await db.commit()
+
+            # Send email notification
+            user_result = await db.execute(select(User).where(User.id == analysis.user_id))
+            user = user_result.scalar_one_or_none()
+            if user:
+                email_service.send_memo_complete(
+                    user_email=user.email,
+                    user_name=user.name,
+                    analysis_id=str(analysis.id),
+                    startup_name=analysis.company_name or "Your startup",
+                )
 
             logger.info("Memo %s generated for %s (PDF: %d bytes, DOCX: %d bytes)",
                         memo_id, company_name, len(pdf_bytes), len(docx_bytes))
@@ -455,7 +467,7 @@ async def run_memo_generation(memo_id: str) -> None:
         except Exception as e:
             logger.error("Memo generation failed for %s: %s", memo_id, e)
             try:
-                memo.status = MemoStatus.failed
+                memo.status = "failed"
                 memo.error = str(e)[:500]
                 await db.commit()
             except Exception:

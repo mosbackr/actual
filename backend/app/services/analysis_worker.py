@@ -17,7 +17,8 @@ from app.models.pitch_analysis import (
     ReportStatus,
 )
 from app.models.startup import EnrichmentStatus, Startup, StartupStage, StartupStatus
-from app.services import s3
+from app.models.user import User
+from app.services import email_service, s3
 from app.services.analysis_agents import run_agent, run_final_scoring
 from app.services.document_extractor import consolidate_documents, extract_text
 from app.models.notification import Notification, NotificationType
@@ -292,6 +293,17 @@ async def _process_job(analysis_id: uuid.UUID) -> None:
         )
         db.add(notification)
         await db.commit()
+
+        # Send email notification
+        user_result = await db.execute(select(User).where(User.id == analysis.user_id))
+        user = user_result.scalar_one_or_none()
+        if user:
+            email_service.send_analysis_complete(
+                user_email=user.email,
+                user_name=user.name,
+                analysis_id=str(analysis.id),
+                startup_name=company_name or "Your startup",
+            )
 
     logger.info(f"Analysis complete for {company_name}: score={scoring['overall_score']}")
 

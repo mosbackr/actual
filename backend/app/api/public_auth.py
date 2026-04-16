@@ -9,6 +9,7 @@ from app.config import settings
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import AuthProvider, SubscriptionStatus, SubscriptionTier, User
+from app.services import email_service
 
 
 router = APIRouter()
@@ -93,6 +94,8 @@ async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    email_service.send_welcome(user_email=user.email, user_name=user.name)
 
     return {
         "token": make_token(user),

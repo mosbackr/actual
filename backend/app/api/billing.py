@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.config import settings
 from app.models.user import SubscriptionStatus, SubscriptionTier, User
+from app.services import email_service
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +218,11 @@ async def _handle_checkout_completed(session_data: dict, db: AsyncSession):
             logger.warning("Failed to retrieve subscription details: %s", e)
 
     await db.commit()
+    email_service.send_subscription_confirmed(
+        user_email=user.email,
+        user_name=user.name,
+        tier_name=tier or "subscription",
+    )
     logger.info("Subscription activated for user %s: tier=%s", user.id, tier)
 
 
@@ -278,6 +284,10 @@ async def _handle_subscription_deleted(sub_data: dict, db: AsyncSession):
     user.subscription_period_end = None
 
     await db.commit()
+    email_service.send_subscription_cancelled(
+        user_email=user.email,
+        user_name=user.name,
+    )
     logger.info("Subscription deleted for user %s", user.id)
 
 
@@ -295,4 +305,8 @@ async def _handle_payment_failed(invoice_data: dict, db: AsyncSession):
 
     user.subscription_status = SubscriptionStatus.past_due
     await db.commit()
+    email_service.send_payment_failed(
+        user_email=user.email,
+        user_name=user.name,
+    )
     logger.info("Payment failed for user %s — marked past_due", user.id)
