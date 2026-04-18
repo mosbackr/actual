@@ -1,3 +1,4 @@
+import asyncio
 import re
 import uuid
 from datetime import datetime, timezone
@@ -114,6 +115,10 @@ async def update_startup(
 
     # Trigger enrichment if status changed to approved
     if body.status == "approved":
+        # Ensure entity_type is set so it shows on the companies page
+        if startup.entity_type == EntityType.unknown:
+            startup.entity_type = EntityType.startup
+            await db.commit()
         from app.services.enrichment import run_enrichment_pipeline
         background_tasks.add_task(run_enrichment_pipeline, str(startup_id))
 
@@ -158,18 +163,59 @@ async def re_enrich_failed(
     )
     failed = result.scalars().all()
 
-    # Reset enrichment status and queue re-enrichment
+    # Reset enrichment status
     for s in failed:
         s.enrichment_status = EnrichmentStatus.none
         s.enrichment_error = None
-        background_tasks.add_task(run_enrichment_pipeline, str(s.id))
 
     await db.commit()
+
+    # Queue re-enrichment with concurrency limit (2 at a time)
+    startup_ids = [str(s.id) for s in failed]
+
+    async def _throttled_enrich(ids: list[str], concurrency: int = 2):
+        sem = asyncio.Semaphore(concurrency)
+        async def _run(sid: str):
+            async with sem:
+                await run_enrichment_pipeline(sid)
+        await asyncio.gather(*[_run(sid) for sid in ids])
+
+    background_tasks.add_task(_throttled_enrich, startup_ids)
 
     return {
         "entity_type_fixed": len(unknown_startups),
         "re_enrichment_queued": len(failed),
     }
+
+
+@router.post("/api/admin/startups/enrich-pending")
+async def enrich_pending(
+    background_tasks: BackgroundTasks,
+    _user: User = Depends(require_role("superadmin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run enrichment on all approved startups with enrichment_status=none."""
+    from app.services.enrichment import run_enrichment_pipeline
+
+    result = await db.execute(
+        select(Startup).where(
+            Startup.status == StartupStatus.approved,
+            Startup.enrichment_status == EnrichmentStatus.none,
+        )
+    )
+    pending = result.scalars().all()
+    startup_ids = [str(s.id) for s in pending]
+
+    async def _throttled_enrich(ids: list[str], concurrency: int = 2):
+        sem = asyncio.Semaphore(concurrency)
+        async def _run(sid: str):
+            async with sem:
+                await run_enrichment_pipeline(sid)
+        await asyncio.gather(*[_run(sid) for sid in ids])
+
+    background_tasks.add_task(_throttled_enrich, startup_ids)
+
+    return {"enrich_queued": len(startup_ids)}
 
 
 class StartupCreateIn(BaseModel):

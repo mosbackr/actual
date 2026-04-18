@@ -4,13 +4,13 @@ import time
 import uuid
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.pitch_analysis import AgentType, AnalysisReport, PitchAnalysis
-from app.models.startup import Startup
+from app.models.startup import Startup, startup_industries
 from app.models.expert import ExpertProfile, ApplicationStatus
 from app.models.industry import Industry
 from app.models.tool_call import ToolCall
@@ -127,36 +127,64 @@ async def execute_perplexity_search(query: str) -> str:
                         {
                             "role": "system",
                             "content": (
-                                "Provide factual research data. Include specific numbers, "
-                                "dates, and sources where available. You have access to "
-                                "Crunchbase and PitchBook data."
+                                "Provide concise, factual research data. Include specific "
+                                "numbers, dates, and sources where available. You have access "
+                                "to Crunchbase and PitchBook data. Keep responses focused and "
+                                "under 500 words — prioritize hard data over commentary."
                             ),
                         },
                         {"role": "user", "content": query},
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 4096,
+                    "max_tokens": 2048,
                 },
             )
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            # Cap response length to prevent context window bloat
+            if len(content) > 3000:
+                content = content[:3000] + "\n\n[Response truncated for brevity]"
+            return content
     except Exception as e:
         logger.warning("Perplexity search failed: %s", e)
         return f"Search failed: {e}"
 
 
 async def execute_db_search_startups(query: str, limit: int, db: AsyncSession) -> str:
-    """Search startups by name/description using ILIKE."""
+    """Search startups by name/description using ILIKE, splitting multi-word queries."""
     try:
-        search_term = f"%{query}%"
-        result = await db.execute(
-            select(Startup)
-            .where(
-                (Startup.name.ilike(search_term))
-                | (Startup.description.ilike(search_term))
-            )
+        # Split query into individual words and match ANY word against name or description
+        words = [w.strip() for w in query.split() if len(w.strip()) >= 3]
+        if not words:
+            words = [query]  # fallback to full query if all words are short
+
+        word_conditions = []
+        for word in words:
+            term = f"%{word}%"
+            word_conditions.append(Startup.name.ilike(term))
+            word_conditions.append(Startup.description.ilike(term))
+
+        # Also match by industry name
+        id_stmt = (
+            select(Startup.id)
+            .outerjoin(startup_industries, Startup.id == startup_industries.c.startup_id)
+            .outerjoin(Industry, Industry.id == startup_industries.c.industry_id)
+        )
+        for word in words:
+            word_conditions.append(Industry.name.ilike(f"%{word}%"))
+
+        id_result = await db.execute(
+            id_stmt.where(or_(*word_conditions))
+            .distinct()
             .limit(min(limit, 20))
+        )
+        matched_ids = [row[0] for row in id_result]
+        if not matched_ids:
+            return "No matching startups found in the DeepThesis database."
+
+        result = await db.execute(
+            select(Startup).where(Startup.id.in_(matched_ids))
         )
         startups = result.scalars().all()
         if not startups:
@@ -288,7 +316,11 @@ async def execute_tool(
 
     duration_ms = int((time.monotonic() - start) * 1000)
 
-    # Persist the tool call
+    # Persist the tool call — rollback first in case a prior DB error poisoned the session
+    try:
+        await db.rollback()
+    except Exception:
+        pass
     tool_call = ToolCall(
         analysis_id=analysis_id,
         agent_type=agent_type,
