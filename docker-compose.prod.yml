@@ -36,9 +36,10 @@ services:
       ACUTAL_STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
       ACUTAL_STRIPE_PRICE_PROFESSIONAL: ${STRIPE_PRICE_PROFESSIONAL:-}
       ACUTAL_STRIPE_PRICE_UNLIMITED: ${STRIPE_PRICE_UNLIMITED:-}
-      ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://deepthesis.org}
+      ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://www.deepthesis.org}
       ACUTAL_RESEND_API_KEY: ${RESEND_API_KEY:-}
       ACUTAL_EMAIL_FROM: ${EMAIL_FROM:-gaius@deepthesis.org}
+      ACUTAL_DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -48,13 +49,14 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: https://deepthesis.org
+        NEXT_PUBLIC_API_URL: ""
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: https://deepthesis.org
-      NEXTAUTH_URL: https://deepthesis.org
+      NEXT_PUBLIC_API_URL: ""
+      NEXTAUTH_URL: https://www.deepthesis.org
       NEXTAUTH_SECRET: ${JWT_SECRET}
+      NEXTAUTH_BACKEND_URL: http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped
@@ -63,13 +65,14 @@ services:
     build:
       context: ./admin
       args:
-        NEXT_PUBLIC_API_URL: https://deepthesis.org
+        NEXT_PUBLIC_API_URL: ""
     ports:
       - "3001:3001"
     environment:
-      NEXT_PUBLIC_API_URL: https://deepthesis.org
+      NEXT_PUBLIC_API_URL: ""
       NEXTAUTH_URL: https://admin.deepthesis.org
       NEXTAUTH_SECRET: ${JWT_SECRET}
+      NEXTAUTH_BACKEND_URL: http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped
@@ -87,7 +90,8 @@ services:
       - ACUTAL_S3_BUCKET_NAME=${S3_BUCKET_NAME:-deepthesis-pitch-documents}
       - ACUTAL_RESEND_API_KEY=${RESEND_API_KEY:-}
       - ACUTAL_EMAIL_FROM=${EMAIL_FROM:-gaius@deepthesis.org}
-      - ACUTAL_FRONTEND_URL=${FRONTEND_URL:-https://deepthesis.org}
+      - ACUTAL_FRONTEND_URL=${FRONTEND_URL:-https://www.deepthesis.org}
+      - ACUTAL_DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

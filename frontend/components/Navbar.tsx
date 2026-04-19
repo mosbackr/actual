@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AuthButton } from "./AuthButton";
 import { NotificationBell } from "./NotificationBell";
+import { WatchlistIcon } from "./WatchlistIcon";
 import { LogoIcon } from "./LogoIcon";
 
 export function Navbar() {
@@ -29,6 +30,9 @@ export function Navbar() {
                 <Link href="/insights" className="text-sm text-text-secondary hover:text-text-primary transition">
                   Insights
                 </Link>
+                <Link href="/pitch-intelligence" className="text-sm text-text-secondary hover:text-text-primary transition">
+                  Pitch Intel
+                </Link>
                 <Link
                   href="/experts/apply"
                   className="text-sm px-3 py-1 rounded border border-accent text-accent hover:bg-accent/5 transition"
@@ -39,6 +43,7 @@ export function Navbar() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            {session && <WatchlistIcon />}
             {session && <NotificationBell />}
             <AuthButton />
           </div>

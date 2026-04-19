@@ -38,3 +38,18 @@ def delete_files(s3_keys: list[str]) -> None:
     client = _get_client()
     objects = [{"Key": key} for key in s3_keys]
     client.delete_objects(Bucket=settings.s3_bucket_name, Delete={"Objects": objects})
+
+
+def generate_presigned_upload_url(s3_key: str, content_type: str, expires_in: int = 3600) -> str:
+    """Generate a presigned URL for direct client-side upload to S3."""
+    client = _get_client()
+    url = client.generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.s3_bucket_name,
+            "Key": s3_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=expires_in,
+    )
+    return url

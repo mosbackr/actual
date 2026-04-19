@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-1"
     s3_bucket_name: str = "deepthesis-pitch-documents"
+    deepgram_api_key: str = ""
 
     # Stripe
     stripe_secret_key: str = ""
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
     stripe_price_starter: str = ""
     stripe_price_professional: str = ""
     stripe_price_unlimited: str = ""
-    frontend_url: str = "https://deepthesis.org"
+    frontend_url: str = "https://www.deepthesis.org"
     promo_code_unlimited: str = "DEEPTHESIS2026"
 
     # Email (Resend)
