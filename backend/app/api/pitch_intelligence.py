@@ -119,6 +119,143 @@ async def create_upload(
     }
 
 
+# ── Transcript Paste ─────────────────────────────────────────────────
+
+
+class TranscriptPasteRequest(BaseModel):
+    text: str
+    title: str | None = None
+    startup_id: str | None = None
+
+
+def _parse_transcript_text(text: str) -> dict:
+    """Parse pasted transcript into speakers and segments.
+
+    Supports common formats:
+    - "Speaker Name: text" or "Speaker Name : text"
+    - Zoom: timestamps like "00:01:23 Speaker Name\\ntext"
+    - Otter-style: "Speaker Name  00:01:23\\ntext"
+    - Falls back to single-speaker if no pattern detected.
+    """
+    import re
+
+    lines = text.strip().split("\n")
+    segments: list[dict] = []
+    speakers_seen: dict[str, str] = {}  # name -> id
+    speaker_counter = 0
+
+    # Try "Name: text" pattern first (most common for pasted transcripts)
+    colon_pattern = re.compile(r"^([A-Za-z][A-Za-z0-9 .'-]{0,40}):\s*(.+)$")
+    # Zoom pattern: "HH:MM:SS Speaker Name"
+    zoom_pattern = re.compile(r"^(\d{1,2}:\d{2}(?::\d{2})?)\s+([A-Za-z][A-Za-z0-9 .'-]+?)\s*$")
+
+    current_speaker_name: str | None = None
+    current_text_parts: list[str] = []
+    current_start: float = 0
+    segment_index = 0
+
+    def flush_segment():
+        nonlocal segment_index
+        if current_speaker_name and current_text_parts:
+            text_joined = " ".join(current_text_parts).strip()
+            if text_joined:
+                if current_speaker_name not in speakers_seen:
+                    speakers_seen[current_speaker_name] = str(len(speakers_seen))
+                segments.append({
+                    "speaker": speakers_seen[current_speaker_name],
+                    "text": text_joined,
+                    "start": current_start,
+                    "end": current_start + len(text_joined) * 0.05,  # rough estimate
+                })
+                segment_index += 1
+
+    for line in lines:
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+
+        # Check "Name: text" pattern
+        colon_match = colon_pattern.match(line_stripped)
+        if colon_match:
+            flush_segment()
+            current_speaker_name = colon_match.group(1).strip()
+            current_text_parts = [colon_match.group(2)]
+            current_start = segment_index * 10.0
+            continue
+
+        # Check Zoom "HH:MM:SS Speaker" pattern
+        zoom_match = zoom_pattern.match(line_stripped)
+        if zoom_match:
+            flush_segment()
+            ts_parts = zoom_match.group(1).split(":")
+            if len(ts_parts) == 3:
+                current_start = int(ts_parts[0]) * 3600 + int(ts_parts[1]) * 60 + int(ts_parts[2])
+            else:
+                current_start = int(ts_parts[0]) * 60 + int(ts_parts[1])
+            current_speaker_name = zoom_match.group(2).strip()
+            current_text_parts = []
+            continue
+
+        # Continuation line
+        if current_speaker_name:
+            current_text_parts.append(line_stripped)
+        else:
+            # No speaker detected yet — assign to "Speaker 1"
+            current_speaker_name = "Speaker 1"
+            current_text_parts.append(line_stripped)
+            current_start = 0
+
+    flush_segment()
+
+    # If no speakers were detected, treat entire text as single speaker
+    if not segments:
+        speakers_seen = {"Speaker 1": "0"}
+        segments = [{
+            "speaker": "0",
+            "text": text.strip(),
+            "start": 0,
+            "end": len(text) * 0.05,
+        }]
+
+    speaker_list = [{"id": sid, "name": name} for name, sid in speakers_seen.items()]
+    return {"speakers": speaker_list, "segments": segments}
+
+
+@router.post("/api/pitch-intelligence/transcript")
+async def paste_transcript(
+    body: TranscriptPasteRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_subscription(user)
+
+    if not body.text or len(body.text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Transcript is too short (minimum 50 characters).")
+    if len(body.text) > 500_000:
+        raise HTTPException(status_code=400, detail="Transcript is too long (maximum 500,000 characters).")
+
+    startup_id = uuid.UUID(body.startup_id) if body.startup_id else None
+
+    parsed = _parse_transcript_text(body.text)
+
+    ps = PitchSession(
+        user_id=user.id,
+        startup_id=startup_id,
+        title=body.title,
+        status=PitchSessionStatus.labeling,
+        transcript_raw={"segments": parsed["segments"], "source": "paste"},
+    )
+    db.add(ps)
+    await db.commit()
+    await db.refresh(ps)
+
+    return {
+        "id": str(ps.id),
+        "status": "labeling",
+        "speakers": parsed["speakers"],
+    }
+
+
 # ── Upload Complete → Trigger Transcription ───────────────────────────
 
 

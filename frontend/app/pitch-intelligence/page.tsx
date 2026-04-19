@@ -38,6 +38,9 @@ function PitchIntelligenceContent() {
   const [title, setTitle] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"upload" | "transcript">("upload");
+  const [transcriptText, setTranscriptText] = useState("");
+  const [submittingTranscript, setSubmittingTranscript] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSessions = useCallback(async () => {
@@ -121,6 +124,23 @@ function PitchIntelligenceContent() {
     if (file) handleUpload(file);
   };
 
+  const handleTranscriptSubmit = async () => {
+    if (!token) return;
+    if (transcriptText.trim().length < 50) {
+      setError("Transcript is too short. Please paste at least a few lines of conversation.");
+      return;
+    }
+    setError(null);
+    setSubmittingTranscript(true);
+    try {
+      const result = await api.submitPitchTranscript(token, transcriptText, title || undefined);
+      router.push(`/pitch-intelligence/${result.id}`);
+    } catch (e: any) {
+      setError(e.message || "Failed to submit transcript");
+      setSubmittingTranscript(false);
+    }
+  };
+
   const statusLabel = (status: string) => {
     const map: Record<string, { text: string; color: string }> = {
       uploading: { text: "Uploading", color: "text-yellow-600" },
@@ -147,13 +167,35 @@ function PitchIntelligenceContent() {
       <div className="mb-8">
         <h1 className="text-2xl font-serif text-text-primary mb-2">Pitch Intelligence</h1>
         <p className="text-text-secondary">
-          Upload a pitch recording to get AI-powered analysis, fact-checking, and coaching.
+          Upload a pitch recording or paste a transcript to get AI-powered analysis, fact-checking, and coaching.
         </p>
       </div>
 
-      {/* Upload Zone */}
-      {!uploading && (
+      {/* Mode Toggle + Input */}
+      {!uploading && !submittingTranscript && (
         <div className="mb-8">
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setMode("upload")}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${
+                mode === "upload"
+                  ? "bg-accent text-white border-accent"
+                  : "bg-surface text-text-secondary border-border hover:border-accent/50"
+              }`}
+            >
+              Upload Recording
+            </button>
+            <button
+              onClick={() => setMode("transcript")}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${
+                mode === "transcript"
+                  ? "bg-accent text-white border-accent"
+                  : "bg-surface text-text-secondary border-border hover:border-accent/50"
+              }`}
+            >
+              Paste Transcript
+            </button>
+          </div>
           <div className="mb-4">
             <input
               type="text"
@@ -163,32 +205,58 @@ function PitchIntelligenceContent() {
               className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
             />
           </div>
-          <div
-            className={`relative rounded-lg border-2 border-dashed p-12 text-center transition cursor-pointer ${
-              dragOver
-                ? "border-accent bg-accent/5"
-                : "border-border hover:border-accent/50"
-            }`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".mp3,.wav,.m4a,.mp4,.webm"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-            <div className="text-4xl mb-3 text-text-tertiary">&#127908;</div>
-            <p className="text-text-primary font-medium mb-1">
-              Drop an audio or video file here, or click to browse
-            </p>
-            <p className="text-text-tertiary text-sm">
-              MP3, WAV, M4A, MP4, WebM — up to 500MB
-            </p>
-          </div>
+
+          {mode === "upload" ? (
+            <div
+              className={`relative rounded-lg border-2 border-dashed p-12 text-center transition cursor-pointer ${
+                dragOver
+                  ? "border-accent bg-accent/5"
+                  : "border-border hover:border-accent/50"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".mp3,.wav,.m4a,.mp4,.webm"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <div className="text-4xl mb-3 text-text-tertiary">&#127908;</div>
+              <p className="text-text-primary font-medium mb-1">
+                Drop an audio or video file here, or click to browse
+              </p>
+              <p className="text-text-tertiary text-sm">
+                MP3, WAV, M4A, MP4, WebM — up to 500MB
+              </p>
+            </div>
+          ) : (
+            <div>
+              <textarea
+                value={transcriptText}
+                onChange={(e) => setTranscriptText(e.target.value)}
+                placeholder={"Paste your transcript here...\n\nSupported formats:\n  Speaker Name: What they said...\n  00:01:23 Speaker Name (Zoom format)\n  Or just plain text"}
+                className="w-full h-64 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none resize-y font-mono"
+              />
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-xs text-text-tertiary">
+                  {transcriptText.length > 0
+                    ? `${transcriptText.length.toLocaleString()} characters`
+                    : "Min 50 characters"}
+                </p>
+                <button
+                  onClick={handleTranscriptSubmit}
+                  disabled={transcriptText.trim().length < 50}
+                  className="px-5 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Analyze Transcript
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

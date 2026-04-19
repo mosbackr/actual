@@ -398,6 +398,18 @@ export const api = {
     });
   },
 
+  submitPitchTranscript: async (
+    token: string,
+    text: string,
+    title?: string,
+  ): Promise<{ id: string; status: string; speakers: { id: string; name: string }[] }> => {
+    return apiFetch("/api/pitch-intelligence/transcript", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ text, title: title || null }),
+    });
+  },
+
   completePitchUpload: async (token: string, sessionId: string): Promise<{ id: string; status: string }> => {
     return apiFetch(`/api/pitch-intelligence/${sessionId}/upload-complete`, {
       method: "POST",
