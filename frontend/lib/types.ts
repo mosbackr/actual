@@ -394,3 +394,16 @@ export interface PitchStatusResponse {
   status: string;
   phases: { phase: string; status: string }[];
 }
+
+// ── Feedback ──────────────────────────────────────────────────────────
+
+export interface FeedbackMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+export interface FeedbackSessionResponse {
+  id: string;
+  status: string;
+}

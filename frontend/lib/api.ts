@@ -454,4 +454,49 @@ export const api = {
     apiFetch(`/api/pitch-intelligence/${sessionId}/transcript`, {
       headers: authHeaders(token),
     }),
+
+  // ── Feedback ─────────────────────────────────────────────────────────
+
+  createFeedbackSession: async (
+    token: string,
+    pageUrl?: string,
+  ): Promise<{ id: string; status: string }> => {
+    return apiFetch("/api/feedback/sessions", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ page_url: pageUrl || null }),
+    });
+  },
+
+  sendFeedbackMessage(token: string, sessionId: string, content: string) {
+    const url = `${API_URL}/api/feedback/sessions/${sessionId}/messages`;
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  completeFeedbackSession: async (
+    token: string,
+    sessionId: string,
+  ): Promise<{ id: string; status: string }> => {
+    return apiFetch(`/api/feedback/sessions/${sessionId}/complete`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+    });
+  },
+
+  abandonFeedbackSession: async (
+    token: string,
+    sessionId: string,
+  ): Promise<{ id: string; status: string }> => {
+    return apiFetch(`/api/feedback/sessions/${sessionId}/abandon`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+    });
+  },
 };
