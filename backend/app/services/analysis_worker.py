@@ -16,11 +16,12 @@ from app.models.pitch_analysis import (
     PitchAnalysis,
     ReportStatus,
 )
-from app.models.startup import EnrichmentStatus, Startup, StartupStage, StartupStatus
+from app.models.startup import EntityType, EnrichmentStatus, Startup, StartupStage, StartupStatus
 from app.models.user import User
 from app.services import email_service, s3
 from app.services.analysis_agents import run_agent, run_final_scoring
 from app.services.document_extractor import consolidate_documents, extract_text
+from app.services.pitch_worker import run_pitch_worker
 from app.models.notification import Notification, NotificationType
 
 logger = logging.getLogger(__name__)
@@ -160,7 +161,8 @@ async def _create_startup_from_analysis(
         slug=slug,
         description=f"Submitted for analysis on Deep Thesis",
         stage=StartupStage.pre_seed,
-        status=StartupStatus.approved,
+        status=StartupStatus.pending,
+        entity_type=EntityType.startup,
         ai_score=analysis.overall_score,
         form_sources=["pitch_analysis"],
         enrichment_status=EnrichmentStatus.running,
@@ -287,29 +289,32 @@ async def _process_job(analysis_id: uuid.UUID) -> None:
         analysis.completed_at = datetime.now(timezone.utc)
         await db.commit()
 
-        # Create notification for user
-        notification = Notification(
-            user_id=analysis.user_id,
-            type=NotificationType.analysis_complete,
-            title="Analysis complete",
-            message=company_name or "Your startup analysis",
-            link=f"/analyze/{analysis.id}",
-        )
-        db.add(notification)
-        await db.commit()
-
-        # Send email notification
-        user_result = await db.execute(select(User).where(User.id == analysis.user_id))
-        user = user_result.scalar_one_or_none()
-        if user:
-            email_service.send_analysis_complete(
-                user_email=user.email,
-                user_name=user.name,
-                analysis_id=str(analysis.id),
-                startup_name=company_name or "Your startup",
-            )
-
     logger.info(f"Analysis complete for {company_name}: score={scoring['overall_score']}")
+
+    # Notification + email in separate block so failures don't crash the job
+    try:
+        async with db_factory() as db:
+            notification = Notification(
+                user_id=analysis.user_id,
+                type="analysis_complete",
+                title="Analysis complete",
+                message=company_name or "Your startup analysis",
+                link=f"/analyze/{analysis_id}",
+            )
+            db.add(notification)
+            await db.commit()
+
+            user_result = await db.execute(select(User).where(User.id == analysis.user_id))
+            user = user_result.scalar_one_or_none()
+            if user:
+                email_service.send_analysis_complete(
+                    user_email=user.email,
+                    user_name=user.name,
+                    analysis_id=str(analysis_id),
+                    startup_name=company_name or "Your startup",
+                )
+    except Exception as e:
+        logger.error(f"Failed to send notification/email for {company_name}: {e}")
 
 
 async def run_analysis_worker() -> None:
@@ -330,6 +335,13 @@ async def run_analysis_worker() -> None:
             await asyncio.sleep(5)
 
 
+async def _main():
+    await asyncio.gather(
+        run_analysis_worker(),
+        run_pitch_worker(),
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(run_analysis_worker())
+    asyncio.run(_main())
