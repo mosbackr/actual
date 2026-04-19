@@ -67,6 +67,7 @@ from app.api.tool_calls import router as tool_calls_router
 from app.api.watchlist import router as watchlist_router
 from app.api.admin_investors import router as admin_investors_router
 from app.api.pitch_intelligence import router as pitch_intelligence_router
+from app.api.feedback import router as feedback_router
 
 app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
 
@@ -121,6 +122,7 @@ app.include_router(tool_calls_router)
 app.include_router(watchlist_router)
 app.include_router(admin_investors_router)
 app.include_router(pitch_intelligence_router)
+app.include_router(feedback_router)
 
 
 @app.get("/api/health")
