@@ -3,6 +3,7 @@ import { Inter, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/Navbar";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const instrumentSerif = Instrument_Serif({
@@ -18,12 +19,12 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
   },
-  metadataBase: new URL("https://deepthesis.org"),
+  metadataBase: new URL("https://www.deepthesis.org"),
   openGraph: {
     title: "Deep Thesis — Startup Investment Intelligence",
     description:
       "1,000+ buy-side VC transactions, secondaries data, Crunchbase, PitchBook, and AI agents — so you can make quantitative investment decisions without a $20K/yr data subscription.",
-    url: "https://deepthesis.org",
+    url: "https://www.deepthesis.org",
     siteName: "Deep Thesis",
     type: "website",
   },
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="mx-auto max-w-6xl px-6 lg:px-8 py-12">
             {children}
           </main>
+          <FeedbackWidget />
         </Providers>
       </body>
     </html>
