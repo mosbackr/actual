@@ -17,6 +17,7 @@ from app.models.pitch_analysis import PitchAnalysis, AnalysisDocument, AnalysisR
 from app.models.notification import Notification
 from app.models.investment_memo import InvestmentMemo
 from app.models.tool_call import ToolCall
+from app.models.pitch_session import PitchSession, PitchAnalysisResult, PitchBenchmark
 
 __all__ = [
     "User",
@@ -46,4 +47,7 @@ __all__ = [
     "Notification",
     "InvestmentMemo",
     "ToolCall",
+    "PitchSession",
+    "PitchAnalysisResult",
+    "PitchBenchmark",
 ]
