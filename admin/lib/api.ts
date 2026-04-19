@@ -9,6 +9,10 @@ import type {
   Dimension,
   EnrichmentStatusResponse,
   ExpertApplication,
+  FeedbackItem,
+  FeedbackListResponse,
+  InvestorBatchStatus,
+  InvestorListResponse,
   PipelineStartup,
   ScoutAddResponse,
   ScoutChatResponse,
@@ -17,7 +21,7 @@ import type {
   StartupFullDetail,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 async function apiFetch<T>(path: string, token: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -250,4 +254,70 @@ export const adminApi = {
     const qs = page ? `?page=${page}` : "";
     return apiFetch<any>(`/api/admin/edgar/${jobId}/log${qs}`, token);
   },
+
+  // Investors
+  startInvestorBatch: (token: string) =>
+    apiFetch<{ id: string; status: string }>("/api/admin/investors/batch", token, {
+      method: "POST",
+    }),
+
+  pauseInvestorBatch: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/investors/batch/${jobId}/pause`, token, {
+      method: "PUT",
+    }),
+
+  resumeInvestorBatch: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/investors/batch/${jobId}/resume`, token, {
+      method: "PUT",
+    }),
+
+  getInvestorBatchStatus: (token: string) =>
+    apiFetch<InvestorBatchStatus | null>("/api/admin/investors/batch/status", token),
+
+  getInvestors: (token: string, params?: {
+    q?: string;
+    stage_focus?: string;
+    sector_focus?: string;
+    location?: string;
+    page?: number;
+    per_page?: number;
+    sort?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.q) sp.set("q", params.q);
+    if (params?.stage_focus) sp.set("stage_focus", params.stage_focus);
+    if (params?.sector_focus) sp.set("sector_focus", params.sector_focus);
+    if (params?.location) sp.set("location", params.location);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    if (params?.sort) sp.set("sort", params.sort);
+    const qs = sp.toString();
+    return apiFetch<InvestorListResponse>(`/api/admin/investors${qs ? `?${qs}` : ""}`, token);
+  },
+
+  deleteInvestor: (token: string, investorId: string) =>
+    apiFetch<{ ok: boolean }>(`/api/admin/investors/${investorId}`, token, {
+      method: "DELETE",
+    }),
+
+  // Feedback
+  getFeedbackList: (token: string, params?: {
+    page?: number;
+    status?: string;
+    category?: string;
+    severity?: string;
+    area?: string;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.status) sp.set("status", params.status);
+    if (params?.category) sp.set("category", params.category);
+    if (params?.severity) sp.set("severity", params.severity);
+    if (params?.area) sp.set("area", params.area);
+    const qs = sp.toString();
+    return apiFetch<FeedbackListResponse>(`/api/admin/feedback${qs ? `?${qs}` : ""}`, token);
+  },
+
+  getFeedbackDetail: (token: string, id: string) =>
+    apiFetch<FeedbackItem>(`/api/admin/feedback/${id}`, token),
 };

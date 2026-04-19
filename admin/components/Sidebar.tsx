@@ -11,9 +11,11 @@ const NAV_ITEMS = [
   { href: "/batch", label: "Batch" },
   { href: "/edgar", label: "EDGAR" },
   { href: "/startups", label: "Startups" },
+  { href: "/investors", label: "Investors" },
   { href: "/experts", label: "Experts" },
   { href: "/templates", label: "Templates" },
   { href: "/users", label: "Users" },
+  { href: "/feedback", label: "Feedback" },
 ];
 
 export function Sidebar() {

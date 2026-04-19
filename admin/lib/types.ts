@@ -241,3 +241,79 @@ export interface TriageItem {
   timestamp: string;
   data: PipelineStartup | ExpertApplication | Assignment;
 }
+
+export interface InvestorItem {
+  id: string;
+  firm_name: string;
+  partner_name: string;
+  email: string | null;
+  website: string | null;
+  stage_focus: string | null;
+  sector_focus: string | null;
+  location: string | null;
+  aum_fund_size: string | null;
+  recent_investments: string[] | null;
+  fit_reason: string | null;
+  source_startups: { id: string; name: string }[];
+  created_at: string;
+}
+
+export interface InvestorListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+  items: InvestorItem[];
+}
+
+export interface InvestorBatchStatus {
+  id: string;
+  status: "pending" | "running" | "paused" | "completed" | "failed";
+  total_startups: number;
+  processed_startups: number;
+  current_startup_name: string | null;
+  investors_found: number;
+  error: string | null;
+  started_at: string | null;
+  paused_at: string | null;
+  completed_at: string | null;
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────
+
+export interface FeedbackRecommendation {
+  title: string;
+  description: string;
+  priority: number;
+}
+
+export interface FeedbackTranscriptMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+export interface FeedbackItem {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  user_email: string | null;
+  status: string;
+  category: string | null;
+  severity: string | null;
+  area: string | null;
+  summary: string | null;
+  recommendations: FeedbackRecommendation[] | null;
+  transcript: FeedbackTranscriptMessage[] | null;
+  page_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeedbackListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+  items: FeedbackItem[];
+}
