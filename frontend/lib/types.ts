@@ -308,6 +308,22 @@ export interface ReportListItem {
   created_at: string | null;
 }
 
+// ── Watchlist types ───────────────────────────────────────────────────
+
+export interface WatchlistEntry {
+  startup_id: string;
+  watched_at: string | null;
+  startup: StartupCard;
+}
+
+export interface WatchlistResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+  items: WatchlistEntry[];
+}
+
 export interface InvestmentMemo {
   id: string;
   status: "pending" | "researching" | "generating" | "formatting" | "complete" | "failed";
@@ -317,4 +333,64 @@ export interface InvestmentMemo {
   error: string | null;
   created_at: string | null;
   completed_at: string | null;
+}
+
+// ── Pitch Intelligence types ─────────────────────────────────────────
+
+export interface PitchSessionSummary {
+  id: string;
+  startup_id: string | null;
+  title: string | null;
+  status: "uploading" | "transcribing" | "labeling" | "analyzing" | "complete" | "failed";
+  file_duration_seconds: number | null;
+  scores: Record<string, number> | null;
+  benchmark_percentiles: Record<string, number> | null;
+  has_labeled_transcript: boolean;
+  speaker_count: number;
+  error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface PitchPhaseResult {
+  id: string;
+  phase: string;
+  status: "pending" | "running" | "complete" | "failed";
+  result: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface PitchSessionDetail extends PitchSessionSummary {
+  results: PitchPhaseResult[];
+}
+
+export interface PitchTranscriptSpeaker {
+  id: string;
+  name?: string;
+  label?: string;
+  role?: string;
+}
+
+export interface PitchTranscriptSegment {
+  speaker: string;
+  speaker_id?: string;
+  speaker_name?: string;
+  speaker_role?: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface PitchTranscript {
+  speakers: PitchTranscriptSpeaker[];
+  segments: PitchTranscriptSegment[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface PitchStatusResponse {
+  id: string;
+  status: string;
+  phases: { phase: string; status: string }[];
 }

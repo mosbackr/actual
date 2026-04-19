@@ -346,4 +346,100 @@ export const api = {
   getMemoDownloadUrl(analysisId: string, format: "pdf" | "docx") {
     return `${API_URL}/api/analyze/${analysisId}/memo/download/${format}`;
   },
+
+  // ── Watchlist ─────────────────────────────────────────────────────
+
+  async getWatchlist(token: string, page = 1) {
+    return apiFetch<import("./types").WatchlistResponse>(
+      `/api/watchlist?page=${page}`,
+      { headers: authHeaders(token) }
+    );
+  },
+
+  async getWatchlistIds(token: string) {
+    return apiFetch<{ ids: string[] }>("/api/watchlist/ids", {
+      headers: authHeaders(token),
+    });
+  },
+
+  async addToWatchlist(token: string, startupId: string) {
+    return apiFetch<{ success: boolean }>("/api/watchlist", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ startup_id: startupId }),
+    });
+  },
+
+  async removeFromWatchlist(token: string, startupId: string) {
+    return apiFetch<{ success: boolean }>(`/api/watchlist/${startupId}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
+  // ── Pitch Intelligence ──────────────────────────────────────────────
+
+  createPitchUpload: async (
+    token: string,
+    filename: string,
+    contentType: string,
+    title?: string,
+    startupId?: string,
+  ): Promise<{ id: string; upload_url: string; s3_key: string }> => {
+    return apiFetch("/api/pitch-intelligence/upload", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({
+        filename,
+        content_type: contentType,
+        title: title || null,
+        startup_id: startupId || null,
+      }),
+    });
+  },
+
+  completePitchUpload: async (token: string, sessionId: string): Promise<{ id: string; status: string }> => {
+    return apiFetch(`/api/pitch-intelligence/${sessionId}/upload-complete`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  labelPitchSpeakers: async (
+    token: string,
+    sessionId: string,
+    speakers: { speaker_id: string; name: string; role: string }[],
+  ): Promise<{ id: string; status: string }> => {
+    return apiFetch(`/api/pitch-intelligence/${sessionId}/speakers`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify({ speakers }),
+    });
+  },
+
+  getPitchSession: (token: string, sessionId: string): Promise<import("./types").PitchSessionDetail> =>
+    apiFetch(`/api/pitch-intelligence/${sessionId}`, {
+      headers: authHeaders(token),
+    }),
+
+  getPitchStatus: (token: string, sessionId: string): Promise<import("./types").PitchStatusResponse> =>
+    apiFetch(`/api/pitch-intelligence/${sessionId}/status`, {
+      headers: authHeaders(token),
+    }),
+
+  listPitchSessions: (token: string): Promise<{ items: import("./types").PitchSessionSummary[] }> =>
+    apiFetch("/api/pitch-intelligence", {
+      headers: authHeaders(token),
+    }),
+
+  deletePitchSession: async (token: string, sessionId: string): Promise<{ deleted: boolean }> =>
+    apiFetch(`/api/pitch-intelligence/${sessionId}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
+
+  getPitchTranscript: (token: string, sessionId: string): Promise<import("./types").PitchTranscript> =>
+    apiFetch(`/api/pitch-intelligence/${sessionId}/transcript`, {
+      headers: authHeaders(token),
+    }),
 };
