@@ -1,16 +1,9 @@
-import enum
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.models.industry import Base
-
-
-class FeedbackStatus(enum.Enum):
-    active = "active"
-    complete = "complete"
-    abandoned = "abandoned"
 
 
 class FeedbackSession(Base):

@@ -76,12 +76,15 @@ export function FeedbackWidget() {
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
+        let currentEvent = "";
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
             const data = line.slice(6);
             try {
               const parsed = JSON.parse(data);
-              if (parsed.chunk) {
+              if (currentEvent === "text" && parsed.chunk) {
                 assistantText += parsed.chunk;
                 setMessages((prev) => {
                   const updated = [...prev];
@@ -91,10 +94,20 @@ export function FeedbackWidget() {
                   };
                   return updated;
                 });
+              } else if (currentEvent === "error" && parsed.message) {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    role: "assistant",
+                    content: "Sorry, something went wrong. Please try again.",
+                  };
+                  return updated;
+                });
               }
             } catch {
               // skip unparseable
             }
+            currentEvent = "";
           }
         }
       }
@@ -102,8 +115,8 @@ export function FeedbackWidget() {
       const newCount = messageCount + 1;
       setMessageCount(newCount);
 
-      // Auto-complete after 3+ user messages (agent has had enough context)
-      if (newCount >= 3) {
+      // Auto-complete after 4+ user messages (agent has had enough context)
+      if (newCount >= 4) {
         try {
           await api.completeFeedbackSession(token, sid);
           setCompleted(true);

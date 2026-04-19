@@ -80,7 +80,7 @@ async def stream_feedback_response(
                     yield {"type": "text", "chunk": event.delta.text}
     except Exception as e:
         logger.error("Feedback agent streaming error: %s", e)
-        yield {"type": "error", "message": str(e)}
+        yield {"type": "error", "message": "An error occurred processing your feedback."}
         return
 
     yield {"type": "done", "full_text": full_text}
