@@ -331,9 +331,9 @@ async def _score_single_investor(db: AsyncSession, investor: Investor) -> Invest
     portfolio_research = {}
     network_research = {}
 
+    messages = _build_portfolio_prompt(investor)
     for attempt in range(2):
         try:
-            messages = _build_portfolio_prompt(investor)
             raw = await _call_perplexity(messages)
             portfolio_research = _extract_json_object(raw)
             break
@@ -347,9 +347,9 @@ async def _score_single_investor(db: AsyncSession, investor: Investor) -> Invest
             else:
                 logger.warning(f"Portfolio research JSON parse failed for {investor.firm_name}: {e}")
 
+    messages = _build_network_prompt(investor)
     for attempt in range(2):
         try:
-            messages = _build_network_prompt(investor)
             raw = await _call_perplexity(messages)
             network_research = _extract_json_object(raw)
             break
