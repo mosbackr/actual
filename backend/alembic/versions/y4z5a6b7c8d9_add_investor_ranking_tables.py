@@ -6,7 +6,7 @@ Create Date: 2026-04-22
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision = "y4z5a6b7c8d9"
 down_revision = "x3y4z5a6b7c8"
@@ -28,8 +28,8 @@ def upgrade() -> None:
         sa.Column("follow_on_rate", sa.Float, nullable=False),
         sa.Column("network_quality", sa.Float, nullable=False),
         sa.Column("narrative", sa.Text, nullable=False),
-        sa.Column("perplexity_research", JSON, nullable=False, server_default=sa.text("'{}'::jsonb")),
-        sa.Column("scoring_metadata", JSON, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column("perplexity_research", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column("scoring_metadata", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("scored_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
