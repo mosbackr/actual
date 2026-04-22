@@ -19,6 +19,7 @@ from app.models.investment_memo import InvestmentMemo
 from app.models.tool_call import ToolCall
 from app.models.pitch_session import PitchSession, PitchAnalysisResult, PitchBenchmark
 from app.models.feedback import FeedbackSession
+from app.models.investor_ranking import InvestorRanking, InvestorRankingBatchJob
 
 __all__ = [
     "User",
@@ -52,4 +53,6 @@ __all__ = [
     "PitchAnalysisResult",
     "PitchBenchmark",
     "FeedbackSession",
+    "InvestorRanking",
+    "InvestorRankingBatchJob",
 ]
