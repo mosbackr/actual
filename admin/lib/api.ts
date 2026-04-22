@@ -14,6 +14,8 @@ import type {
   InvestorBatchStatus,
   InvestorListResponse,
   PipelineStartup,
+  RankedInvestorListResponse,
+  RankingBatchStatus,
   ScoutAddResponse,
   ScoutChatResponse,
   StartupCandidate,
@@ -320,4 +322,47 @@ export const adminApi = {
 
   getFeedbackDetail: (token: string, id: string) =>
     apiFetch<FeedbackItem>(`/api/admin/feedback/${id}`, token),
+
+  // Investor Rankings
+  startRankingBatch: (token: string) =>
+    apiFetch<{ id: string; status: string }>("/api/admin/investors/rankings/batch", token, {
+      method: "POST",
+    }),
+
+  pauseRankingBatch: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/investors/rankings/batch/${jobId}/pause`, token, {
+      method: "PUT",
+    }),
+
+  resumeRankingBatch: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/investors/rankings/batch/${jobId}/resume`, token, {
+      method: "PUT",
+    }),
+
+  getRankingBatchStatus: (token: string) =>
+    apiFetch<RankingBatchStatus | null>("/api/admin/investors/rankings/batch/status", token),
+
+  getRankedInvestors: (token: string, params?: {
+    sort?: string;
+    order?: string;
+    q?: string;
+    min_score?: number;
+    page?: number;
+    per_page?: number;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.sort) sp.set("sort", params.sort);
+    if (params?.order) sp.set("order", params.order);
+    if (params?.q) sp.set("q", params.q);
+    if (params?.min_score !== undefined) sp.set("min_score", String(params.min_score));
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return apiFetch<RankedInvestorListResponse>(`/api/admin/investors/rankings${qs ? `?${qs}` : ""}`, token);
+  },
+
+  rescoreInvestor: (token: string, investorId: string) =>
+    apiFetch<{ ok: boolean; message: string }>(`/api/admin/investors/rankings/${investorId}/rescore`, token, {
+      method: "POST",
+    }),
 };

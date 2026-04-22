@@ -317,3 +317,46 @@ export interface FeedbackListResponse {
   pages: number;
   items: FeedbackItem[];
 }
+
+// ── Investor Rankings ────────────────────────────────────────────────
+
+export interface RankedInvestorItem {
+  id: string;
+  investor_id: string;
+  firm_name: string;
+  partner_name: string;
+  location: string | null;
+  stage_focus: string | null;
+  sector_focus: string | null;
+  overall_score: number;
+  portfolio_performance: number;
+  deal_activity: number;
+  exit_track_record: number;
+  stage_expertise: number;
+  sector_expertise: number;
+  follow_on_rate: number;
+  network_quality: number;
+  narrative: string;
+  scored_at: string;
+}
+
+export interface RankedInvestorListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+  items: RankedInvestorItem[];
+}
+
+export interface RankingBatchStatus {
+  id: string;
+  status: "pending" | "running" | "paused" | "completed" | "failed";
+  total_investors: number;
+  processed_investors: number;
+  current_investor_name: string | null;
+  investors_scored: number;
+  error: string | null;
+  started_at: string | null;
+  paused_at: string | null;
+  completed_at: string | null;
+}
