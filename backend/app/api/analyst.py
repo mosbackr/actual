@@ -660,7 +660,7 @@ async def get_shared_conversation(
     result = await db.execute(
         select(AnalystConversation)
         .where(AnalystConversation.share_token == share_token)
-        .options(selectinload(AnalystConversation.messages))
+        .options(selectinload(AnalystConversation.messages).selectinload(AnalystMessage.attachments))
     )
     conversation = result.scalar_one_or_none()
     if not conversation:
@@ -677,6 +677,17 @@ async def get_shared_conversation(
                 "charts": m.charts,
                 "citations": m.citations,
                 "created_at": m.created_at.isoformat() if m.created_at else None,
+                "attachments": [
+                    {
+                        "id": str(a.id),
+                        "filename": a.filename,
+                        "file_type": a.file_type,
+                        "file_size_bytes": a.file_size_bytes,
+                        "is_image": a.is_image,
+                        "s3_key": a.s3_key,
+                    }
+                    for a in (m.attachments or [])
+                ],
             }
             for m in conversation.messages
         ],
