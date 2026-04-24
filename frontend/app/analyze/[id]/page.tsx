@@ -319,9 +319,9 @@ export default function AnalysisResultPage() {
   }
 
   // RESULTS VIEW
-  const hasMemo = memo !== null;
-  const tabs = ["overview", ...Object.keys(AGENT_LABELS), ...(hasMemo ? ["memo"] : [])];
+  const tabs = ["overview", ...Object.keys(AGENT_LABELS)];
   const activeReport = reports.find((r) => r.agent_type === activeTab);
+  const memoGenerating = memo && ["pending", "researching", "generating", "formatting"].includes(memo.status);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -334,13 +334,41 @@ export default function AnalysisResultPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {analysis.status === "complete" && !memo && (
+          {analysis.status === "complete" && !memo && !memoLoading && (
             <button
               onClick={handleGenerateMemo}
-              disabled={memoLoading}
-              className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
+              className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
             >
-              {memoLoading ? "Starting..." : "Generate Investment Memo"}
+              Generate Investment Memo
+            </button>
+          )}
+          {analysis.status === "complete" && !memo && memoLoading && (
+            <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <span className="animate-spin inline-block w-3 h-3 border border-accent/30 border-t-accent rounded-full" />
+              Generating Investment Memo
+            </span>
+          )}
+          {memoGenerating && (
+            <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <span className="animate-spin inline-block w-3 h-3 border border-accent/30 border-t-accent rounded-full" />
+              Generating Investment Memo
+            </span>
+          )}
+          {memo?.status === "complete" && (
+            <button
+              onClick={() => setActiveTab("memo")}
+              className={`text-xs font-medium transition ${activeTab === "memo" ? "text-accent" : "text-accent/70 hover:text-accent"}`}
+            >
+              Investment Memo
+            </button>
+          )}
+          {memo?.status === "failed" && (
+            <button
+              onClick={handleRegenerateMemo}
+              disabled={memoLoading}
+              className="text-xs text-score-low hover:text-score-low/80"
+            >
+              Memo Failed - Retry
             </button>
           )}
           <Link href="/analyze/history" className="text-xs text-text-tertiary hover:text-text-secondary">
@@ -379,7 +407,7 @@ export default function AnalysisResultPage() {
                 : "border-transparent text-text-tertiary hover:text-text-secondary"
             }`}
           >
-            {t === "overview" ? "Overview" : t === "memo" ? "Investment Memo" : AGENT_LABELS[t]}
+            {t === "overview" ? "Overview" : AGENT_LABELS[t]}
           </button>
         ))}
       </div>
@@ -411,9 +439,15 @@ export default function AnalysisResultPage() {
             </div>
           </div>
 
-          {/* Exit projections */}
-          {(analysis.expected_exit_value || analysis.expected_exit_timeline) && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* Valuation + Exit projections */}
+          {(analysis.estimated_valuation || analysis.expected_exit_value || analysis.expected_exit_timeline) && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {analysis.estimated_valuation && (
+                <div className="rounded border border-accent/30 bg-accent/5 p-4 text-center">
+                  <p className="text-xs text-text-tertiary mb-1">Estimated Valuation</p>
+                  <p className="text-lg font-medium text-accent">{analysis.estimated_valuation}</p>
+                </div>
+              )}
               <div className="rounded border border-border bg-surface p-4 text-center">
                 <p className="text-xs text-text-tertiary mb-1">Expected Exit Value</p>
                 <p className="text-lg font-medium text-text-primary">{analysis.expected_exit_value || "\u2014"}</p>
@@ -425,11 +459,55 @@ export default function AnalysisResultPage() {
             </div>
           )}
 
+          {/* Valuation Justification */}
+          {analysis.valuation_justification && (
+            <div className="rounded border border-border bg-surface p-4 mb-6">
+              <h3 className="text-sm font-medium text-text-primary mb-2">Valuation Justification</h3>
+              <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{analysis.valuation_justification}</p>
+            </div>
+          )}
+
           {/* Executive summary */}
           {analysis.executive_summary && (
             <div className="rounded border border-border bg-surface p-4 mb-6">
               <h3 className="text-sm font-medium text-text-primary mb-2">Executive Summary</h3>
               <p className="text-sm text-text-secondary leading-relaxed">{analysis.executive_summary}</p>
+            </div>
+          )}
+
+          {/* Technical Expert Review */}
+          {analysis.technical_expert_review && (
+            <div className="rounded border border-border bg-surface p-4 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-text-primary">Technical Expert Review</h3>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                    analysis.technical_expert_review.technical_feasibility === "Proven" ? "bg-green-100 text-green-700" :
+                    analysis.technical_expert_review.technical_feasibility === "Plausible" ? "bg-blue-100 text-blue-700" :
+                    analysis.technical_expert_review.technical_feasibility === "Speculative" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-red-100 text-red-700"
+                  }`}>
+                    {analysis.technical_expert_review.technical_feasibility}
+                  </span>
+                  <span className="text-xs text-text-tertiary">TRL {analysis.technical_expert_review.trl_level}/9</span>
+                </div>
+              </div>
+              <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line mb-3">
+                {analysis.technical_expert_review.scientific_consensus}
+              </p>
+              {analysis.technical_expert_review.red_flags.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-medium text-score-low mb-1">Red Flags</p>
+                  <ul className="space-y-1">
+                    {analysis.technical_expert_review.red_flags.map((flag, i) => (
+                      <li key={i} className="text-xs text-score-low flex gap-1.5">
+                        <span>&#9888;</span> {flag}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-sm text-text-secondary italic">{analysis.technical_expert_review.verdict}</p>
             </div>
           )}
 
@@ -452,6 +530,38 @@ export default function AnalysisResultPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Memo view */}
+      {activeTab === "memo" && memo?.status === "complete" && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => handleDownload("pdf")}
+              className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
+            >
+              Download PDF
+            </button>
+            <button
+              onClick={() => handleDownload("docx")}
+              className="px-3 py-1.5 text-xs font-medium rounded border border-border text-text-primary hover:border-accent/50 transition"
+            >
+              Download DOCX
+            </button>
+            <button
+              onClick={handleRegenerateMemo}
+              disabled={memoLoading}
+              className="text-xs text-text-tertiary hover:text-text-secondary ml-auto"
+            >
+              Regenerate
+            </button>
+          </div>
+          {memo.content && (
+            <div className="rounded border border-border bg-surface p-6 text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+              {memo.content}
+            </div>
+          )}
         </div>
       )}
 
@@ -486,71 +596,6 @@ export default function AnalysisResultPage() {
           {activeReport.status === "failed" && (
             <div className="rounded border border-score-low/20 bg-score-low/10 p-4 text-score-low text-sm">
               Agent failed: {activeReport.error || "Unknown error"}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Investment Memo tab */}
-      {activeTab === "memo" && memo && (
-        <div>
-          {/* Generating state */}
-          {["pending", "researching", "generating", "formatting"].includes(memo.status) && (
-            <div className="text-center py-12">
-              <div className="animate-spin inline-block w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full mb-4" />
-              <p className="text-sm text-text-secondary">
-                {memo.status === "pending" && "Starting memo generation..."}
-                {memo.status === "researching" && "Researching market data..."}
-                {memo.status === "generating" && "Writing investment memo..."}
-                {memo.status === "formatting" && "Formatting documents..."}
-              </p>
-            </div>
-          )}
-
-          {/* Complete state */}
-          {memo.status === "complete" && (
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <button
-                  onClick={() => handleDownload("pdf")}
-                  className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover transition"
-                >
-                  Download PDF
-                </button>
-                <button
-                  onClick={() => handleDownload("docx")}
-                  className="px-3 py-1.5 text-xs font-medium rounded border border-border text-text-primary hover:border-accent/50 transition"
-                >
-                  Download DOCX
-                </button>
-                <button
-                  onClick={handleRegenerateMemo}
-                  disabled={memoLoading}
-                  className="text-xs text-text-tertiary hover:text-text-secondary ml-auto"
-                >
-                  Regenerate
-                </button>
-              </div>
-              {memo.content && (
-                <div className="rounded border border-border bg-surface p-6 text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
-                  {memo.content}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Failed state */}
-          {memo.status === "failed" && (
-            <div className="text-center py-12">
-              <p className="text-score-low text-sm mb-3">Memo generation failed</p>
-              <p className="text-text-tertiary text-xs mb-4">{memo.error || "An unexpected error occurred"}</p>
-              <button
-                onClick={handleRegenerateMemo}
-                disabled={memoLoading}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition"
-              >
-                Retry
-              </button>
             </div>
           )}
         </div>

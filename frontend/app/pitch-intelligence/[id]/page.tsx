@@ -305,6 +305,73 @@ function PitchSessionContent() {
         </div>
       )}
 
+      {/* Valuation Assessment */}
+      {(scoringResult?.result as any)?.valuation_assessment && (
+        <div className="mb-6 rounded-lg border border-accent/30 bg-accent/5 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-text-primary">Valuation Assessment</h3>
+            {(scoringResult?.result as any)?.valuation_assessment?.estimated_valuation && (
+              <span className="text-lg font-medium text-accent">
+                {(scoringResult?.result as any).valuation_assessment.estimated_valuation}
+              </span>
+            )}
+          </div>
+          {(scoringResult?.result as any)?.valuation_assessment?.justification && (
+            <p className="text-sm text-text-secondary whitespace-pre-line">
+              {(scoringResult?.result as any).valuation_assessment.justification}
+            </p>
+          )}
+          {(scoringResult?.result as any)?.valuation_assessment?.founders_ask_reasonable != null && (
+            <p className="text-xs mt-2 font-medium">
+              Founders&apos; ask:{" "}
+              <span className={(scoringResult?.result as any).valuation_assessment.founders_ask_reasonable ? "text-green-600" : "text-red-600"}>
+                {(scoringResult?.result as any).valuation_assessment.founders_ask_reasonable ? "Reasonable" : "Needs adjustment"}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Technical Expert Review */}
+      {(scoringResult?.result as any)?.technical_expert_review && (
+        <div className="mb-6 rounded-lg border border-border bg-surface p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-text-primary">Technical Expert Review</h3>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                (scoringResult?.result as any).technical_expert_review.technical_feasibility === "Proven" ? "bg-green-100 text-green-700" :
+                (scoringResult?.result as any).technical_expert_review.technical_feasibility === "Plausible" ? "bg-blue-100 text-blue-700" :
+                (scoringResult?.result as any).technical_expert_review.technical_feasibility === "Speculative" ? "bg-yellow-100 text-yellow-700" :
+                "bg-red-100 text-red-700"
+              }`}>
+                {(scoringResult?.result as any).technical_expert_review.technical_feasibility}
+              </span>
+              <span className="text-xs text-text-tertiary">
+                TRL {(scoringResult?.result as any).technical_expert_review.trl_level}/9
+              </span>
+            </div>
+          </div>
+          <p className="text-sm text-text-secondary whitespace-pre-line mb-3">
+            {(scoringResult?.result as any).technical_expert_review.scientific_consensus}
+          </p>
+          {(scoringResult?.result as any).technical_expert_review.red_flags?.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-red-600 mb-1">Red Flags</p>
+              <ul className="space-y-1">
+                {(scoringResult?.result as any).technical_expert_review.red_flags.map((flag: string, i: number) => (
+                  <li key={i} className="text-xs text-red-600 flex gap-1.5">
+                    <span>&#9888;</span> {flag}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-sm text-text-secondary italic">
+            {(scoringResult?.result as any).technical_expert_review.verdict}
+          </p>
+        </div>
+      )}
+
       {/* Tab Navigation */}
       <div className="flex gap-1 border-b border-border mb-6">
         {(["transcript", "fact-check", "analysis", "scores"] as const).map((tab) => (

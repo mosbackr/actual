@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import JSON, UUID
+from sqlalchemy.dialects.postgresql import JSON, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.industry import Base
@@ -55,6 +55,9 @@ class PitchAnalysis(Base):
     expected_exit_value: Mapped[str | None] = mapped_column(String(100), nullable=True)
     expected_exit_timeline: Mapped[str | None] = mapped_column(String(100), nullable=True)
     executive_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    estimated_valuation: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    valuation_justification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    technical_expert_review: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     startup_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("startups.id"), nullable=True
     )

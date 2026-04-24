@@ -22,7 +22,7 @@ from app.services import s3
 router = APIRouter()
 
 ALLOWED_TYPES = {"pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "csv", "md", "txt"}
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_TOTAL_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_FILES = 10
 
@@ -45,6 +45,9 @@ def _analysis_to_dict(analysis: PitchAnalysis, include_reports: bool = False) ->
         "expected_exit_value": analysis.expected_exit_value,
         "expected_exit_timeline": analysis.expected_exit_timeline,
         "executive_summary": analysis.executive_summary,
+        "estimated_valuation": analysis.estimated_valuation,
+        "valuation_justification": analysis.valuation_justification,
+        "technical_expert_review": analysis.technical_expert_review,
         "publish_consent": analysis.publish_consent,
         "is_free_analysis": analysis.is_free_analysis,
         "startup_id": str(analysis.startup_id) if analysis.startup_id else None,
@@ -134,7 +137,7 @@ async def create_analysis(
     for f in files:
         data = await f.read()
         if len(data) > MAX_FILE_SIZE:
-            raise HTTPException(400, f"File {f.filename} exceeds 20MB limit")
+            raise HTTPException(400, f"File {f.filename} exceeds 50MB limit")
         total_size += len(data)
         if total_size > MAX_TOTAL_SIZE:
             raise HTTPException(400, "Total upload size exceeds 50MB limit")
@@ -378,7 +381,7 @@ async def resubmit_analysis(
 
         data = await f.read()
         if len(data) > MAX_FILE_SIZE:
-            raise HTTPException(400, f"File {f.filename} exceeds 20MB limit")
+            raise HTTPException(400, f"File {f.filename} exceeds 50MB limit")
         total_size += len(data)
         if total_size > MAX_TOTAL_SIZE:
             raise HTTPException(400, "Total upload size exceeds 50MB limit")

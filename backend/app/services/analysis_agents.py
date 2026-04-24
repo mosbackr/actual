@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from datetime import datetime
 
@@ -288,6 +289,52 @@ RESPONSE_SCHEMA = {
 }
 
 
+def _parse_agent_json(text_content: str, agent_type: AgentType) -> dict:
+    """Parse JSON from agent response, handling markdown fencing and prose wrapping."""
+    text_content = text_content.strip()
+
+    # Try direct parse first
+    try:
+        result = json.loads(text_content)
+        return _validate_agent_result(result)
+    except json.JSONDecodeError:
+        pass
+
+    # Strip markdown code fences
+    if text_content.startswith("```"):
+        text_content = text_content.split("\n", 1)[1] if "\n" in text_content else text_content[3:]
+        if text_content.endswith("```"):
+            text_content = text_content[:-3]
+        text_content = text_content.strip()
+        try:
+            result = json.loads(text_content)
+            return _validate_agent_result(result)
+        except json.JSONDecodeError:
+            pass
+
+    # Extract JSON object from surrounding prose
+    match = re.search(r'\{[\s\S]*"score"\s*:\s*\d+[\s\S]*\}', text_content)
+    if match:
+        try:
+            result = json.loads(match.group())
+            return _validate_agent_result(result)
+        except json.JSONDecodeError:
+            pass
+
+    logger.error("Agent %s returned unparseable response: %.200s", agent_type.value, text_content)
+    raise ValueError(f"Agent {agent_type.value} returned non-JSON response")
+
+
+def _validate_agent_result(result: dict) -> dict:
+    """Validate and normalize agent result fields."""
+    return {
+        "score": max(0, min(100, float(result["score"]))),
+        "summary": str(result["summary"]),
+        "report": str(result["report"]),
+        "key_findings": [str(f) for f in result.get("key_findings", [])],
+    }
+
+
 async def run_agent(
     agent_type: AgentType,
     consolidated_text: str,
@@ -305,9 +352,19 @@ async def run_agent(
 
 ---
 
-First, use your tools to research this company — validate their claims, find competitors, check market data, look up founders, etc. Be thorough.
+## Research Instructions
 
-Then, once you have enough information, provide your final evaluation as JSON with these fields:
+You have a LIMITED research budget: up to 15 Perplexity web searches and 5 database queries. Plan your research carefully before making any tool calls.
+
+**Step 1 — Plan your research.** Before calling any tools, think about what specific questions you need answered for your evaluation rubric. Write a brief research plan (3-5 bullet points) identifying the most important things to verify or discover.
+
+**Step 2 — Execute your research plan.** Make each search count:
+- Use specific, targeted queries (not broad/vague ones)
+- Do NOT repeat a search you already made — if you got a result, use it
+- Combine related questions into a single search when possible
+- Stop researching when you have enough data to score each rubric dimension
+
+**Step 3 — Write your evaluation.** Once you have sufficient data, provide your final evaluation as JSON with these fields:
 - "score": number 0-100 based on the rubric
 - "summary": one paragraph verdict (2-3 sentences)
 - "report": detailed markdown report (500-1500 words) with sections matching the rubric
@@ -318,10 +375,20 @@ Return ONLY valid JSON when you're ready to submit your final evaluation, no mar
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     messages = [{"role": "user", "content": user_message}]
 
+    # Per-tool-type call limits
+    MAX_PERPLEXITY_CALLS = 15
+    MAX_DB_CALLS = 5
+    tool_call_counts: dict[str, int] = {}
+
+    logger.info("[%s] Starting agent for %s (analysis=%s)", agent_type.value, company_name, analysis_id)
+
     for attempt in range(2):
         try:
             # Tool-use conversation loop
+            iteration = 0
             while True:
+                iteration += 1
+                logger.info("[%s] Iteration %d — calling Claude API", agent_type.value, iteration)
                 response = await client.messages.create(
                     model="claude-sonnet-4-6",
                     max_tokens=4096,
@@ -329,27 +396,49 @@ Return ONLY valid JSON when you're ready to submit your final evaluation, no mar
                     messages=messages,
                     tools=AGENT_TOOLS,
                 )
+                logger.info("[%s] Claude responded: stop_reason=%s", agent_type.value, response.stop_reason)
 
                 # Check if Claude wants to use tools
                 if response.stop_reason == "tool_use":
-                    # Process all tool calls in this response
                     assistant_content = response.content
                     tool_results = []
 
                     for block in assistant_content:
                         if block.type == "tool_use":
-                            result_text = await execute_tool(
-                                tool_name=block.name,
-                                tool_input=block.input,
-                                analysis_id=analysis_id,
-                                agent_type=agent_type.value,
-                                db=db,
-                            )
-                            tool_results.append({
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": result_text,
-                            })
+                            # Enforce per-tool-type limits
+                            is_perplexity = block.name == "perplexity_search"
+                            is_db = block.name.startswith("db_")
+                            count = tool_call_counts.get(block.name, 0)
+
+                            limit_hit = False
+                            if is_perplexity and count >= MAX_PERPLEXITY_CALLS:
+                                limit_hit = True
+                            elif is_db and count >= MAX_DB_CALLS:
+                                limit_hit = True
+
+                            if limit_hit:
+                                logger.info("[%s] Tool %s limit hit (%d calls)", agent_type.value, block.name, count)
+                                tool_results.append({
+                                    "type": "tool_result",
+                                    "tool_use_id": block.id,
+                                    "content": f"Tool call limit reached for {block.name} ({count} calls). Please proceed with your final evaluation using the data you already have.",
+                                })
+                            else:
+                                tool_call_counts[block.name] = count + 1
+                                logger.info("[%s] Calling tool: %s (call #%d)", agent_type.value, block.name, count + 1)
+                                result_text = await execute_tool(
+                                    tool_name=block.name,
+                                    tool_input=block.input,
+                                    analysis_id=analysis_id,
+                                    agent_type=agent_type.value,
+                                    db=db,
+                                )
+                                logger.info("[%s] Tool %s returned %d chars", agent_type.value, block.name, len(result_text))
+                                tool_results.append({
+                                    "type": "tool_result",
+                                    "tool_use_id": block.id,
+                                    "content": result_text,
+                                })
 
                     # Add assistant message and tool results to conversation
                     messages.append({"role": "assistant", "content": assistant_content})
@@ -362,25 +451,16 @@ Return ONLY valid JSON when you're ready to submit your final evaluation, no mar
                     if hasattr(block, "text"):
                         text_content += block.text
 
-                text_content = text_content.strip()
-                if text_content.startswith("```"):
-                    text_content = text_content.split("\n", 1)[1]
-                    if text_content.endswith("```"):
-                        text_content = text_content[:-3]
-                    text_content = text_content.strip()
-
-                result = json.loads(text_content)
-                return {
-                    "score": max(0, min(100, float(result["score"]))),
-                    "summary": str(result["summary"]),
-                    "report": str(result["report"]),
-                    "key_findings": [str(f) for f in result.get("key_findings", [])],
-                }
+                logger.info("[%s] Parsing final JSON (%d chars)", agent_type.value, len(text_content))
+                result = _parse_agent_json(text_content, agent_type)
+                logger.info("[%s] Done: score=%s", agent_type.value, result.get("score"))
+                return result
 
         except Exception as e:
+            logger.error("[%s] Attempt %d failed: %s", agent_type.value, attempt + 1, e, exc_info=True)
             if attempt == 0:
-                logger.warning("Agent %s attempt 1 failed: %s, retrying...", agent_type.value, e)
                 messages = [{"role": "user", "content": user_message}]
+                tool_call_counts = {}
                 continue
             raise
 
@@ -406,6 +486,24 @@ Your job is to weigh all 8 analyst evaluations and produce:
 5. Expected exit value — realistic range based on comparable transactions
 6. Expected exit timeline — years to exit based on market and stage
 7. Executive summary — one paragraph capturing the investment thesis or key concerns
+8. Estimated valuation — a specific pre-money valuation range for the current round
+9. Valuation justification — detailed reasoning for the valuation estimate including methodology
+10. Technical expert review — a scientific consensus analysis of the startup's technical claims
+
+For the technical expert review, you MUST:
+- Evaluate ALL technical and scientific claims made in the pitch against established scientific consensus
+- Only cite statements from peer-reviewed research, technical standards bodies, or recognized scientific/technical authorities
+- Flag any claims that contradict scientific consensus or lack peer-reviewed evidence
+- Assess the technological readiness level (TRL 1-9) of the core technology
+- Note if the technology is proven at scale, lab-stage only, or purely theoretical
+- Provide a technical feasibility verdict: Proven, Plausible, Speculative, or Dubious
+
+For the valuation estimate, you MUST:
+- Provide a specific pre-money valuation range (e.g., "$8-12M")
+- Justify using at least TWO of these methods: revenue multiples, comparable transactions, stage-appropriate benchmarks, DCF-based reasoning, or market-based comparables
+- Reference specific comparable companies or deals where possible
+- Account for the startup's stage, traction, market size, and competitive position
+- Be realistic — most seed startups are valued at $3-10M, Series A at $15-50M
 
 Be calibrated: most startups score 30-60. Only exceptional startups score above 75. Below 25 indicates fundamental problems."""
 
@@ -424,6 +522,14 @@ Synthesize these reports and return JSON with these fields:
 - "expected_exit_value": string like "$50-100M" or "$500M-1B"
 - "expected_exit_timeline": string like "5-7 years" or "3-5 years"
 - "executive_summary": one paragraph (3-5 sentences)
+- "estimated_valuation": string — pre-money valuation range like "$5-8M" or "$15-25M"
+- "valuation_justification": string — 2-3 paragraph detailed justification citing methodology, comparable deals, revenue multiples, and stage benchmarks
+- "technical_expert_review": object with:
+  - "technical_feasibility": string — one of "Proven", "Plausible", "Speculative", "Dubious"
+  - "trl_level": number 1-9 — Technology Readiness Level
+  - "scientific_consensus": string — 2-3 paragraphs analyzing claims against established science, citing only scientific/technical sources
+  - "red_flags": array of strings — any claims that contradict scientific consensus
+  - "verdict": string — one paragraph summary of technical viability
 
 Return ONLY valid JSON, no markdown fencing."""
 
@@ -450,4 +556,7 @@ Return ONLY valid JSON, no markdown fencing."""
         "expected_exit_value": str(result["expected_exit_value"]),
         "expected_exit_timeline": str(result["expected_exit_timeline"]),
         "executive_summary": str(result["executive_summary"]),
+        "estimated_valuation": str(result.get("estimated_valuation", "")),
+        "valuation_justification": str(result.get("valuation_justification", "")),
+        "technical_expert_review": result.get("technical_expert_review"),
     }

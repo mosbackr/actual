@@ -7,7 +7,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 
 const ALLOWED_EXTENSIONS = ["pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "csv", "md", "txt"];
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024;
 const MAX_FILES = 10;
 
@@ -26,7 +26,7 @@ export default function AnalyzePage() {
   const validateFile = (file: File): string | null => {
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
     if (!ALLOWED_EXTENSIONS.includes(ext)) return `Unsupported file type: .${ext}`;
-    if (file.size > MAX_FILE_SIZE) return `${file.name} exceeds 20MB limit`;
+    if (file.size > MAX_FILE_SIZE) return `${file.name} exceeds 50MB limit`;
     return null;
   };
 
@@ -164,7 +164,7 @@ export default function AnalyzePage() {
         />
         <p className="text-text-secondary text-sm mb-1">Drop files here or click to browse</p>
         <p className="text-text-tertiary text-xs">
-          PDF, DOCX, DOC, PPTX, PPT, XLSX, XLS, CSV, MD, TXT — max 10 files, 20MB each
+          PDF, DOCX, DOC, PPTX, PPT, XLSX, XLS, CSV, MD, TXT — max 10 files, 50MB each
         </p>
       </div>
 

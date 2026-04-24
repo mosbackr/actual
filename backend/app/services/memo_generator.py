@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.db.session import async_session
 from app.models.investment_memo import InvestmentMemo, MemoStatus
+from app.models.notification import Notification
 from app.models.pitch_analysis import AnalysisReport, PitchAnalysis
 from app.models.user import User
 from app.services import email_service, s3
@@ -128,11 +129,22 @@ Write a comprehensive, professional investment memo in markdown format. The memo
 
 7. **Traction & Financials** — Current metrics, growth trajectory, unit economics, financial projections assessment.
 
-8. **Investment Terms** — Recommended raise amount, valuation context based on comparable deals, use of funds assessment.
+8. **Valuation & Investment Terms** — You MUST include:
+   - A specific estimated pre-money valuation range (e.g., "$8-12M pre-money")
+   - Valuation methodology: justify using at least TWO of: revenue multiples (cite the multiple and comparable public/private companies), comparable recent transactions (cite specific deals with names, dates, and valuations), stage-appropriate benchmarks, or DCF-based reasoning
+   - How the valuation compares to industry medians for this stage and sector
+   - Recommended raise amount, use of funds assessment, and implied post-money valuation
 
-9. **Risk Factors** — Top 5-7 risks ranked by severity, with mitigation strategies for each.
+9. **Technical Expert Review** — Scientific consensus analysis of the startup's core technology claims:
+   - Evaluate technical claims against established scientific literature and consensus
+   - Only cite peer-reviewed research, technical standards, or recognized scientific authorities
+   - Assign a Technology Readiness Level (TRL 1-9) to the core technology
+   - Flag any claims that contradict scientific consensus
+   - Provide a technical feasibility verdict: Proven, Plausible, Speculative, or Dubious
 
-10. **Recommendation** — Final verdict: **Invest**, **Pass**, or **Watch**. Include conviction level (High/Medium/Low) and specific conditions or milestones that would change your recommendation.
+10. **Risk Factors** — Top 5-7 risks ranked by severity, with mitigation strategies for each.
+
+11. **Recommendation** — Final verdict: **Invest**, **Pass**, or **Watch**. Include conviction level (High/Medium/Low) and specific conditions or milestones that would change your recommendation.
 
 ## Formatting Rules
 - Use markdown headers (## for sections, ### for subsections)
@@ -450,17 +462,6 @@ async def run_memo_generation(memo_id: str) -> None:
             memo.completed_at = datetime.now(timezone.utc)
             await db.commit()
 
-            # Send email notification
-            user_result = await db.execute(select(User).where(User.id == analysis.user_id))
-            user = user_result.scalar_one_or_none()
-            if user:
-                email_service.send_memo_complete(
-                    user_email=user.email,
-                    user_name=user.name,
-                    analysis_id=str(analysis.id),
-                    startup_name=analysis.company_name or "Your startup",
-                )
-
             logger.info("Memo %s generated for %s (PDF: %d bytes, DOCX: %d bytes)",
                         memo_id, company_name, len(pdf_bytes), len(docx_bytes))
 
@@ -472,3 +473,33 @@ async def run_memo_generation(memo_id: str) -> None:
                 await db.commit()
             except Exception:
                 logger.error("Failed to update memo status for %s", memo_id)
+
+    # Notification + email in separate block so failures don't crash the job
+    try:
+        async with async_session() as db:
+            result = await db.execute(
+                select(PitchAnalysis).where(PitchAnalysis.id == mid)
+            )
+            analysis = result.scalar_one()
+
+            notification = Notification(
+                user_id=analysis.user_id,
+                type="memo_complete",
+                title="Investment memo ready",
+                message=analysis.company_name or "Your startup",
+                link=f"/analyze/{analysis.id}",
+            )
+            db.add(notification)
+            await db.commit()
+
+            user_result = await db.execute(select(User).where(User.id == analysis.user_id))
+            user = user_result.scalar_one_or_none()
+            if user:
+                email_service.send_memo_complete(
+                    user_email=user.email,
+                    user_name=user.name,
+                    analysis_id=str(analysis.id),
+                    startup_name=analysis.company_name or "Your startup",
+                )
+    except Exception as e:
+        logger.error("Failed to send memo notification/email: %s", e)

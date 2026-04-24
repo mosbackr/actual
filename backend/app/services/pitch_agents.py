@@ -11,8 +11,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-SONNET_MODEL = "claude-sonnet-4-6-20250514"
-OPUS_MODEL = "claude-opus-4-6-20250514"
+SONNET_MODEL = "claude-sonnet-4-6"
+OPUS_MODEL = "claude-opus-4-6"
 
 
 def _build_transcript_text(labeled: dict) -> str:
@@ -295,10 +295,22 @@ async def run_scoring(
             "- fact_accuracy: What percentage of verifiable claims checked out?\n"
             "- overall: Weighted overall pitch effectiveness\n\n"
             "Then provide 5-10 prioritized recommendations, each tied to a specific transcript moment.\n\n"
+            "Additionally, provide a valuation assessment:\n"
+            "- Estimate a pre-money valuation range based on what was discussed in the pitch\n"
+            "- Justify using revenue multiples, comparable deals, stage benchmarks, or metrics mentioned\n"
+            "- If the founders mentioned a valuation or raise amount, assess whether it is reasonable\n\n"
+            "Additionally, provide a technical expert review:\n"
+            "- Evaluate ALL technical and scientific claims made during the pitch against established scientific consensus\n"
+            "- Only cite peer-reviewed research, technical standards bodies, or recognized scientific/technical authorities\n"
+            "- Flag claims that contradict scientific consensus or lack peer-reviewed evidence\n"
+            "- Assess the Technology Readiness Level (TRL 1-9) of the core technology\n"
+            "- Provide a technical feasibility verdict: Proven, Plausible, Speculative, or Dubious\n\n"
             "Return a JSON object with:\n"
             "- \"scores\": {\"pitch_clarity\": int, \"financial_rigor\": int, \"q_and_a_handling\": int, \"investor_engagement\": int, \"fact_accuracy\": int, \"overall\": int}\n"
             "- \"recommendations\": [{\"priority\": 1-10, \"title\": string, \"description\": string, \"transcript_reference\": string, \"impact\": \"high\"|\"medium\"|\"low\"}]\n"
-            "- \"executive_summary\": string (2-3 paragraph overall assessment)\n\n"
+            "- \"executive_summary\": string (2-3 paragraph overall assessment)\n"
+            "- \"valuation_assessment\": {\"estimated_valuation\": string (e.g. \"$5-8M pre-money\"), \"justification\": string (2-3 paragraphs explaining methodology and comparable deals), \"founders_ask_reasonable\": boolean | null}\n"
+            "- \"technical_expert_review\": {\"technical_feasibility\": string (Proven|Plausible|Speculative|Dubious), \"trl_level\": number 1-9, \"scientific_consensus\": string (2-3 paragraphs citing only scientific/technical sources), \"red_flags\": [string], \"verdict\": string}\n\n"
             "Return valid JSON only."
         ),
         messages=[

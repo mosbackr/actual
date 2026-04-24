@@ -199,6 +199,15 @@ export interface AnalysisDetail {
   expected_exit_value: string | null;
   expected_exit_timeline: string | null;
   executive_summary: string | null;
+  estimated_valuation: string | null;
+  valuation_justification: string | null;
+  technical_expert_review: {
+    technical_feasibility: string;
+    trl_level: number;
+    scientific_consensus: string;
+    red_flags: string[];
+    verdict: string;
+  } | null;
   publish_consent: boolean;
   is_free_analysis: boolean;
   startup_id: string | null;

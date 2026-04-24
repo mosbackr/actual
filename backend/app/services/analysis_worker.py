@@ -263,6 +263,9 @@ async def _process_job(analysis_id: uuid.UUID) -> None:
             "expected_exit_value": None,
             "expected_exit_timeline": None,
             "executive_summary": "Final scoring agent failed. Scores shown are raw averages.",
+            "estimated_valuation": None,
+            "valuation_justification": None,
+            "technical_expert_review": None,
         }
 
     async with db_factory() as db:
@@ -277,6 +280,9 @@ async def _process_job(analysis_id: uuid.UUID) -> None:
         analysis.expected_exit_value = scoring.get("expected_exit_value")
         analysis.expected_exit_timeline = scoring.get("expected_exit_timeline")
         analysis.executive_summary = scoring.get("executive_summary")
+        analysis.estimated_valuation = scoring.get("estimated_valuation")
+        analysis.valuation_justification = scoring.get("valuation_justification")
+        analysis.technical_expert_review = scoring.get("technical_expert_review")
         analysis.current_agent = None
 
         # Phase 4: Publish if consented
