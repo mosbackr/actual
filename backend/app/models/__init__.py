@@ -20,6 +20,7 @@ from app.models.tool_call import ToolCall
 from app.models.pitch_session import PitchSession, PitchAnalysisResult, PitchBenchmark
 from app.models.feedback import FeedbackSession
 from app.models.investor_ranking import InvestorRanking, InvestorRankingBatchJob
+from app.models.analyst import AnalystAttachment
 
 __all__ = [
     "User",
@@ -55,4 +56,5 @@ __all__ = [
     "FeedbackSession",
     "InvestorRanking",
     "InvestorRankingBatchJob",
+    "AnalystAttachment",
 ]

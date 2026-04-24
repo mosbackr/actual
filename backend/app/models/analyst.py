@@ -77,6 +77,11 @@ class AnalystMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     conversation = relationship("AnalystConversation", back_populates="messages")
+    attachments = relationship(
+        "AnalystAttachment",
+        back_populates="message",
+        cascade="all, delete-orphan",
+    )
 
 
 class AnalystReport(Base):
@@ -99,3 +104,28 @@ class AnalystReport(Base):
 
     conversation = relationship("AnalystConversation", back_populates="reports")
     user = relationship("User")
+
+
+class AnalystAttachment(Base):
+    __tablename__ = "analyst_attachments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=_uuid.uuid4)
+    message_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("analyst_messages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    conversation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("analyst_conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    filename = Column(String(500), nullable=False)
+    file_type = Column(String(20), nullable=False)
+    s3_key = Column(String(1000), nullable=False)
+    file_size_bytes = Column(Integer, nullable=False)
+    extracted_text = Column(Text, nullable=True)
+    is_image = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    message = relationship("AnalystMessage", back_populates="attachments")
