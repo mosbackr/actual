@@ -6,7 +6,7 @@ const ALLOWED_EXTENSIONS = new Set([
   "pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "csv", "md", "txt",
   "png", "jpg", "jpeg", "gif", "webp",
 ]);
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const MAX_FILES = 10;
 
 interface Props {
@@ -44,7 +44,7 @@ export function AnalystInput({ onSend, onGenerateReport, isStreaming, hasMessage
         return;
       }
       if (file.size > MAX_FILE_SIZE) {
-        setFileError(`${file.name} exceeds 20MB limit`);
+        setFileError(`${file.name} exceeds 50MB limit`);
         return;
       }
       filesToAdd.push(file);

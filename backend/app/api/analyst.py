@@ -40,7 +40,7 @@ SUBSCRIBER_WARNING_AT = 80
 ALLOWED_TEXT_TYPES = {"pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "csv", "md", "txt"}
 ALLOWED_IMAGE_TYPES = {"png", "jpg", "jpeg", "gif", "webp"}
 ALLOWED_FILE_TYPES = ALLOWED_TEXT_TYPES | ALLOWED_IMAGE_TYPES
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_FILES = 10
 MAX_TEXT_CHARS = 100_000  # 100K character limit for context injection
 IMAGE_MEDIA_TYPES = {
@@ -279,7 +279,7 @@ async def send_message(
             raise HTTPException(400, f"Unsupported file type: .{ext}")
         data = await f.read()
         if len(data) > MAX_FILE_SIZE:
-            raise HTTPException(400, f"File {f.filename} exceeds 20MB limit")
+            raise HTTPException(400, f"File {f.filename} exceeds 50MB limit")
         file_data_list.append({
             "filename": f.filename or "unnamed",
             "ext": ext,
