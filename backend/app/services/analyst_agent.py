@@ -251,6 +251,7 @@ async def _web_research(query: str) -> dict:
 async def run_agent(
     messages: list[dict],
     system_prompt: str | None = None,
+    image_blocks: list[dict] | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Run the Claude analyst agent with tool use.
 
@@ -270,7 +271,15 @@ async def run_agent(
     prompt = system_prompt or SYSTEM_PROMPT
 
     # Convert to Claude message format
-    api_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
+    api_messages = []
+    for i, m in enumerate(messages):
+        # For the last user message, inject image blocks if present
+        if i == len(messages) - 1 and m["role"] == "user" and image_blocks:
+            content_blocks = [{"type": "text", "text": m["content"]}]
+            content_blocks.extend(image_blocks)
+            api_messages.append({"role": "user", "content": content_blocks})
+        else:
+            api_messages.append({"role": m["role"], "content": m["content"]})
 
     full_text = ""
     all_charts: list[dict] = []

@@ -1,10 +1,11 @@
 import asyncio
+import base64
 import json
 import logging
 import secrets
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
@@ -14,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user, get_current_user_or_none, get_db
 from app.config import settings
 from app.models.analyst import (
+    AnalystAttachment,
     AnalystConversation,
     AnalystMessage,
     AnalystReport,
@@ -24,6 +26,7 @@ from app.models.analyst import (
 from app.models.user import SubscriptionStatus, User
 from app.services.analyst_agent import run_agent
 from app.services.analyst_reports import generate_report
+from app.services.document_extractor import extract_text
 from app.services import s3
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,20 @@ router = APIRouter()
 FREE_MESSAGE_LIMIT = 20
 SUBSCRIBER_MESSAGE_LIMIT = 100
 SUBSCRIBER_WARNING_AT = 80
+
+ALLOWED_TEXT_TYPES = {"pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "csv", "md", "txt"}
+ALLOWED_IMAGE_TYPES = {"png", "jpg", "jpeg", "gif", "webp"}
+ALLOWED_FILE_TYPES = ALLOWED_TEXT_TYPES | ALLOWED_IMAGE_TYPES
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+MAX_FILES = 10
+MAX_TEXT_CHARS = 100_000  # 100K character limit for context injection
+IMAGE_MEDIA_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -53,17 +70,30 @@ def _conversation_to_dict(c: AnalystConversation, include_messages: bool = False
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
     if include_messages and c.messages:
-        d["messages"] = [
-            {
+        d["messages"] = []
+        for m in c.messages:
+            msg_dict = {
                 "id": str(m.id),
                 "role": m.role.value if hasattr(m.role, "value") else m.role,
                 "content": m.content,
                 "charts": m.charts,
                 "citations": m.citations,
                 "created_at": m.created_at.isoformat() if m.created_at else None,
+                "attachments": [],
             }
-            for m in c.messages
-        ]
+            if hasattr(m, "attachments") and m.attachments:
+                msg_dict["attachments"] = [
+                    {
+                        "id": str(a.id),
+                        "filename": a.filename,
+                        "file_type": a.file_type,
+                        "file_size_bytes": a.file_size_bytes,
+                        "is_image": a.is_image,
+                        "s3_key": a.s3_key,
+                    }
+                    for a in m.attachments
+                ]
+            d["messages"].append(msg_dict)
     if c.reports:
         d["reports"] = [
             {
@@ -154,7 +184,7 @@ async def get_conversation(
             AnalystConversation.user_id == user.id,
         )
         .options(
-            selectinload(AnalystConversation.messages),
+            selectinload(AnalystConversation.messages).selectinload(AnalystMessage.attachments),
             selectinload(AnalystConversation.reports),
         )
     )
@@ -203,11 +233,19 @@ async def delete_conversation(
             AnalystConversation.id == conversation_id,
             AnalystConversation.user_id == user.id,
         )
-        .options(selectinload(AnalystConversation.reports))
+        .options(
+            selectinload(AnalystConversation.reports),
+            selectinload(AnalystConversation.messages).selectinload(AnalystMessage.attachments),
+        )
     )
     conversation = result.scalar_one_or_none()
     if not conversation:
         raise HTTPException(404, "Conversation not found")
+
+    # Clean up S3 attachment files
+    for msg in conversation.messages or []:
+        for att in (msg.attachments or []):
+            s3.delete_file(att.s3_key)
 
     # Clean up S3 report files
     for report in conversation.reports:
@@ -221,17 +259,34 @@ async def delete_conversation(
 
 # ── SSE chat ─────────────────────────────────────────────────────────
 
-class SendMessageBody(BaseModel):
-    content: str
-
-
 @router.post("/api/analyst/conversations/{conversation_id}/messages")
 async def send_message(
     conversation_id: uuid.UUID,
-    body: SendMessageBody,
+    content: str = Form(...),
+    files: list[UploadFile] = File(default=[]),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Validate file count
+    if len(files) > MAX_FILES:
+        raise HTTPException(400, f"Maximum {MAX_FILES} files allowed")
+
+    # Validate files
+    file_data_list: list[dict] = []
+    for f in files:
+        ext = f.filename.rsplit(".", 1)[-1].lower() if f.filename and "." in f.filename else ""
+        if ext not in ALLOWED_FILE_TYPES:
+            raise HTTPException(400, f"Unsupported file type: .{ext}")
+        data = await f.read()
+        if len(data) > MAX_FILE_SIZE:
+            raise HTTPException(400, f"File {f.filename} exceeds 20MB limit")
+        file_data_list.append({
+            "filename": f.filename or "unnamed",
+            "ext": ext,
+            "data": data,
+            "is_image": ext in ALLOWED_IMAGE_TYPES,
+        })
+
     # Load conversation
     result = await db.execute(
         select(AnalystConversation)
@@ -258,26 +313,102 @@ async def send_message(
     user_msg = AnalystMessage(
         conversation_id=conversation.id,
         role=MessageRole.user.value,
-        content=body.content,
+        content=content,
     )
     db.add(user_msg)
     conversation.message_count = (conversation.message_count or 0) + 1
 
     # Update title from first message
     if conversation.message_count == 1:
-        conversation.title = body.content[:100]
+        conversation.title = content[:100]
 
     await db.commit()
+    await db.refresh(user_msg)
+
+    # Process files: upload to S3, extract text, create attachment records
+    attachment_records: list[dict] = []
+    for fd in file_data_list:
+        file_uuid = str(uuid.uuid4())
+        s3_key = f"analyst-attachments/{conversation_id}/{user_msg.id}/{file_uuid}/{fd['filename']}"
+        s3.upload_file(fd["data"], s3_key)
+
+        extracted = None
+        if not fd["is_image"]:
+            extracted = extract_text(fd["data"], fd["filename"], fd["ext"])
+
+        attachment = AnalystAttachment(
+            message_id=user_msg.id,
+            conversation_id=conversation.id,
+            filename=fd["filename"],
+            file_type=fd["ext"],
+            s3_key=s3_key,
+            file_size_bytes=len(fd["data"]),
+            extracted_text=extracted,
+            is_image=fd["is_image"],
+        )
+        db.add(attachment)
+        attachment_records.append({
+            "filename": fd["filename"],
+            "ext": fd["ext"],
+            "is_image": fd["is_image"],
+            "extracted_text": extracted,
+            "image_data": fd["data"] if fd["is_image"] else None,
+        })
+
+    if attachment_records:
+        await db.commit()
 
     # Build message history (last 20)
     history = []
     for msg in conversation.messages[-20:]:
         role = msg.role.value if hasattr(msg.role, "value") else msg.role
-        history.append({"role": role, "content": msg.content})
+        msg_content = msg.content
 
-    # Add the current user message (already in DB but make sure it's in history)
-    if not history or history[-1]["content"] != body.content:
-        history.append({"role": "user", "content": body.content})
+        # For past messages with attachments, show placeholder only
+        if msg.id != user_msg.id:
+            att_result = await db.execute(
+                select(AnalystAttachment.filename).where(AnalystAttachment.message_id == msg.id)
+            )
+            att_names = att_result.scalars().all()
+            if att_names:
+                msg_content += "\n\n" + "\n".join(f"[Attached: {name}]" for name in att_names)
+
+        history.append({"role": role, "content": msg_content})
+
+    # Add current user message with full attachment content
+    current_content = content
+    if attachment_records:
+        text_parts = []
+        for att in attachment_records:
+            if not att["is_image"] and att["extracted_text"]:
+                text_parts.append((att["filename"], att["extracted_text"]))
+
+        # Truncate if total text exceeds limit
+        if text_parts:
+            total_chars = sum(len(t) for _, t in text_parts)
+            for filename, text_content in text_parts:
+                if total_chars > MAX_TEXT_CHARS:
+                    ratio = MAX_TEXT_CHARS / total_chars
+                    truncated_len = int(len(text_content) * ratio)
+                    text_content = text_content[:truncated_len] + f"\n[... truncated, {len(text_content)} characters total ...]"
+                current_content += f"\n\n--- Attached: {filename} ---\n{text_content}"
+
+    # Replace the last history entry with the enriched content
+    if history and history[-1]["content"] == content:
+        history[-1]["content"] = current_content
+    else:
+        history.append({"role": "user", "content": current_content})
+
+    # Build image content blocks for Claude
+    image_blocks: list[dict] = []
+    for att in attachment_records:
+        if att["is_image"] and att["image_data"]:
+            media_type = IMAGE_MEDIA_TYPES.get(att["ext"], "image/png")
+            b64 = base64.b64encode(att["image_data"]).decode("utf-8")
+            image_blocks.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": b64},
+            })
 
     # Capture IDs needed for the streaming closure
     conv_id = conversation.id
@@ -288,7 +419,7 @@ async def send_message(
         citations = []
 
         try:
-            async for event in run_agent(history):
+            async for event in run_agent(history, image_blocks=image_blocks if image_blocks else None):
                 etype = event["type"]
 
                 if etype == "text":
