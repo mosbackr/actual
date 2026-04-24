@@ -214,15 +214,21 @@ export const api = {
     );
   },
 
-  streamMessage(token: string, conversationId: string, content: string) {
+  streamMessage(token: string, conversationId: string, content: string, files?: File[]) {
     const url = `${API_URL}/api/analyst/conversations/${conversationId}/messages`;
+    const formData = new FormData();
+    formData.append("content", content);
+    if (files) {
+      for (const file of files) {
+        formData.append("files", file);
+      }
+    }
     return fetch(url, {
       method: "POST",
       headers: {
-        ...authHeaders(token),
-        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ content }),
+      body: formData,
     });
   },
 

@@ -15,6 +15,7 @@ import type {
 import { AnalystSidebar } from "@/components/analyst/AnalystSidebar";
 import { AnalystChat } from "@/components/analyst/AnalystChat";
 import { AnalystInput } from "@/components/analyst/AnalystInput";
+import { PromptSuggestionsModal } from "@/components/analyst/PromptSuggestionsModal";
 
 export default function InsightsPage() {
   return (
@@ -41,6 +42,32 @@ function InsightsContent() {
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: "info" | "success" | "error" } | null>(null);
   const [deleteConvId, setDeleteConvId] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [promptsModalOpen, setPromptsModalOpen] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files.length > 0) {
+      setAttachedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+    }
+  };
 
   // Let backend 402 responses handle subscription gating rather than
   // relying on a client-side session field that isn't wired through NextAuth.
@@ -130,7 +157,7 @@ function InsightsContent() {
   };
 
   // Send message and handle SSE stream
-  const sendMessage = async (content: string, overrideConvId?: string) => {
+  const sendMessage = async (content: string, overrideConvId?: string, files?: File[]) => {
     const convId = overrideConvId || activeConvId;
     if (!token || isStreaming) return;
 
@@ -157,6 +184,14 @@ function InsightsContent() {
       content,
       charts: null,
       citations: null,
+      attachments: files?.map((f, i) => ({
+        id: `temp-att-${i}`,
+        filename: f.name,
+        file_type: f.name.split(".").pop()?.toLowerCase() || "",
+        file_size_bytes: f.size,
+        is_image: ["png", "jpg", "jpeg", "gif", "webp"].includes(f.name.split(".").pop()?.toLowerCase() || ""),
+        s3_key: "",
+      })),
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
@@ -165,7 +200,7 @@ function InsightsContent() {
     setStreamingStatus("");
 
     try {
-      const response = await api.streamMessage(token, targetConvId, content);
+      const response = await api.streamMessage(token, targetConvId, content, files);
       if (!response.ok) {
         const err = await response.json().catch(() => ({ detail: "Request failed" }));
         throw new Error(err.detail || `Error ${response.status}`);
@@ -317,11 +352,24 @@ function InsightsContent() {
         onSelect={handleSelect}
         onNew={handleNew}
         onSuggestion={handleSuggestion}
+        onOpenPrompts={() => setPromptsModalOpen(true)}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className="flex-1 flex flex-col min-w-0 relative"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 bg-accent/5 border-2 border-dashed border-accent rounded-lg flex items-center justify-center">
+            <p className="text-accent font-medium text-sm">Drop files here</p>
+          </div>
+        )}
+
         {/* Header */}
         {activeConvId && (
           <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface">
@@ -359,15 +407,21 @@ function InsightsContent() {
           streamingContent={streamingContent}
           streamingStatus={streamingStatus}
           isStreaming={isStreaming}
+          onOpenPrompts={() => setPromptsModalOpen(true)}
         />
 
         {/* Input */}
         <AnalystInput
-          onSend={(msg) => sendMessage(msg)}
+          onSend={(msg, files) => {
+            sendMessage(msg, undefined, files);
+            setAttachedFiles([]);
+          }}
           onGenerateReport={handleGenerateReport}
           isStreaming={isStreaming}
           hasMessages={messages.length > 0}
           isSubscriber={true}
+          externalFiles={attachedFiles}
+          onClearExternalFiles={() => setAttachedFiles([])}
         />
       </div>
 
@@ -417,6 +471,11 @@ function InsightsContent() {
         message="Are you sure you want to delete this conversation? This cannot be undone."
         confirmLabel="Delete"
         destructive
+      />
+      <PromptSuggestionsModal
+        open={promptsModalOpen}
+        onClose={() => setPromptsModalOpen(false)}
+        onSelect={handleSuggestion}
       />
     </div>
   );

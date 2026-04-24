@@ -225,6 +225,7 @@ export interface AnalystMessageData {
   content: string;
   charts: AnalystChartConfig[] | null;
   citations: AnalystCitation[] | null;
+  attachments?: AnalystAttachment[];
   created_at: string | null;
 }
 
@@ -242,6 +243,15 @@ export interface AnalystChartConfig {
 export interface AnalystCitation {
   url: string;
   title: string;
+}
+
+export interface AnalystAttachment {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size_bytes: number;
+  is_image: boolean;
+  s3_key: string;
 }
 
 export interface AnalystReportSummary {

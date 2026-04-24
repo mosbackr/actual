@@ -9,9 +9,10 @@ interface Props {
   streamingContent: string;
   streamingStatus?: string;
   isStreaming: boolean;
+  onOpenPrompts?: () => void;
 }
 
-export function AnalystChat({ messages, streamingContent, streamingStatus, isStreaming }: Props) {
+export function AnalystChat({ messages, streamingContent, streamingStatus, isStreaming, onOpenPrompts }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,21 +28,12 @@ export function AnalystChat({ messages, streamingContent, streamingStatus, isStr
             Ask me anything about your portfolio, market trends, competitor analysis, or due diligence.
             I have access to your startup database and external market intelligence.
           </p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {[
-              "What's our strongest sector?",
-              "Compare top 5 by AI score",
-              "Fintech funding trends",
-              "Which startups need attention?",
-            ].map((q) => (
-              <div
-                key={q}
-                className="px-3 py-2 rounded border border-border text-text-tertiary bg-surface"
-              >
-                {q}
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={onOpenPrompts}
+            className="px-5 py-2.5 rounded bg-accent text-white text-sm hover:bg-accent-hover transition"
+          >
+            Browse Suggested Prompts
+          </button>
         </div>
       </div>
     );
@@ -56,6 +48,7 @@ export function AnalystChat({ messages, streamingContent, streamingStatus, isStr
           content={msg.content}
           charts={msg.charts}
           citations={msg.citations}
+          attachments={msg.attachments}
         />
       ))}
 

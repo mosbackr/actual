@@ -3,17 +3,18 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AnalystChart } from "./AnalystChart";
-import type { AnalystChartConfig, AnalystCitation } from "@/lib/types";
+import type { AnalystChartConfig, AnalystCitation, AnalystAttachment } from "@/lib/types";
 
 interface Props {
   role: "user" | "assistant";
   content: string;
   charts?: AnalystChartConfig[] | null;
   citations?: AnalystCitation[] | null;
+  attachments?: AnalystAttachment[];
   isStreaming?: boolean;
 }
 
-export function AnalystMessage({ role, content, charts, citations, isStreaming }: Props) {
+export function AnalystMessage({ role, content, charts, citations, attachments, isStreaming }: Props) {
   const isUser = role === "user";
 
   return (
@@ -70,6 +71,29 @@ export function AnalystMessage({ role, content, charts, citations, isStreaming }
             {isStreaming && (
               <span className="inline-block w-2 h-4 bg-accent/60 animate-pulse ml-0.5" />
             )}
+          </div>
+        )}
+
+        {/* Attachments */}
+        {attachments && attachments.length > 0 && (
+          <div className={`flex flex-wrap gap-1.5 mt-2 ${isUser ? "" : "border-t border-border/30 pt-2"}`}>
+            {attachments.map((att) => (
+              <span
+                key={att.id}
+                className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded ${
+                  isUser
+                    ? "bg-white/15 text-white/90"
+                    : "bg-background border border-border text-text-secondary"
+                }`}
+              >
+                {att.is_image ? "\u{1F5BC}" : "\u{1F4CE}"} {att.filename}
+                <span className="opacity-60">
+                  ({att.file_size_bytes < 1024 * 1024
+                    ? `${(att.file_size_bytes / 1024).toFixed(0)}KB`
+                    : `${(att.file_size_bytes / (1024 * 1024)).toFixed(1)}MB`})
+                </span>
+              </span>
+            ))}
           </div>
         )}
 
