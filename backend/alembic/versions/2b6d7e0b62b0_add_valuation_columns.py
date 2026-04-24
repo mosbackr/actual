@@ -1,6 +1,6 @@
 """add valuation and technical review columns to pitch_analyses
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 2b6d7e0b62b0
 Revises: z5a6b7c8d9e0
 Create Date: 2026-04-24 12:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers
-revision = "a1b2c3d4e5f6"
+revision = "2b6d7e0b62b0"
 down_revision = "z5a6b7c8d9e0"
 branch_labels = None
 depends_on = None
