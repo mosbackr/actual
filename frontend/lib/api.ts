@@ -353,6 +353,36 @@ export const api = {
     return `${API_URL}/api/analyze/${analysisId}/memo/download/${format}`;
   },
 
+  // ── Investor FAQ ───────────────────────────────────────────────────
+
+  async generateAnalysisFaq(token: string, analysisId: string) {
+    return apiFetch<import("./types").InvestorFAQ>(
+      `/api/analyze/${analysisId}/faq`,
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
+  async getAnalysisFaq(token: string, analysisId: string) {
+    return apiFetch<import("./types").InvestorFAQ>(
+      `/api/analyze/${analysisId}/faq`,
+      { headers: authHeaders(token) }
+    );
+  },
+
+  async generatePitchFaq(token: string, sessionId: string) {
+    return apiFetch<import("./types").InvestorFAQ>(
+      `/api/pitch-intelligence/${sessionId}/faq`,
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
+  async getPitchFaq(token: string, sessionId: string) {
+    return apiFetch<import("./types").InvestorFAQ>(
+      `/api/pitch-intelligence/${sessionId}/faq`,
+      { headers: authHeaders(token) }
+    );
+  },
+
   // ── Watchlist ─────────────────────────────────────────────────────
 
   async getWatchlist(token: string, page = 1) {

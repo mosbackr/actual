@@ -426,3 +426,17 @@ export interface FeedbackSessionResponse {
   id: string;
   status: string;
 }
+
+// ── Investor FAQ types ────────────────────────────────────────────────
+
+export interface InvestorFAQQuestion {
+  category: string;
+  question: string;
+  answer: string;
+  priority: "high" | "medium" | "low";
+}
+
+export interface InvestorFAQ {
+  generated_at: string;
+  questions: InvestorFAQQuestion[];
+}

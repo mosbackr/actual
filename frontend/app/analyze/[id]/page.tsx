@@ -133,6 +133,8 @@ export default function AnalysisResultPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [memo, setMemo] = useState<InvestmentMemo | null>(null);
   const [memoLoading, setMemoLoading] = useState(false);
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [hasFaq, setHasFaq] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCallItem[]>([]);
   const [logOpen, setLogOpen] = useState(false);
   const lastToolCallTs = useRef<string | undefined>(undefined);
@@ -182,11 +184,22 @@ export default function AnalysisResultPage() {
     }
   }, [token, id]);
 
+  const checkFaq = useCallback(async () => {
+    if (!token || !id) return;
+    try {
+      await api.getAnalysisFaq(token, id);
+      setHasFaq(true);
+    } catch {
+      setHasFaq(false);
+    }
+  }, [token, id]);
+
   useEffect(() => {
     fetchData();
     fetchMemo();
     fetchToolCalls();
-  }, [fetchData, fetchMemo, fetchToolCalls]);
+    checkFaq();
+  }, [fetchData, fetchMemo, fetchToolCalls, checkFaq]);
 
   useEffect(() => {
     if (!analysis) return;
@@ -213,6 +226,19 @@ export default function AnalysisResultPage() {
     const timer = setInterval(fetchToolCalls, 3000);
     return () => clearInterval(timer);
   }, [analysis?.status, fetchToolCalls]);
+
+  async function handleGenerateFaq() {
+    if (!token || !id) return;
+    setFaqLoading(true);
+    try {
+      await api.generateAnalysisFaq(token, id);
+      setHasFaq(true);
+      router.push(`/analyze/${id}/faq`);
+    } catch {
+      // ignore
+    }
+    setFaqLoading(false);
+  }
 
   async function handleGenerateMemo() {
     if (!token || !id) return;
@@ -334,6 +360,28 @@ export default function AnalysisResultPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {analysis.status === "complete" && !hasFaq && !faqLoading && (
+            <button
+              onClick={handleGenerateFaq}
+              className="px-3 py-1.5 text-xs font-medium rounded border border-accent text-accent hover:bg-accent hover:text-white transition"
+            >
+              Generate Investor FAQ
+            </button>
+          )}
+          {analysis.status === "complete" && faqLoading && (
+            <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <span className="animate-spin inline-block w-3 h-3 border border-accent/30 border-t-accent rounded-full" />
+              Generating FAQ...
+            </span>
+          )}
+          {hasFaq && (
+            <Link
+              href={`/analyze/${id}/faq`}
+              className="text-xs font-medium text-accent/70 hover:text-accent transition"
+            >
+              Investor FAQ
+            </Link>
+          )}
           {analysis.status === "complete" && !memo && !memoLoading && (
             <button
               onClick={handleGenerateMemo}

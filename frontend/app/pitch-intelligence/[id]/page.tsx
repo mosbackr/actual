@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type {
   PitchSessionDetail,
@@ -31,6 +32,8 @@ function PitchSessionContent() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"transcript" | "fact-check" | "analysis" | "scores">("transcript");
   const [factCheckTab, setFactCheckTab] = useState<"founders" | "investors">("founders");
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [hasFaq, setHasFaq] = useState(false);
 
   // Speaker labeling state
   const [speakerLabels, setSpeakerLabels] = useState<Record<string, { name: string; role: string }>>({});
@@ -66,9 +69,33 @@ function PitchSessionContent() {
     }
   }, [token, sessionId]);
 
+  const checkFaq = useCallback(async () => {
+    if (!token || !sessionId) return;
+    try {
+      await api.getPitchFaq(token, sessionId);
+      setHasFaq(true);
+    } catch {
+      setHasFaq(false);
+    }
+  }, [token, sessionId]);
+
   useEffect(() => {
     loadSession();
-  }, [loadSession]);
+    checkFaq();
+  }, [loadSession, checkFaq]);
+
+  async function handleGenerateFaq() {
+    if (!token || !sessionId) return;
+    setFaqLoading(true);
+    try {
+      await api.generatePitchFaq(token, sessionId);
+      setHasFaq(true);
+      router.push(`/pitch-intelligence/${sessionId}/faq`);
+    } catch {
+      // ignore
+    }
+    setFaqLoading(false);
+  }
 
   // Poll for status updates when transcribing or analyzing
   useEffect(() => {
@@ -263,12 +290,36 @@ function PitchSessionContent() {
             {ps.file_duration_seconds ? ` · ${Math.round(ps.file_duration_seconds / 60)} min` : ""}
           </p>
         </div>
-        {scores.overall != null && (
-          <div className="text-right">
-            <div className="text-3xl font-bold text-accent">{scores.overall}</div>
-            <div className="text-xs text-text-tertiary">Overall Score</div>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {ps.status === "complete" && !hasFaq && !faqLoading && (
+            <button
+              onClick={handleGenerateFaq}
+              className="px-3 py-1.5 text-xs font-medium rounded border border-accent text-accent hover:bg-accent hover:text-white transition"
+            >
+              Generate Investor FAQ
+            </button>
+          )}
+          {ps.status === "complete" && faqLoading && (
+            <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <span className="animate-spin inline-block w-3 h-3 border border-accent/30 border-t-accent rounded-full" />
+              Generating FAQ...
+            </span>
+          )}
+          {hasFaq && (
+            <Link
+              href={`/pitch-intelligence/${sessionId}/faq`}
+              className="text-xs font-medium text-accent/70 hover:text-accent transition"
+            >
+              Investor FAQ
+            </Link>
+          )}
+          {scores.overall != null && (
+            <div className="text-right">
+              <div className="text-3xl font-bold text-accent">{scores.overall}</div>
+              <div className="text-xs text-text-tertiary">Overall Score</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Phase Progress */}

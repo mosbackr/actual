@@ -70,6 +70,7 @@ from app.api.pitch_intelligence import router as pitch_intelligence_router
 from app.api.feedback import router as feedback_router
 from app.api.admin_feedback import router as admin_feedback_router
 from app.api.admin_investor_rankings import router as admin_investor_rankings_router
+from app.api.faq import router as faq_router
 
 app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
 
@@ -127,6 +128,7 @@ app.include_router(pitch_intelligence_router)
 app.include_router(feedback_router)
 app.include_router(admin_feedback_router)
 app.include_router(admin_investor_rankings_router)
+app.include_router(faq_router)
 
 
 @app.get("/api/health")

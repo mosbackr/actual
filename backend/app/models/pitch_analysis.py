@@ -58,6 +58,7 @@ class PitchAnalysis(Base):
     estimated_valuation: Mapped[str | None] = mapped_column(String(200), nullable=True)
     valuation_justification: Mapped[str | None] = mapped_column(Text, nullable=True)
     technical_expert_review: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    investor_faq: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     startup_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("startups.id"), nullable=True
     )
