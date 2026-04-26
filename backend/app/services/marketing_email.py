@@ -88,7 +88,11 @@ def render_for_recipient(
     cta_url = f"{frontend_url}/score/{investor_id}"
     unsubscribe_url = generate_unsubscribe_url(str(investor_id), frontend_url)
 
-    html = html_template.replace("{{score}}", score)
+    # Decode HTML-encoded braces that Claude may generate
+    html = html_template.replace("&#123;", "{").replace("&#125;", "}")
+    html = html.replace("&lbrace;", "{").replace("&rbrace;", "}")
+
+    html = html.replace("{{score}}", score)
     html = html.replace("{{cta_url}}", cta_url)
     html = html.replace("{{unsubscribe_url}}", unsubscribe_url)
     html = html.replace("{{company_address}}", settings.company_address)

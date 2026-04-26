@@ -30,8 +30,10 @@ function previewHtml(html: string): string {
     exit_track_record: "76",
   };
   let result = html;
+  // Decode HTML entities so {{placeholders}} are literal before replacing
+  result = result.replace(/&#123;/g, "{").replace(/&#125;/g, "}");
+  result = result.replace(/&lbrace;/g, "{").replace(/&rbrace;/g, "}");
   for (const [key, value] of Object.entries(replacements)) {
-    // Match {{key}} even if HTML tags are interspersed (e.g. <strong>{{key}}</strong> or {{<b>key</b>}})
     result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "gi"), value);
   }
   return result;
