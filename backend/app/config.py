@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Email (Resend)
     resend_api_key: str = ""
     email_from: str = "gaius@deepthesis.org"
+    marketing_email_from: str = "updates@deepthesis.co"
 
     model_config = {"env_prefix": "ACUTAL_"}
 

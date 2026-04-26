@@ -2,13 +2,14 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
 from jose import jwt
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models.user import AuthProvider, SubscriptionStatus, SubscriptionTier, User
+from app.models.investor import Investor
+from app.models.user import AuthProvider, SubscriptionStatus, SubscriptionTier, User, UserRole
 from app.services import email_service
 
 
@@ -56,6 +57,19 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
+async def _maybe_assign_investor_role(user: User, db: AsyncSession) -> None:
+    """Upgrade user to investor role if their email matches a scored investor."""
+    if user.role not in (UserRole.user, UserRole.investor):
+        return  # Don't downgrade expert/admin/superadmin
+    result = await db.execute(
+        select(Investor).where(func.lower(Investor.email) == user.email.lower())
+    )
+    investor = result.scalar_one_or_none()
+    if investor and user.role == UserRole.user:
+        user.role = UserRole.investor
+        await db.commit()
+
+
 def make_token(user: User) -> str:
     return jwt.encode(
         {"sub": str(user.id), "email": user.email, "role": user.role.value},
@@ -95,6 +109,8 @@ async def register(body: RegisterIn, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(user)
 
+    await _maybe_assign_investor_role(user, db)
+
     email_service.send_welcome(user_email=user.email, user_name=user.name)
 
     return {
@@ -115,6 +131,8 @@ async def login(body: LoginIn, db: AsyncSession = Depends(get_db)):
 
     if not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    await _maybe_assign_investor_role(user, db)
 
     return {"token": make_token(user), "user": _user_dict(user)}
 
