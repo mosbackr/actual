@@ -19,6 +19,7 @@ class AuthProvider(str, enum.Enum):
 class UserRole(str, enum.Enum):
     user = "user"
     expert = "expert"
+    investor = "investor"
     superadmin = "superadmin"
 
 
