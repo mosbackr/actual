@@ -29,7 +29,6 @@ class TestSendRequest(BaseModel):
     email: str
     subject: str
     html_template: str
-    investor_id: str
 
 
 @router.post("/api/admin/marketing/generate")
@@ -243,16 +242,16 @@ async def send_test_email(
 ):
     from app.models.investor_ranking import InvestorRanking
 
-    investor_id = uuid.UUID(body.investor_id)
-
     ranking = (
         await db.execute(
-            select(InvestorRanking).where(InvestorRanking.investor_id == investor_id)
+            select(InvestorRanking).limit(1)
         )
     ).scalar_one_or_none()
 
     if not ranking:
-        raise HTTPException(status_code=404, detail="No ranking found for this investor")
+        raise HTTPException(status_code=404, detail="No ranked investors found")
+
+    investor_id = ranking.investor_id
 
     from app.services.marketing_email import render_for_recipient
     import resend

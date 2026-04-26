@@ -48,10 +48,8 @@ export default function MarketingPage() {
 
   // Test send state
   const [testEmail, setTestEmail] = useState("");
-  const [testInvestorId, setTestInvestorId] = useState("");
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
-  const [scoredInvestors, setScoredInvestors] = useState<{ id: string; firm_name: string; partner_name: string }[]>([]);
 
   // Sent emails state
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
@@ -108,19 +106,6 @@ export default function MarketingPage() {
     }, 5000);
     return () => clearInterval(interval);
   }, [verificationJobs, fetchVerificationJobs]);
-
-  useEffect(() => {
-    if (!token) return;
-    adminApi.getRankedInvestors(token, { per_page: 500 }).then((data) => {
-      setScoredInvestors(
-        data.items.map((inv) => ({
-          id: inv.investor_id,
-          firm_name: inv.firm_name,
-          partner_name: inv.partner_name,
-        }))
-      );
-    }).catch(() => {});
-  }, [token]);
 
   async function toggleJobEmails(jobId: string) {
     if (expandedJobId === jobId) {
@@ -209,11 +194,11 @@ export default function MarketingPage() {
   }
 
   async function handleTestSend() {
-    if (!token || !testEmail.trim() || !testInvestorId || !generatedHtml.trim() || !subject.trim()) return;
+    if (!token || !testEmail.trim() || !generatedHtml.trim() || !subject.trim()) return;
     setTestSending(true);
     setTestResult(null);
     try {
-      const result = await adminApi.sendTestEmail(token, testEmail, subject, generatedHtml, testInvestorId);
+      const result = await adminApi.sendTestEmail(token, testEmail, subject, generatedHtml);
       setTestResult(result.message);
     } catch (e: any) {
       setTestResult(`Error: ${e.message || "Failed to send test email"}`);
@@ -275,7 +260,7 @@ export default function MarketingPage() {
             {generatedHtml ? (
               <iframe
                 ref={iframeRef}
-                sandbox=""
+                sandbox="allow-same-origin"
                 title="Email Preview"
                 className="w-full h-[400px] border border-border rounded bg-white"
               />
@@ -292,8 +277,8 @@ export default function MarketingPage() {
         {/* Test Send */}
         <div className="border border-border rounded-lg p-4 mb-6 bg-surface">
           <h2 className="text-sm font-medium text-text-primary mb-3">Send Test Email</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
               <label className="block text-xs text-text-secondary mb-1">Your Email</label>
               <input
                 type="email"
@@ -303,30 +288,13 @@ export default function MarketingPage() {
                 className="w-full px-3 py-2 border border-border rounded bg-background text-text-primary text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent"
               />
             </div>
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Investor</label>
-              <select
-                value={testInvestorId}
-                onChange={(e) => setTestInvestorId(e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded bg-background text-text-primary text-sm focus:outline-none focus:border-accent"
-              >
-                <option value="">Select an investor...</option>
-                {scoredInvestors.map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.firm_name} — {inv.partner_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={handleTestSend}
-                disabled={testSending || !testEmail.trim() || !testInvestorId || !generatedHtml.trim() || !subject.trim()}
-                className="px-4 py-2 bg-accent text-white text-sm rounded hover:bg-accent/90 transition disabled:opacity-50"
-              >
-                {testSending ? "Sending..." : "Send Test"}
-              </button>
-            </div>
+            <button
+              onClick={handleTestSend}
+              disabled={testSending || !testEmail.trim() || !generatedHtml.trim() || !subject.trim()}
+              className="px-4 py-2 bg-accent text-white text-sm rounded hover:bg-accent/90 transition disabled:opacity-50"
+            >
+              {testSending ? "Sending..." : "Send Test"}
+            </button>
           </div>
           {testResult && (
             <p className={`text-xs mt-2 ${testResult.startsWith("Error") ? "text-red-500" : "text-green-600"}`}>

@@ -405,9 +405,9 @@ export const adminApi = {
   getVerificationJobs: (token: string) =>
     apiFetch<VerificationJob[]>("/api/admin/marketing/verify/jobs", token),
 
-  sendTestEmail: (token: string, email: string, subject: string, htmlTemplate: string, investorId: string) =>
+  sendTestEmail: (token: string, email: string, subject: string, htmlTemplate: string) =>
     apiFetch<{ ok: boolean; message: string }>("/api/admin/marketing/test-send", token, {
       method: "POST",
-      body: JSON.stringify({ email, subject, html_template: htmlTemplate, investor_id: investorId }),
+      body: JSON.stringify({ email, subject, html_template: htmlTemplate }),
     }),
 };
