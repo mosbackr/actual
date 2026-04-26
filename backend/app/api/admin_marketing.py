@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_role
+from app.config import settings
 from app.db.session import get_db
 from app.models.investor import BatchJobStatus
 from app.models.marketing import MarketingEmailJob
@@ -22,6 +23,13 @@ class GenerateRequest(BaseModel):
 class SendRequest(BaseModel):
     subject: str
     html_template: str
+
+
+class TestSendRequest(BaseModel):
+    email: str
+    subject: str
+    html_template: str
+    investor_id: str
 
 
 @router.post("/api/admin/marketing/generate")
@@ -142,3 +150,102 @@ async def list_marketing_jobs(
         }
         for job in jobs
     ]
+
+
+@router.post("/api/admin/marketing/verify")
+async def start_verification(
+    background_tasks: BackgroundTasks,
+    _user: User = Depends(require_role("superadmin")),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.marketing import EmailVerificationJob
+
+    job = EmailVerificationJob()
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    from app.services.email_verification import run_verification_batch
+
+    background_tasks.add_task(run_verification_batch, str(job.id))
+
+    return {"id": str(job.id), "status": job.status}
+
+
+@router.get("/api/admin/marketing/verify/jobs")
+async def list_verification_jobs(
+    _user: User = Depends(require_role("superadmin")),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.marketing import EmailVerificationJob
+
+    result = await db.execute(
+        select(EmailVerificationJob)
+        .order_by(EmailVerificationJob.created_at.desc())
+        .limit(20)
+    )
+    jobs = result.scalars().all()
+
+    return [
+        {
+            "id": str(job.id),
+            "status": job.status,
+            "total_recipients": job.total_recipients,
+            "verified_count": job.verified_count,
+            "corrected_count": job.corrected_count,
+            "bounced_count": job.bounced_count,
+            "skipped_count": job.skipped_count,
+            "current_investor_name": job.current_investor_name,
+            "error": job.error,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+        }
+        for job in jobs
+    ]
+
+
+@router.post("/api/admin/marketing/test-send")
+async def send_test_email(
+    body: TestSendRequest,
+    _user: User = Depends(require_role("superadmin")),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.investor_ranking import InvestorRanking
+
+    investor_id = uuid.UUID(body.investor_id)
+
+    ranking = (
+        await db.execute(
+            select(InvestorRanking).where(InvestorRanking.investor_id == investor_id)
+        )
+    ).scalar_one_or_none()
+
+    if not ranking:
+        raise HTTPException(status_code=404, detail="No ranking found for this investor")
+
+    from app.services.marketing_email import render_for_recipient
+    import resend
+
+    personalized_html = render_for_recipient(
+        body.html_template, ranking, investor_id, settings.frontend_url
+    )
+
+    if not settings.resend_api_key:
+        raise HTTPException(status_code=500, detail="Resend API key not configured")
+
+    resend.api_key = settings.resend_api_key
+
+    try:
+        resend.Emails.send(
+            {
+                "from": settings.marketing_email_from,
+                "to": [body.email],
+                "subject": body.subject,
+                "html": personalized_html,
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send: {e}")
+
+    return {"ok": True, "message": f"Test email sent to {body.email}"}
