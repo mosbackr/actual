@@ -378,3 +378,20 @@ export interface MarketingJob {
   completed_at: string | null;
   created_at: string | null;
 }
+
+// ── Email Verification ──────────────────────────────────────────────
+
+export interface VerificationJob {
+  id: string;
+  status: "pending" | "running" | "completed" | "failed";
+  total_recipients: number;
+  verified_count: number;
+  corrected_count: number;
+  bounced_count: number;
+  skipped_count: number;
+  current_investor_name: string | null;
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+}

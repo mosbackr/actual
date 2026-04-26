@@ -15,6 +15,7 @@ import type {
   InvestorListResponse,
   MarketingJob,
   PipelineStartup,
+  VerificationJob,
   RankedInvestorListResponse,
   RankingBatchStatus,
   ScoutAddResponse,
@@ -392,4 +393,18 @@ export const adminApi = {
 
   getMarketingJobs: (token: string) =>
     apiFetch<MarketingJob[]>("/api/admin/marketing/jobs", token),
+
+  startVerification: (token: string) =>
+    apiFetch<{ id: string; status: string }>("/api/admin/marketing/verify", token, {
+      method: "POST",
+    }),
+
+  getVerificationJobs: (token: string) =>
+    apiFetch<VerificationJob[]>("/api/admin/marketing/verify/jobs", token),
+
+  sendTestEmail: (token: string, email: string, subject: string, htmlTemplate: string, investorId: string) =>
+    apiFetch<{ ok: boolean; message: string }>("/api/admin/marketing/test-send", token, {
+      method: "POST",
+      body: JSON.stringify({ email, subject, html_template: htmlTemplate, investor_id: investorId }),
+    }),
 };
