@@ -76,7 +76,74 @@ export default function ScoreDetailPage() {
   }
 
   if (error) {
-    return <div className="text-center py-20 text-red-600">{error}</div>;
+    return (
+      <div className="mx-auto max-w-2xl py-16 px-6 text-center">
+        <div
+          style={{
+            display: "inline-block",
+            width: 48,
+            height: 48,
+            borderRadius: "50%",
+            background: "#F28C28",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 24,
+            lineHeight: "48px",
+            textAlign: "center",
+            marginBottom: 24,
+          }}
+        >
+          D
+        </div>
+        <h1 className="font-serif text-3xl text-text-primary mb-3">
+          Deep Thesis
+        </h1>
+        <p className="text-lg text-text-secondary mb-6">
+          Data-driven investor intelligence, powered by founder feedback.
+        </p>
+        <div className="rounded border border-border bg-surface p-6 text-left mb-8">
+          <h2 className="font-serif text-lg text-text-primary mb-4">
+            What we do for investors
+          </h2>
+          <ul className="space-y-3 text-sm text-text-secondary">
+            <li className="flex gap-3">
+              <span style={{ color: "#F28C28", fontWeight: 600 }}>01</span>
+              <span>
+                <strong className="text-text-primary">Transparent Scoring</strong> — See how
+                founders rate your deal activity, sector expertise, follow-on
+                support, and more across 7 dimensions.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span style={{ color: "#F28C28", fontWeight: 600 }}>02</span>
+              <span>
+                <strong className="text-text-primary">Benchmark Your Firm</strong> — Understand
+                where you stand relative to peers and identify areas to
+                strengthen your value proposition.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span style={{ color: "#F28C28", fontWeight: 600 }}>03</span>
+              <span>
+                <strong className="text-text-primary">Actionable Insights</strong> — Each score
+                comes with an analyst narrative explaining the data behind the
+                numbers.
+              </span>
+            </li>
+          </ul>
+        </div>
+        <p className="text-sm text-text-tertiary mb-6">
+          Sign in to view your personalized investor score.
+        </p>
+        <a
+          href={`/auth/signin?callbackUrl=/score/${id}`}
+          className="inline-block px-6 py-3 rounded-full text-white font-semibold text-sm"
+          style={{ background: "#F28C28" }}
+        >
+          Sign In to View Your Score
+        </a>
+      </div>
+    );
   }
 
   if (!data) {
