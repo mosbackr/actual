@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     stripe_price_starter: str = ""
     stripe_price_professional: str = ""
     stripe_price_unlimited: str = ""
-    frontend_url: str = "https://www.deepthesis.org"
+    frontend_url: str = "https://www.deepthesis.co"
     promo_code_unlimited: str = "DEEPTHESIS2026"
 
     # Email (Resend)

@@ -23,7 +23,7 @@ services:
     environment:
       ACUTAL_DATABASE_URL: postgresql+asyncpg://acutal:${DB_PASSWORD}@db:5432/acutal
       ACUTAL_JWT_SECRET: ${JWT_SECRET}
-      ACUTAL_CORS_ORIGINS: '["https://deepthesis.org","https://www.deepthesis.org","https://admin.deepthesis.org","http://localhost:3000","http://localhost:3001"]'
+      ACUTAL_CORS_ORIGINS: '["https://deepthesis.org","https://www.deepthesis.co","https://admin.deepthesis.org","http://localhost:3000","http://localhost:3001"]'
       ACUTAL_PERPLEXITY_API_KEY: ${ACUTAL_PERPLEXITY_API_KEY:-}
       ACUTAL_ANTHROPIC_API_KEY: ${ACUTAL_ANTHROPIC_API_KEY:-}
       ACUTAL_DATABASE_READONLY_URL: ${ACUTAL_DATABASE_READONLY_URL:-}
@@ -36,7 +36,7 @@ services:
       ACUTAL_STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
       ACUTAL_STRIPE_PRICE_PROFESSIONAL: ${STRIPE_PRICE_PROFESSIONAL:-}
       ACUTAL_STRIPE_PRICE_UNLIMITED: ${STRIPE_PRICE_UNLIMITED:-}
-      ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://www.deepthesis.org}
+      ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://www.deepthesis.co}
       ACUTAL_RESEND_API_KEY: ${RESEND_API_KEY:-}
       ACUTAL_EMAIL_FROM: ${EMAIL_FROM:-gaius@deepthesis.org}
       ACUTAL_DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
@@ -56,7 +56,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: ""
-      NEXTAUTH_URL: https://www.deepthesis.org
+      NEXTAUTH_URL: https://www.deepthesis.co
       NEXTAUTH_SECRET: ${JWT_SECRET}
       NEXTAUTH_BACKEND_URL: http://backend:8000
     depends_on:
@@ -92,7 +92,7 @@ services:
       - ACUTAL_S3_BUCKET_NAME=${S3_BUCKET_NAME:-deepthesis-pitch-documents}
       - ACUTAL_RESEND_API_KEY=${RESEND_API_KEY:-}
       - ACUTAL_EMAIL_FROM=${EMAIL_FROM:-gaius@deepthesis.org}
-      - ACUTAL_FRONTEND_URL=${FRONTEND_URL:-https://www.deepthesis.org}
+      - ACUTAL_FRONTEND_URL=${FRONTEND_URL:-https://www.deepthesis.co}
       - ACUTAL_DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
       - ACUTAL_HUNTER_API_KEY=${HUNTER_API_KEY:-}
       - ACUTAL_NEVERBOUNCE_API_KEY=${NEVERBOUNCE_API_KEY:-}

@@ -240,32 +240,37 @@ async def send_test_email(
     _user: User = Depends(require_role("superadmin")),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models.investor_ranking import InvestorRanking
+    import logging
+    import traceback
 
-    ranking = (
-        await db.execute(
-            select(InvestorRanking).limit(1)
-        )
-    ).scalar_one_or_none()
-
-    if not ranking:
-        raise HTTPException(status_code=404, detail="No ranked investors found")
-
-    investor_id = ranking.investor_id
-
-    from app.services.marketing_email import render_for_recipient
-    import resend
-
-    personalized_html = render_for_recipient(
-        body.html_template, ranking, investor_id, settings.frontend_url
-    )
-
-    if not settings.resend_api_key:
-        raise HTTPException(status_code=500, detail="Resend API key not configured")
-
-    resend.api_key = settings.resend_api_key
+    logger = logging.getLogger(__name__)
 
     try:
+        from app.models.investor_ranking import InvestorRanking
+
+        ranking = (
+            await db.execute(
+                select(InvestorRanking).limit(1)
+            )
+        ).scalar_one_or_none()
+
+        if not ranking:
+            raise HTTPException(status_code=404, detail="No ranked investors found")
+
+        investor_id = ranking.investor_id
+
+        from app.services.marketing_email import render_for_recipient
+        import resend
+
+        personalized_html = render_for_recipient(
+            body.html_template, ranking, investor_id, settings.frontend_url
+        )
+
+        if not settings.resend_api_key:
+            raise HTTPException(status_code=500, detail="Resend API key not configured")
+
+        resend.api_key = settings.resend_api_key
+
         resend.Emails.send(
             {
                 "from": settings.marketing_email_from,
@@ -274,7 +279,10 @@ async def send_test_email(
                 "html": personalized_html,
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Test send failed: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to send: {e}")
 
     return {"ok": True, "message": f"Test email sent to {body.email}"}
