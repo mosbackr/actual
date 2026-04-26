@@ -18,7 +18,9 @@ const STATUS_COLORS: Record<string, string> = {
 function previewHtml(html: string): string {
   return html
     .replace(/\{\{score\}\}/g, "85")
-    .replace(/\{\{cta_url\}\}/g, "https://www.deepthesis.org/score/example");
+    .replace(/\{\{cta_url\}\}/g, "https://www.deepthesis.org/score/example")
+    .replace(/\{\{unsubscribe_url\}\}/g, "#")
+    .replace(/\{\{company_address\}\}/g, "3965 Lewis Link, New Albany, OH 43054");
 }
 
 export default function MarketingPage() {
@@ -403,7 +405,7 @@ export default function MarketingPage() {
             <div className="bg-surface border border-border rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-medium text-text-primary mb-2">Confirm Send</h3>
               <p className="text-sm text-text-secondary mb-4">
-                Are you sure you want to send this email to all scored investors? Subject: <strong>{subject}</strong>
+                Are you sure you want to send this email to all verified investors? Subject: <strong>{subject}</strong>
               </p>
               <div className="flex justify-end gap-3">
                 <button
