@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     s3_bucket_name: str = "deepthesis-pitch-documents"
     deepgram_api_key: str = ""
 
+    # Zoom Marketplace
+    zoom_client_id: str = ""
+    zoom_client_secret: str = ""
+    zoom_webhook_secret: str = ""
+
     # Stripe
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
