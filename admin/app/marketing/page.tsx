@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { adminApi } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { AccessDenied } from "@/components/AccessDenied";
-import type { MarketingJob } from "@/lib/types";
+import type { MarketingJob, VerificationJob } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -40,6 +40,17 @@ export default function MarketingPage() {
   const [jobs, setJobs] = useState<MarketingJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
 
+  // Verification state
+  const [verificationJobs, setVerificationJobs] = useState<VerificationJob[]>([]);
+  const [verifying, setVerifying] = useState(false);
+
+  // Test send state
+  const [testEmail, setTestEmail] = useState("");
+  const [testInvestorId, setTestInvestorId] = useState("");
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [scoredInvestors, setScoredInvestors] = useState<{ id: string; firm_name: string; partner_name: string }[]>([]);
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const fetchJobs = useCallback(async () => {
@@ -53,9 +64,23 @@ export default function MarketingPage() {
     setJobsLoading(false);
   }, [token]);
 
+  const fetchVerificationJobs = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await adminApi.getVerificationJobs(token);
+      setVerificationJobs(data);
+    } catch (e) {
+      console.error("Failed to load verification jobs", e);
+    }
+  }, [token]);
+
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  useEffect(() => {
+    fetchVerificationJobs();
+  }, [fetchVerificationJobs]);
 
   // Poll running jobs every 5 seconds
   useEffect(() => {
@@ -66,6 +91,29 @@ export default function MarketingPage() {
     }, 5000);
     return () => clearInterval(interval);
   }, [jobs, fetchJobs]);
+
+  // Poll running verification jobs every 5 seconds
+  useEffect(() => {
+    const hasActive = verificationJobs.some((j) => j.status === "running");
+    if (!hasActive) return;
+    const interval = setInterval(() => {
+      fetchVerificationJobs();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [verificationJobs, fetchVerificationJobs]);
+
+  useEffect(() => {
+    if (!token) return;
+    adminApi.getRankedInvestors(token, { per_page: 500 }).then((data) => {
+      setScoredInvestors(
+        data.items.map((inv) => ({
+          id: inv.investor_id,
+          firm_name: inv.firm_name,
+          partner_name: inv.partner_name,
+        }))
+      );
+    }).catch(() => {});
+  }, [token]);
 
   // Update iframe when HTML changes
   useEffect(() => {
@@ -122,6 +170,31 @@ export default function MarketingPage() {
     } catch (e: any) {
       alert(e.message || "Failed to resume job");
     }
+  }
+
+  async function handleVerify() {
+    if (!token) return;
+    setVerifying(true);
+    try {
+      await adminApi.startVerification(token);
+      await fetchVerificationJobs();
+    } catch (e: any) {
+      alert(e.message || "Failed to start verification");
+    }
+    setVerifying(false);
+  }
+
+  async function handleTestSend() {
+    if (!token || !testEmail.trim() || !testInvestorId || !generatedHtml.trim() || !subject.trim()) return;
+    setTestSending(true);
+    setTestResult(null);
+    try {
+      const result = await adminApi.sendTestEmail(token, testEmail, subject, generatedHtml, testInvestorId);
+      setTestResult(result.message);
+    } catch (e: any) {
+      setTestResult(`Error: ${e.message || "Failed to send test email"}`);
+    }
+    setTestSending(false);
   }
 
   if (status === "loading") return null;
@@ -192,21 +265,134 @@ export default function MarketingPage() {
           </div>
         </div>
 
+        {/* Test Send */}
+        <div className="border border-border rounded-lg p-4 mb-6 bg-surface">
+          <h2 className="text-sm font-medium text-text-primary mb-3">Send Test Email</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Your Email</label>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="admin@example.com"
+                className="w-full px-3 py-2 border border-border rounded bg-background text-text-primary text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Investor</label>
+              <select
+                value={testInvestorId}
+                onChange={(e) => setTestInvestorId(e.target.value)}
+                className="w-full px-3 py-2 border border-border rounded bg-background text-text-primary text-sm focus:outline-none focus:border-accent"
+              >
+                <option value="">Select an investor...</option>
+                {scoredInvestors.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.firm_name} — {inv.partner_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={handleTestSend}
+                disabled={testSending || !testEmail.trim() || !testInvestorId || !generatedHtml.trim() || !subject.trim()}
+                className="px-4 py-2 bg-accent text-white text-sm rounded hover:bg-accent/90 transition disabled:opacity-50"
+              >
+                {testSending ? "Sending..." : "Send Test"}
+              </button>
+            </div>
+          </div>
+          {testResult && (
+            <p className={`text-xs mt-2 ${testResult.startsWith("Error") ? "text-red-500" : "text-green-600"}`}>
+              {testResult}
+            </p>
+          )}
+        </div>
+
+        {/* Verification section */}
+        <div className="border border-border rounded-lg p-4 mb-6 bg-surface">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-medium text-text-primary">Email Verification</h2>
+              <p className="text-xs text-text-tertiary mt-0.5">
+                Verify recipient emails via Hunter.io + NeverBounce before sending
+              </p>
+            </div>
+            <button
+              onClick={handleVerify}
+              disabled={verifying}
+              className="px-4 py-2 bg-accent text-white text-sm rounded hover:bg-accent/90 transition disabled:opacity-50"
+            >
+              {verifying ? "Starting..." : "Verify Recipients"}
+            </button>
+          </div>
+          {verificationJobs.length > 0 && (() => {
+            const latest = verificationJobs[0];
+            const isRunning = latest.status === "running";
+            const totalProcessed = latest.verified_count + latest.bounced_count + latest.skipped_count;
+            const progressPct = latest.total_recipients > 0
+              ? Math.round((totalProcessed / latest.total_recipients) * 100)
+              : 0;
+            return (
+              <div>
+                {isRunning && (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
+                      <span>
+                        {totalProcessed} / {latest.total_recipients} processed
+                        {latest.current_investor_name && (
+                          <> &mdash; verifying <strong>{latest.current_investor_name}</strong></>
+                        )}
+                      </span>
+                      <span>{progressPct}%</span>
+                    </div>
+                    <div className="w-full bg-background rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full bg-accent transition-all"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+                {latest.status === "completed" && (
+                  <p className="text-xs text-text-secondary">
+                    <span className="text-green-600 font-medium">{latest.verified_count} valid</span>
+                    {latest.corrected_count > 0 && (
+                      <>, <span className="text-blue-600 font-medium">{latest.corrected_count} corrected</span></>
+                    )}
+                    {latest.bounced_count > 0 && (
+                      <>, <span className="text-red-600 font-medium">{latest.bounced_count} bounced</span></>
+                    )}
+                    {latest.skipped_count > 0 && (
+                      <>, <span className="text-text-tertiary">{latest.skipped_count} skipped</span></>
+                    )}
+                  </p>
+                )}
+                {latest.status === "failed" && (
+                  <p className="text-xs text-red-500">Verification failed: {latest.error}</p>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
         {/* Send controls */}
         <div className="border border-border rounded-lg p-4 mb-6 bg-surface">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-medium text-text-primary">Send Campaign</h2>
               <p className="text-xs text-text-tertiary mt-0.5">
-                Send the generated email to all scored investors
+                Send the generated email to all verified investors
               </p>
             </div>
             <button
               onClick={() => setShowConfirm(true)}
-              disabled={!generatedHtml.trim() || !subject.trim() || sending}
+              disabled={!generatedHtml.trim() || !subject.trim() || sending || !verificationJobs.some((j) => j.status === "completed")}
               className="px-4 py-2 bg-accent text-white text-sm rounded hover:bg-accent/90 transition disabled:opacity-50"
             >
-              Send to All Scored Investors
+              Send to All Verified Investors
             </button>
           </div>
         </div>
