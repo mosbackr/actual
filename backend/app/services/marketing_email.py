@@ -55,6 +55,7 @@ Constraints:
 - Use table-based layout throughout
 - Max-width 600px, centered with margin: 0 auto
 - Include the placeholder {{score}} where the investor's overall score should appear
+- Available dimension placeholders: {{deal_activity}}, {{sector_expertise}}, {{stage_expertise}}, {{follow_on_rate}}, {{network_quality}}, {{portfolio_performance}}, {{exit_track_record}} — use any of these to show individual scores
 - Include the placeholder {{cta_url}} where the link to the score page should appear
 - Include the REQUIRED FOOTER exactly as shown above — do not omit or modify it
 - Output ONLY the raw HTML, no markdown fences or explanation
@@ -91,6 +92,13 @@ def render_for_recipient(
     html = html.replace("{{cta_url}}", cta_url)
     html = html.replace("{{unsubscribe_url}}", unsubscribe_url)
     html = html.replace("{{company_address}}", settings.company_address)
+    html = html.replace("{{deal_activity}}", str(round(investor_ranking.deal_activity)))
+    html = html.replace("{{sector_expertise}}", str(round(investor_ranking.sector_expertise)))
+    html = html.replace("{{stage_expertise}}", str(round(investor_ranking.stage_expertise)))
+    html = html.replace("{{follow_on_rate}}", str(round(investor_ranking.follow_on_rate)))
+    html = html.replace("{{network_quality}}", str(round(investor_ranking.network_quality)))
+    html = html.replace("{{portfolio_performance}}", str(round(investor_ranking.portfolio_performance)))
+    html = html.replace("{{exit_track_record}}", str(round(investor_ranking.exit_track_record)))
     return html
 
 
@@ -136,6 +144,13 @@ async def run_marketing_batch(job_id: str) -> None:
                 "partner_name": inv.partner_name,
                 "email": inv.email,
                 "overall_score": ranking.overall_score,
+                "deal_activity": ranking.deal_activity,
+                "sector_expertise": ranking.sector_expertise,
+                "stage_expertise": ranking.stage_expertise,
+                "follow_on_rate": ranking.follow_on_rate,
+                "network_quality": ranking.network_quality,
+                "portfolio_performance": ranking.portfolio_performance,
+                "exit_track_record": ranking.exit_track_record,
             }
             for inv, ranking in rows
         ]
@@ -181,10 +196,17 @@ async def run_marketing_batch(job_id: str) -> None:
 
         # Build a lightweight ranking-like object for render_for_recipient
         class _RankingProxy:
-            def __init__(self, score: float):
-                self.overall_score = score
+            def __init__(self, r: dict):
+                self.overall_score = r["overall_score"]
+                self.deal_activity = r.get("deal_activity", 0)
+                self.sector_expertise = r.get("sector_expertise", 0)
+                self.stage_expertise = r.get("stage_expertise", 0)
+                self.follow_on_rate = r.get("follow_on_rate", 0)
+                self.network_quality = r.get("network_quality", 0)
+                self.portfolio_performance = r.get("portfolio_performance", 0)
+                self.exit_track_record = r.get("exit_track_record", 0)
 
-        ranking_proxy = _RankingProxy(recipient["overall_score"])
+        ranking_proxy = _RankingProxy(recipient)
         personalized_html = render_for_recipient(
             html_template, ranking_proxy, recipient["investor_id"], settings.frontend_url
         )

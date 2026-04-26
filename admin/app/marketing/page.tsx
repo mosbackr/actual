@@ -20,7 +20,14 @@ function previewHtml(html: string): string {
     .replace(/\{\{score\}\}/g, "85")
     .replace(/\{\{cta_url\}\}/g, "https://www.deepthesis.org/score/example")
     .replace(/\{\{unsubscribe_url\}\}/g, "#")
-    .replace(/\{\{company_address\}\}/g, "3965 Lewis Link, New Albany, OH 43054");
+    .replace(/\{\{company_address\}\}/g, "3965 Lewis Link, New Albany, OH 43054")
+    .replace(/\{\{deal_activity\}\}/g, "78")
+    .replace(/\{\{sector_expertise\}\}/g, "91")
+    .replace(/\{\{stage_expertise\}\}/g, "84")
+    .replace(/\{\{follow_on_rate\}\}/g, "72")
+    .replace(/\{\{network_quality\}\}/g, "88")
+    .replace(/\{\{portfolio_performance\}\}/g, "80")
+    .replace(/\{\{exit_track_record\}\}/g, "76");
 }
 
 export default function MarketingPage() {
