@@ -13,6 +13,7 @@ import type {
   FeedbackListResponse,
   InvestorBatchStatus,
   InvestorListResponse,
+  MarketingJob,
   PipelineStartup,
   RankedInvestorListResponse,
   RankingBatchStatus,
@@ -365,4 +366,30 @@ export const adminApi = {
     apiFetch<{ ok: boolean; message: string }>(`/api/admin/investors/rankings/${investorId}/rescore`, token, {
       method: "POST",
     }),
+
+  // Marketing
+  generateMarketingEmail: (token: string, prompt: string) =>
+    apiFetch<{ html: string }>("/api/admin/marketing/generate", token, {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
+
+  startMarketingSend: (token: string, subject: string, htmlTemplate: string) =>
+    apiFetch<{ id: string; status: string; subject: string }>("/api/admin/marketing/send", token, {
+      method: "POST",
+      body: JSON.stringify({ subject, html_template: htmlTemplate }),
+    }),
+
+  pauseMarketingJob: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/marketing/jobs/${jobId}/pause`, token, {
+      method: "POST",
+    }),
+
+  resumeMarketingJob: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/marketing/jobs/${jobId}/resume`, token, {
+      method: "POST",
+    }),
+
+  getMarketingJobs: (token: string) =>
+    apiFetch<MarketingJob[]>("/api/admin/marketing/jobs", token),
 };

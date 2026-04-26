@@ -360,3 +360,21 @@ export interface RankingBatchStatus {
   paused_at: string | null;
   completed_at: string | null;
 }
+
+// ── Marketing ─────────────────────────────────────────────────────────
+
+export interface MarketingJob {
+  id: string;
+  status: "pending" | "running" | "paused" | "completed" | "failed";
+  subject: string;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  current_investor_name: string | null;
+  from_address: string;
+  error: string | null;
+  started_at: string | null;
+  paused_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+}

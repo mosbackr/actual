@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/templates", label: "Templates" },
   { href: "/users", label: "Users" },
   { href: "/feedback", label: "Feedback" },
+  { href: "/marketing", label: "Marketing" },
 ];
 
 export function Sidebar() {
