@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { ExpertApplication } from "@/lib/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 const ECOSYSTEM_ROLES = [
   "Venture Capitalist / GP",
@@ -64,6 +64,9 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [zoomConnected, setZoomConnected] = useState(false);
+  const [zoomEmail, setZoomEmail] = useState<string | null>(null);
+  const [disconnectingZoom, setDisconnectingZoom] = useState(false);
 
   const backendToken = (session as any)?.backendToken;
 
@@ -76,6 +79,10 @@ export default function ProfilePage() {
         setAvatarUrl(data.avatar_url || null);
         setEcosystemRole(data.ecosystem_role || "");
         setRegion(data.region || "");
+      }).catch(() => {});
+      api.getZoomConnection(backendToken).then((data) => {
+        setZoomConnected(data.connected);
+        setZoomEmail(data.zoom_email || null);
       }).catch(() => {});
     }
   }, [session, backendToken]);
@@ -150,6 +157,22 @@ export default function ProfilePage() {
     };
     reader.readAsDataURL(file);
   }
+
+  async function handleDisconnectZoom() {
+    if (!backendToken) return;
+    setDisconnectingZoom(true);
+    try {
+      await api.disconnectZoom(backendToken);
+      setZoomConnected(false);
+      setZoomEmail(null);
+    } catch {
+      setMessage("Failed to disconnect Zoom");
+    } finally {
+      setDisconnectingZoom(false);
+    }
+  }
+
+  const zoomConnectUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || ""}&redirect_uri=${encodeURIComponent((process.env.NEXT_PUBLIC_API_URL || "") + "/api/zoom/oauth/callback")}`;
 
   const initials = (name || session.user?.name || "?")
     .split(" ")
@@ -280,6 +303,44 @@ export default function ProfilePage() {
             {message}
           </p>
         )}
+      </div>
+
+      {/* Connected Apps */}
+      <div className="rounded border border-border bg-surface p-6 mb-8">
+        <h3 className="font-medium text-text-primary mb-4">Connected Apps</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-blue-500 flex items-center justify-center">
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4.585 6.836a1.44 1.44 0 0 0-1.443 1.443v5.3a1.44 1.44 0 0 0 2.163 1.249l3.98-2.65v1.401a1.44 1.44 0 0 0 2.163 1.249l4.432-2.95a1.44 1.44 0 0 0 0-2.497l-4.432-2.95a1.44 1.44 0 0 0-2.163 1.249v1.401l-3.98-2.65a1.44 1.44 0 0 0-.72-.195z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-text-primary">Zoom</p>
+              {zoomConnected ? (
+                <p className="text-xs text-text-secondary">{zoomEmail || "Connected"}</p>
+              ) : (
+                <p className="text-xs text-text-tertiary">Auto-import cloud recordings</p>
+              )}
+            </div>
+          </div>
+          {zoomConnected ? (
+            <button
+              onClick={handleDisconnectZoom}
+              disabled={disconnectingZoom}
+              className="rounded border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+            >
+              {disconnectingZoom ? "Disconnecting..." : "Disconnect"}
+            </button>
+          ) : (
+            <a
+              href={zoomConnectUrl}
+              className="rounded bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 transition"
+            >
+              Connect Zoom
+            </a>
+          )}
+        </div>
       </div>
 
       {application && (
