@@ -36,6 +36,10 @@ async def verify_with_hunter(
             },
             timeout=30.0,
         )
+    if resp.status_code != 200:
+        body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        detail = body.get("errors", [{}])[0].get("details", resp.text[:200])
+        raise RuntimeError(f"Hunter API error {resp.status_code}: {detail}")
     data = resp.json().get("data", {})
     returned_email = data.get("email", "").lower().strip()
     original_email = email.lower().strip()
@@ -61,6 +65,8 @@ async def verify_with_neverbounce(email: str) -> dict:
             timeout=30.0,
         )
     data = resp.json()
+    if resp.status_code != 200 or data.get("status") in ("auth_failure", "throttle_triggered"):
+        raise RuntimeError(f"NeverBounce API error: {data.get('message', resp.text[:200])}")
     return {"result": data.get("result", "unknown")}
 
 
@@ -141,6 +147,9 @@ async def run_verification_batch(job_id: str) -> None:
         return
 
     # 5. Verify each investor
+    consecutive_failures = 0
+    last_error = ""
+
     for idx, recipient in enumerate(recipients):
         async with db_factory() as db:
             job = await db.get(EmailVerificationJob, uuid.UUID(job_id))
@@ -170,6 +179,9 @@ async def run_verification_batch(job_id: str) -> None:
 
             nb_result = await verify_with_neverbounce(email)
             nb_status = nb_result["result"]
+
+            # Reset failure counter on success
+            consecutive_failures = 0
 
             async with db_factory() as db:
                 investor = await db.get(Investor, recipient["id"])
@@ -210,16 +222,36 @@ async def run_verification_batch(job_id: str) -> None:
                         )
 
         except Exception as e:
+            error_str = str(e)
             logger.error(
                 f"Verification failed for {email} "
-                f"({recipient['firm_name']}): {e}"
+                f"({recipient['firm_name']}): {error_str}"
             )
+            consecutive_failures += 1
+            last_error = error_str
+
             async with db_factory() as db:
                 job = await db.get(EmailVerificationJob, uuid.UUID(job_id))
                 job.skipped_count += 1
                 errors = job.error or ""
-                job.error = f"{errors}\n{recipient['firm_name']}: {e}".strip()
+                job.error = f"{errors}\n{recipient['firm_name']}: {error_str}".strip()
                 await db.commit()
+
+            if consecutive_failures >= 3:
+                logger.error(
+                    f"Stopping verification batch {job_id}: "
+                    f"{consecutive_failures} consecutive failures. Last: {last_error}"
+                )
+                async with db_factory() as db:
+                    job = await db.get(EmailVerificationJob, uuid.UUID(job_id))
+                    job.status = BatchJobStatus.failed.value
+                    job.error = (
+                        f"Stopped after {consecutive_failures} consecutive API failures. "
+                        f"Last error: {last_error}"
+                    )
+                    job.completed_at = datetime.now(timezone.utc)
+                    await db.commit()
+                return
 
         logger.info(f"Verified {idx + 1}/{len(recipients)}: {email}")
 
