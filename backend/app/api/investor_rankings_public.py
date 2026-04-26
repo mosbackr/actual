@@ -26,6 +26,15 @@ def _ranking_response(ranking: InvestorRanking, investor: Investor) -> dict:
         "sector_expertise": ranking.sector_expertise,
         "follow_on_rate": ranking.follow_on_rate,
         "network_quality": ranking.network_quality,
+        "dimension_scores": {
+            "portfolio_performance": ranking.portfolio_performance,
+            "deal_activity": ranking.deal_activity,
+            "exit_track_record": ranking.exit_track_record,
+            "stage_expertise": ranking.stage_expertise,
+            "sector_expertise": ranking.sector_expertise,
+            "follow_on_rate": ranking.follow_on_rate,
+            "network_quality": ranking.network_quality,
+        },
         "narrative": ranking.narrative,
         "scored_at": ranking.scored_at.isoformat(),
     }
