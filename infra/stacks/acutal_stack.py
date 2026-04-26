@@ -109,8 +109,6 @@ class AcutalStack(Stack):
                     "DB_PORT": db.db_instance_endpoint_port,
                     "DB_USER": "acutal",
                     "DB_NAME": "acutal",
-                    "ACUTAL_HUNTER_API_KEY": "78fec157fa7bc0c1dc53b542dc7f1565d2b7e503",
-                    "ACUTAL_NEVERBOUNCE_API_KEY": "private_183b0a1d3d7749e87533e5c5589aa5dc",
                 },
                 secrets={
                     "DB_PASSWORD": ecs.Secret.from_secrets_manager(db_secret, "password"),
