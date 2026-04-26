@@ -40,6 +40,8 @@ services:
       ACUTAL_RESEND_API_KEY: ${RESEND_API_KEY:-}
       ACUTAL_EMAIL_FROM: ${EMAIL_FROM:-gaius@deepthesis.org}
       ACUTAL_DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      ACUTAL_HUNTER_API_KEY: ${HUNTER_API_KEY:-}
+      ACUTAL_NEVERBOUNCE_API_KEY: ${NEVERBOUNCE_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -92,6 +94,8 @@ services:
       - ACUTAL_EMAIL_FROM=${EMAIL_FROM:-gaius@deepthesis.org}
       - ACUTAL_FRONTEND_URL=${FRONTEND_URL:-https://www.deepthesis.org}
       - ACUTAL_DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - ACUTAL_HUNTER_API_KEY=${HUNTER_API_KEY:-}
+      - ACUTAL_NEVERBOUNCE_API_KEY=${NEVERBOUNCE_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
