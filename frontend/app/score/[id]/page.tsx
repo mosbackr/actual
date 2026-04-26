@@ -58,6 +58,18 @@ export default function ScoreDetailPage() {
         const res = await fetch(`${API_URL}/api/investors/${id}/ranking`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.status === 403) {
+          // User doesn't have access to this specific score — try their own
+          const meRes = await fetch(`${API_URL}/api/investors/me/ranking`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            router.replace(`/score/${meData.investor_id}`);
+            return;
+          }
+          throw new Error("no_access");
+        }
         if (!res.ok) throw new Error("Failed to load score data");
         const result = await res.json();
         setData(result);
@@ -132,16 +144,33 @@ export default function ScoreDetailPage() {
             </li>
           </ul>
         </div>
-        <p className="text-sm text-text-tertiary mb-6">
-          Sign in to view your personalized investor score.
-        </p>
-        <a
-          href={`/auth/signin?callbackUrl=/score/${id}`}
-          className="inline-block px-6 py-3 rounded-full text-white font-semibold text-sm"
-          style={{ background: "#F28C28" }}
-        >
-          Sign In to View Your Score
-        </a>
+        {session ? (
+          <>
+            <p className="text-sm text-text-tertiary mb-6">
+              We don&apos;t have a score on file for your account yet. Check back soon.
+            </p>
+            <a
+              href="/"
+              className="inline-block px-6 py-3 rounded-full text-white font-semibold text-sm"
+              style={{ background: "#F28C28" }}
+            >
+              Go to Dashboard
+            </a>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-text-tertiary mb-6">
+              Sign in to view your personalized investor score.
+            </p>
+            <a
+              href={`/auth/signin?callbackUrl=/score/${id}`}
+              className="inline-block px-6 py-3 rounded-full text-white font-semibold text-sm"
+              style={{ background: "#F28C28" }}
+            >
+              Sign In to View Your Score
+            </a>
+          </>
+        )}
       </div>
     );
   }
