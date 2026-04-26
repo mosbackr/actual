@@ -10,6 +10,7 @@ from app.models.industry import Base
 
 
 class PitchSessionStatus(str, enum.Enum):
+    downloading = "downloading"
     uploading = "uploading"
     transcribing = "transcribing"
     labeling = "labeling"
@@ -47,6 +48,9 @@ class PitchSession(Base):
         default=PitchSessionStatus.uploading,
     )
     file_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    video_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    zoom_meeting_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     file_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     transcript_raw: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     transcript_labeled: Mapped[dict | None] = mapped_column(JSON, nullable=True)
