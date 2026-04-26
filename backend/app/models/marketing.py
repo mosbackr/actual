@@ -45,6 +45,26 @@ class MarketingEmailJob(Base):
     )
 
 
+class MarketingEmailSent(Base):
+    __tablename__ = "marketing_emails_sent"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    investor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    firm_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    partner_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="sent"
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+
 class EmailVerificationJob(Base):
     __tablename__ = "email_verification_jobs"
 

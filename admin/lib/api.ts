@@ -394,6 +394,9 @@ export const adminApi = {
   getMarketingJobs: (token: string) =>
     apiFetch<MarketingJob[]>("/api/admin/marketing/jobs", token),
 
+  getJobEmails: (token: string, jobId: string) =>
+    apiFetch<import("./types").SentEmail[]>(`/api/admin/marketing/jobs/${jobId}/emails`, token),
+
   startVerification: (token: string) =>
     apiFetch<{ id: string; status: string }>("/api/admin/marketing/verify", token, {
       method: "POST",

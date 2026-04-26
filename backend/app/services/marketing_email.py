@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from app.config import settings
 from app.db.session import async_session
 from app.models.investor import BatchJobStatus, Investor
 from app.models.investor_ranking import InvestorRanking
-from app.models.marketing import MarketingEmailJob
+from app.models.marketing import MarketingEmailJob, MarketingEmailSent
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,14 @@ async def run_marketing_batch(job_id: str) -> None:
             async with db_factory() as db:
                 job = await db.get(MarketingEmailJob, uuid.UUID(job_id))
                 job.sent_count += 1
+                db.add(MarketingEmailSent(
+                    job_id=uuid.UUID(job_id),
+                    investor_id=recipient["investor_id"],
+                    firm_name=recipient["firm_name"],
+                    partner_name=recipient["partner_name"],
+                    email=recipient["email"],
+                    status="sent",
+                ))
                 await db.commit()
 
             logger.info(
@@ -217,7 +226,20 @@ async def run_marketing_batch(job_id: str) -> None:
                 job.failed_count += 1
                 errors = job.error or ""
                 job.error = f"{errors}\n{recipient['firm_name']}: {e}".strip()
+                db.add(MarketingEmailSent(
+                    job_id=uuid.UUID(job_id),
+                    investor_id=recipient["investor_id"],
+                    firm_name=recipient["firm_name"],
+                    partner_name=recipient["partner_name"],
+                    email=recipient["email"],
+                    status="failed",
+                    error=str(e),
+                ))
                 await db.commit()
+
+        # Rate limit: 1 email per minute
+        if idx < len(recipients) - 1:
+            await asyncio.sleep(60)
 
     # ── 6. Mark job as completed ────────────────────────────────────────
     async with db_factory() as db:

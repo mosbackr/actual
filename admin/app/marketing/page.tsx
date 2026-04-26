@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { adminApi } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
 import { AccessDenied } from "@/components/AccessDenied";
-import type { MarketingJob, VerificationJob } from "@/lib/types";
+import type { MarketingJob, SentEmail, VerificationJob } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -52,6 +52,11 @@ export default function MarketingPage() {
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [scoredInvestors, setScoredInvestors] = useState<{ id: string; firm_name: string; partner_name: string }[]>([]);
+
+  // Sent emails state
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
+  const [sentEmailsLoading, setSentEmailsLoading] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -116,6 +121,23 @@ export default function MarketingPage() {
       );
     }).catch(() => {});
   }, [token]);
+
+  async function toggleJobEmails(jobId: string) {
+    if (expandedJobId === jobId) {
+      setExpandedJobId(null);
+      return;
+    }
+    setExpandedJobId(jobId);
+    setSentEmailsLoading(true);
+    try {
+      const data = await adminApi.getJobEmails(token, jobId);
+      setSentEmails(data);
+    } catch (e) {
+      console.error("Failed to load sent emails", e);
+      setSentEmails([]);
+    }
+    setSentEmailsLoading(false);
+  }
 
   // Update iframe when HTML changes
   useEffect(() => {
@@ -501,20 +523,74 @@ export default function MarketingPage() {
                 </thead>
                 <tbody>
                   {jobs.map((job) => (
-                    <tr key={job.id} className="border-b border-border hover:bg-hover-row transition-colors">
-                      <td className="px-3 py-4 text-text-primary">{job.subject}</td>
-                      <td className="px-3 py-4">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[job.status] || "bg-gray-100 text-gray-700"}`}>
-                          {job.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-4 text-text-secondary">{job.sent_count}</td>
-                      <td className="px-3 py-4 text-text-secondary">{job.failed_count}</td>
-                      <td className="px-3 py-4 text-text-secondary">{job.total_recipients}</td>
-                      <td className="px-3 py-4 text-text-tertiary whitespace-nowrap">
-                        {job.created_at ? new Date(job.created_at).toLocaleDateString() : "\u2014"}
-                      </td>
-                    </tr>
+                    <>
+                      <tr
+                        key={job.id}
+                        className="border-b border-border hover:bg-hover-row transition-colors cursor-pointer"
+                        onClick={() => job.sent_count + job.failed_count > 0 && toggleJobEmails(job.id)}
+                      >
+                        <td className="px-3 py-4 text-text-primary">
+                          {(job.sent_count + job.failed_count > 0) && (
+                            <span className="inline-block w-4 text-text-tertiary mr-1">
+                              {expandedJobId === job.id ? "▾" : "▸"}
+                            </span>
+                          )}
+                          {job.subject}
+                        </td>
+                        <td className="px-3 py-4">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[job.status] || "bg-gray-100 text-gray-700"}`}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-text-secondary">{job.sent_count}</td>
+                        <td className="px-3 py-4 text-text-secondary">{job.failed_count}</td>
+                        <td className="px-3 py-4 text-text-secondary">{job.total_recipients}</td>
+                        <td className="px-3 py-4 text-text-tertiary whitespace-nowrap">
+                          {job.created_at ? new Date(job.created_at).toLocaleDateString() : "\u2014"}
+                        </td>
+                      </tr>
+                      {expandedJobId === job.id && (
+                        <tr key={`${job.id}-emails`}>
+                          <td colSpan={6} className="px-3 py-0">
+                            {sentEmailsLoading ? (
+                              <p className="text-xs text-text-tertiary py-3">Loading sent emails...</p>
+                            ) : sentEmails.length === 0 ? (
+                              <p className="text-xs text-text-tertiary py-3">No emails recorded for this job.</p>
+                            ) : (
+                              <table className="w-full text-xs mb-3">
+                                <thead>
+                                  <tr className="border-b border-border">
+                                    <th className="text-left px-2 py-2 text-text-secondary font-medium">Firm</th>
+                                    <th className="text-left px-2 py-2 text-text-secondary font-medium">Partner</th>
+                                    <th className="text-left px-2 py-2 text-text-secondary font-medium">Email</th>
+                                    <th className="text-left px-2 py-2 text-text-secondary font-medium">Status</th>
+                                    <th className="text-left px-2 py-2 text-text-secondary font-medium">Sent At</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sentEmails.map((e) => (
+                                    <tr key={e.id} className="border-b border-border/50">
+                                      <td className="px-2 py-2 text-text-primary">{e.firm_name}</td>
+                                      <td className="px-2 py-2 text-text-primary">{e.partner_name}</td>
+                                      <td className="px-2 py-2 text-text-secondary">{e.email}</td>
+                                      <td className="px-2 py-2">
+                                        <span className={e.status === "sent" ? "text-green-600" : "text-red-500"}>
+                                          {e.status}
+                                        </span>
+                                        {e.error && <span className="text-red-400 ml-1">— {e.error}</span>}
+                                      </td>
+                                      <td className="px-2 py-2 text-text-tertiary whitespace-nowrap">
+                                        {e.sent_at ? new Date(e.sent_at).toLocaleString() : "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>

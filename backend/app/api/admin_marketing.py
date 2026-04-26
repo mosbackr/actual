@@ -152,6 +152,36 @@ async def list_marketing_jobs(
     ]
 
 
+@router.get("/api/admin/marketing/jobs/{job_id}/emails")
+async def list_job_emails(
+    job_id: uuid.UUID,
+    _user: User = Depends(require_role("superadmin")),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.marketing import MarketingEmailSent
+
+    result = await db.execute(
+        select(MarketingEmailSent)
+        .where(MarketingEmailSent.job_id == job_id)
+        .order_by(MarketingEmailSent.sent_at.desc())
+    )
+    emails = result.scalars().all()
+
+    return [
+        {
+            "id": str(e.id),
+            "investor_id": str(e.investor_id),
+            "firm_name": e.firm_name,
+            "partner_name": e.partner_name,
+            "email": e.email,
+            "status": e.status,
+            "error": e.error,
+            "sent_at": e.sent_at.isoformat() if e.sent_at else None,
+        }
+        for e in emails
+    ]
+
+
 @router.post("/api/admin/marketing/verify")
 async def start_verification(
     background_tasks: BackgroundTasks,

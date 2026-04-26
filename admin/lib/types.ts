@@ -379,6 +379,17 @@ export interface MarketingJob {
   created_at: string | null;
 }
 
+export interface SentEmail {
+  id: string;
+  investor_id: string;
+  firm_name: string;
+  partner_name: string;
+  email: string;
+  status: "sent" | "failed";
+  error: string | null;
+  sent_at: string | null;
+}
+
 // ── Email Verification ──────────────────────────────────────────────
 
 export interface VerificationJob {
