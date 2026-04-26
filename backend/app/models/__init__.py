@@ -21,6 +21,7 @@ from app.models.pitch_session import PitchSession, PitchAnalysisResult, PitchBen
 from app.models.feedback import FeedbackSession
 from app.models.investor_ranking import InvestorRanking, InvestorRankingBatchJob
 from app.models.analyst import AnalystAttachment
+from app.models.marketing import MarketingEmailJob
 
 __all__ = [
     "User",
@@ -57,4 +58,5 @@ __all__ = [
     "InvestorRanking",
     "InvestorRankingBatchJob",
     "AnalystAttachment",
+    "MarketingEmailJob",
 ]
