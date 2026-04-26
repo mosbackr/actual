@@ -130,13 +130,13 @@ async def run_marketing_batch(job_id: str) -> None:
 
         await db.commit()
 
-    # ── 2. Load all investors with rankings + non-null emails ───────────
+    # ── 2. Load only verified investors with rankings ──────────────────
     async with db_factory() as db:
         result = await db.execute(
             select(Investor, InvestorRanking)
             .join(InvestorRanking, InvestorRanking.investor_id == Investor.id)
             .where(Investor.email.isnot(None))
-            .where(Investor.email_status != "bounced")
+            .where(Investor.email_status.in_(["valid", "corrected"]))
             .where(Investor.email_unsubscribed != True)
             .order_by(Investor.firm_name.asc(), Investor.partner_name.asc())
         )
