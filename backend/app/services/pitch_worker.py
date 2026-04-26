@@ -23,6 +23,9 @@ from app.services.pitch_agents import (
     run_scoring,
 )
 from app.services.pitch_benchmark import calculate_benchmarks
+from app.services.video_downloader import download_video
+from app.services.zoom_client import download_recording as zoom_download_recording, refresh_access_token
+from app.models.zoom_connection import ZoomConnection
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,23 @@ async def _run_analysis_pipeline(session_id: uuid.UUID) -> None:
             await _update_phase(db, session_id, PitchAnalysisPhase.claim_extraction, PitchPhaseStatus.running)
             ps = (await db.execute(select(PitchSession).where(PitchSession.id == session_id))).scalar_one()
             transcript_labeled = ps.transcript_labeled
+            session_title = ps.title or ""
+
+        # Extract speaker names by role for fact-check context
+        founder_names = []
+        investor_names = []
+        for seg in transcript_labeled.get("segments", []):
+            name = seg.get("speaker_name", "")
+            role = seg.get("speaker_role", "")
+            if role == "founder" and name and name not in founder_names:
+                founder_names.append(name)
+            elif role == "investor" and name and name not in investor_names:
+                investor_names.append(name)
+        pitch_context = {
+            "company_name": session_title,
+            "founder_names": founder_names,
+            "investor_names": investor_names,
+        }
 
         logger.info("[pitch-%s] Phase 1: Claim Extraction", session_id)
         claims = await run_claim_extraction(transcript_labeled)
@@ -81,8 +101,8 @@ async def _run_analysis_pipeline(session_id: uuid.UUID) -> None:
 
         logger.info("[pitch-%s] Phase 2: Fact-Checking (parallel)", session_id)
         founder_fc, investor_fc = await asyncio.gather(
-            run_fact_check(claims, "founder"),
-            run_fact_check(claims, "investor"),
+            run_fact_check(claims, "founder", pitch_context),
+            run_fact_check(claims, "investor", pitch_context),
         )
         fact_check_results = {
             "founder_fact_check": founder_fc,
@@ -170,12 +190,81 @@ async def _run_analysis_pipeline(session_id: uuid.UUID) -> None:
     logger.info("[pitch-%s] Analysis pipeline complete", session_id)
 
 
+async def _download_zoom_recording(session_id: uuid.UUID) -> None:
+    """Download a Zoom recording via the Zoom API and upload to S3."""
+    logger.info("[pitch-%s] Starting Zoom recording download", session_id)
+
+    try:
+        async with async_session() as db:
+            ps = (await db.execute(
+                select(PitchSession).where(PitchSession.id == session_id)
+            )).scalar_one()
+
+            download_url = ps.video_url
+            if not download_url:
+                raise RuntimeError("No download URL for Zoom recording")
+
+            # Find the Zoom connection for this user
+            conn = (await db.execute(
+                select(ZoomConnection).where(ZoomConnection.user_id == ps.user_id)
+            )).scalar_one_or_none()
+
+            if not conn:
+                raise RuntimeError("Zoom connection not found for user")
+
+            # Download the recording
+            file_bytes = await zoom_download_recording(conn, db, download_url)
+
+            # Upload to S3
+            from app.services import s3
+            s3_key = f"pitch-intelligence/{session_id}/audio.m4a"
+            s3.upload_file(file_bytes, s3_key)
+            logger.info("[pitch-%s] Uploaded Zoom recording to S3: %s (%d bytes)", session_id, s3_key, len(file_bytes))
+
+        # Update session
+        async with async_session() as db:
+            ps = (await db.execute(
+                select(PitchSession).where(PitchSession.id == session_id)
+            )).scalar_one()
+            ps.file_url = s3_key
+            ps.status = PitchSessionStatus.transcribing
+            await db.commit()
+
+        logger.info("[pitch-%s] Zoom recording download complete, transitioning to transcribing", session_id)
+
+    except Exception as e:
+        logger.error("[pitch-%s] Zoom recording download failed: %s", session_id, e, exc_info=True)
+        async with async_session() as db:
+            ps = (await db.execute(
+                select(PitchSession).where(PitchSession.id == session_id)
+            )).scalar_one()
+            ps.status = PitchSessionStatus.failed
+            ps.error = f"Zoom recording download failed: {e}"
+            await db.commit()
+
+
 async def run_pitch_worker() -> None:
     """Poll for pitch sessions needing transcription or analysis."""
     logger.info("Pitch Intelligence worker started")
 
     while True:
         try:
+            # Check for sessions needing video download
+            async with async_session() as db:
+                result = await db.execute(
+                    select(PitchSession)
+                    .where(PitchSession.status == PitchSessionStatus.downloading)
+                    .order_by(PitchSession.created_at.asc())
+                    .limit(1)
+                )
+                job = result.scalar_one_or_none()
+                if job:
+                    logger.info("[pitch-%s] Picking up video download job (source=%s)", job.id, job.source)
+                    if job.source == "zoom":
+                        await _download_zoom_recording(job.id)
+                    else:
+                        await download_video(job.id)
+
             # Check for sessions needing transcription
             async with async_session() as db:
                 result = await db.execute(

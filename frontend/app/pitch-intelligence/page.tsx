@@ -38,10 +38,13 @@ function PitchIntelligenceContent() {
   const [title, setTitle] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"upload" | "transcript">("upload");
+  const [mode, setMode] = useState<"upload" | "video" | "transcript">("upload");
   const [transcriptText, setTranscriptText] = useState("");
   const [submittingTranscript, setSubmittingTranscript] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const transcriptFileInputRef = useRef<HTMLInputElement>(null);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [submittingVideo, setSubmittingVideo] = useState(false);
 
   const loadSessions = useCallback(async () => {
     if (!token) return;
@@ -112,16 +115,47 @@ function PitchIntelligenceContent() {
     }
   };
 
+  const TRANSCRIPT_EXTENSIONS = [".txt", ".vtt", ".srt"];
+
+  const handleTranscriptFile = async (file: File) => {
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    if (!TRANSCRIPT_EXTENSIONS.includes(ext)) {
+      setError("Unsupported transcript format. Please use .txt, .vtt, or .srt files.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Transcript file too large. Maximum size is 5MB.");
+      return;
+    }
+    try {
+      const text = await file.text();
+      setTranscriptText(text);
+      setMode("transcript");
+    } catch {
+      setError("Failed to read file.");
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) handleUpload(file);
+    if (!file) return;
+    if (mode === "transcript") {
+      handleTranscriptFile(file);
+    } else {
+      handleUpload(file);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleUpload(file);
+  };
+
+  const handleTranscriptFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleTranscriptFile(file);
   };
 
   const handleTranscriptSubmit = async () => {
@@ -141,8 +175,35 @@ function PitchIntelligenceContent() {
     }
   };
 
+  const handleVideoSubmit = async () => {
+    if (!token) return;
+    const trimmed = videoUrl.trim();
+    if (!trimmed) {
+      setError("Please paste a video URL.");
+      return;
+    }
+    if (
+      !trimmed.includes("youtube.com/") &&
+      !trimmed.includes("youtu.be/") &&
+      !trimmed.includes("loom.com/")
+    ) {
+      setError("Please provide a YouTube or Loom link.");
+      return;
+    }
+    setError(null);
+    setSubmittingVideo(true);
+    try {
+      const result = await api.submitVideoUrl(token, trimmed, title || undefined);
+      router.push(`/pitch-intelligence/${result.id}`);
+    } catch (e: any) {
+      setError(e.message || "Failed to submit video URL");
+      setSubmittingVideo(false);
+    }
+  };
+
   const statusLabel = (status: string) => {
     const map: Record<string, { text: string; color: string }> = {
+      downloading: { text: "Downloading", color: "text-blue-600" },
       uploading: { text: "Uploading", color: "text-yellow-600" },
       transcribing: { text: "Transcribing", color: "text-blue-600" },
       labeling: { text: "Needs Speaker Labels", color: "text-orange-600" },
@@ -172,7 +233,7 @@ function PitchIntelligenceContent() {
       </div>
 
       {/* Mode Toggle + Input */}
-      {!uploading && !submittingTranscript && (
+      {!uploading && !submittingTranscript && !submittingVideo && (
         <div className="mb-8">
           <div className="flex gap-2 mb-4">
             <button
@@ -184,6 +245,16 @@ function PitchIntelligenceContent() {
               }`}
             >
               Upload Recording
+            </button>
+            <button
+              onClick={() => setMode("video")}
+              className={`px-4 py-2 text-sm rounded-lg border transition ${
+                mode === "video"
+                  ? "bg-accent text-white border-accent"
+                  : "bg-surface text-text-secondary border-border hover:border-accent/50"
+              }`}
+            >
+              Video Link
             </button>
             <button
               onClick={() => setMode("transcript")}
@@ -233,8 +304,55 @@ function PitchIntelligenceContent() {
                 MP3, WAV, M4A, MP4, WebM — up to 500MB
               </p>
             </div>
+          ) : mode === "video" ? (
+            <div>
+              <input
+                type="text"
+                placeholder="Paste YouTube or Loom link"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+              />
+              <p className="text-xs text-text-tertiary mt-2">
+                Supports YouTube and Loom videos up to 2 hours
+              </p>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleVideoSubmit}
+                  disabled={!videoUrl.trim()}
+                  className="px-5 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Analyze Video
+                </button>
+              </div>
+            </div>
           ) : (
             <div>
+              <div
+                className={`relative rounded-lg border-2 border-dashed p-6 text-center transition cursor-pointer mb-3 ${
+                  dragOver
+                    ? "border-accent bg-accent/5"
+                    : "border-border hover:border-accent/50"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => transcriptFileInputRef.current?.click()}
+              >
+                <input
+                  ref={transcriptFileInputRef}
+                  type="file"
+                  accept=".txt,.vtt,.srt"
+                  className="hidden"
+                  onChange={handleTranscriptFileSelect}
+                />
+                <p className="text-text-primary font-medium text-sm">
+                  Drop a transcript file here, or click to browse
+                </p>
+                <p className="text-text-tertiary text-xs mt-1">
+                  .txt, .vtt, .srt files — or paste below
+                </p>
+              </div>
               <textarea
                 value={transcriptText}
                 onChange={(e) => setTranscriptText(e.target.value)}
@@ -299,6 +417,11 @@ function PitchIntelligenceContent() {
                   <div>
                     <p className="font-medium text-text-primary">
                       {s.title || "Untitled Pitch"}
+                      {s.source === "zoom" && (
+                        <span className="ml-2 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                          Zoom
+                        </span>
+                      )}
                     </p>
                     <p className="text-sm text-text-tertiary mt-0.5">
                       {s.created_at ? new Date(s.created_at).toLocaleDateString() : ""}

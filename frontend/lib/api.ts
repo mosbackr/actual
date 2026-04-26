@@ -446,6 +446,18 @@ export const api = {
     });
   },
 
+  submitVideoUrl: async (
+    token: string,
+    url: string,
+    title?: string,
+  ): Promise<{ id: string; status: string }> => {
+    return apiFetch("/api/pitch-intelligence/video-url", {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ url, title }),
+    });
+  },
+
   completePitchUpload: async (token: string, sessionId: string): Promise<{ id: string; status: string }> => {
     return apiFetch(`/api/pitch-intelligence/${sessionId}/upload-complete`, {
       method: "POST",
@@ -490,6 +502,33 @@ export const api = {
     apiFetch(`/api/pitch-intelligence/${sessionId}/transcript`, {
       headers: authHeaders(token),
     }),
+
+  // -- Zoom --
+
+  async getZoomConnection(token: string) {
+    return apiFetch<{ connected: boolean; zoom_email?: string; zoom_account_id?: string; connected_at?: string }>(
+      "/api/zoom/connection",
+      { headers: authHeaders(token) }
+    );
+  },
+
+  async linkZoom(token: string, tempCode: string) {
+    return apiFetch<{ ok: boolean; zoom_email: string }>(
+      "/api/zoom/link",
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ temp_code: tempCode }),
+      }
+    );
+  },
+
+  async disconnectZoom(token: string) {
+    return apiFetch<{ ok: boolean }>(
+      "/api/zoom/connection",
+      { method: "DELETE", headers: authHeaders(token) }
+    );
+  },
 
   // ── Feedback ─────────────────────────────────────────────────────────
 

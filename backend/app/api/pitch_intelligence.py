@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -43,6 +44,7 @@ def _session_to_dict(session: PitchSession, include_results: bool = False) -> di
         "startup_id": str(session.startup_id) if session.startup_id else None,
         "title": session.title,
         "status": session.status.value if hasattr(session.status, "value") else session.status,
+        "source": session.source,
         "file_duration_seconds": session.file_duration_seconds,
         "scores": session.scores,
         "benchmark_percentiles": session.benchmark_percentiles,
@@ -137,8 +139,6 @@ def _parse_transcript_text(text: str) -> dict:
     - Otter-style: "Speaker Name  00:01:23\\ntext"
     - Falls back to single-speaker if no pattern detected.
     """
-    import re
-
     lines = text.strip().split("\n")
     segments: list[dict] = []
     speakers_seen: dict[str, str] = {}  # name -> id
@@ -254,6 +254,54 @@ async def paste_transcript(
         "status": "labeling",
         "speakers": parsed["speakers"],
     }
+
+
+# ── Video URL ───────────────────────────────────────────────────────
+
+
+VIDEO_URL_PATTERNS = [
+    re.compile(r"https?://(www\.)?youtube\.com/watch\?v=[\w-]+"),
+    re.compile(r"https?://youtu\.be/[\w-]+"),
+    re.compile(r"https?://(www\.)?youtube\.com/live/[\w-]+"),
+    re.compile(r"https?://(www\.)?loom\.com/share/[\w-]+"),
+]
+
+
+class VideoUrlRequest(BaseModel):
+    url: str
+    title: str | None = None
+    startup_id: str | None = None
+
+
+@router.post("/api/pitch-intelligence/video-url")
+async def submit_video_url(
+    body: VideoUrlRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_subscription(user)
+
+    url = body.url.strip()
+    if not any(p.match(url) for p in VIDEO_URL_PATTERNS):
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported URL. Please provide a YouTube or Loom video link.",
+        )
+
+    startup_id = uuid.UUID(body.startup_id) if body.startup_id else None
+
+    ps = PitchSession(
+        user_id=user.id,
+        startup_id=startup_id,
+        title=body.title,
+        video_url=url,
+        status=PitchSessionStatus.downloading,
+    )
+    db.add(ps)
+    await db.commit()
+    await db.refresh(ps)
+
+    return {"id": str(ps.id), "status": "downloading"}
 
 
 # ── Upload Complete → Trigger Transcription ───────────────────────────
