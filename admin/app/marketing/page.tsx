@@ -16,18 +16,25 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function previewHtml(html: string): string {
-  return html
-    .replace(/\{\{score\}\}/g, "85")
-    .replace(/\{\{cta_url\}\}/g, "https://www.deepthesis.org/score/example")
-    .replace(/\{\{unsubscribe_url\}\}/g, "#")
-    .replace(/\{\{company_address\}\}/g, "3965 Lewis Link, New Albany, OH 43054")
-    .replace(/\{\{deal_activity\}\}/g, "78")
-    .replace(/\{\{sector_expertise\}\}/g, "91")
-    .replace(/\{\{stage_expertise\}\}/g, "84")
-    .replace(/\{\{follow_on_rate\}\}/g, "72")
-    .replace(/\{\{network_quality\}\}/g, "88")
-    .replace(/\{\{portfolio_performance\}\}/g, "80")
-    .replace(/\{\{exit_track_record\}\}/g, "76");
+  const replacements: Record<string, string> = {
+    score: "85",
+    cta_url: "https://www.deepthesis.org/score/example",
+    unsubscribe_url: "#",
+    company_address: "3965 Lewis Link, New Albany, OH 43054",
+    deal_activity: "78",
+    sector_expertise: "91",
+    stage_expertise: "84",
+    follow_on_rate: "72",
+    network_quality: "88",
+    portfolio_performance: "80",
+    exit_track_record: "76",
+  };
+  let result = html;
+  for (const [key, value] of Object.entries(replacements)) {
+    // Match {{key}} even if HTML tags are interspersed (e.g. <strong>{{key}}</strong> or {{<b>key</b>}})
+    result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "gi"), value);
+  }
+  return result;
 }
 
 export default function MarketingPage() {
