@@ -41,12 +41,21 @@ CTA button style (orange pill):
   <a href="{{cta_url}}" style="color:#fff;text-decoration:none;font-weight:600;font-size:16px;">View Your Score</a>
 </td></tr></table>
 
+REQUIRED FOOTER (must appear at the bottom of EVERY email):
+<table role="presentation" width="100%" style="margin-top:32px;border-top:1px solid #E8E6E3;padding-top:16px;">
+<tr><td align="center" style="font-size:12px;color:#999;line-height:1.5;">
+  <p>You're receiving this because you were scored on the Deep Thesis platform.</p>
+  <p>{{company_address}}</p>
+  <p><a href="{{unsubscribe_url}}" style="color:#999;text-decoration:underline;">Unsubscribe</a></p>
+</td></tr></table>
+
 Constraints:
 - Use ONLY inline CSS (no <style> blocks)
 - Use table-based layout throughout
 - Max-width 600px, centered with margin: 0 auto
 - Include the placeholder {{score}} where the investor's overall score should appear
 - Include the placeholder {{cta_url}} where the link to the score page should appear
+- Include the REQUIRED FOOTER exactly as shown above — do not omit or modify it
 - Output ONLY the raw HTML, no markdown fences or explanation
 """
 
@@ -69,11 +78,18 @@ def render_for_recipient(
     investor_id: uuid.UUID,
     frontend_url: str,
 ) -> str:
-    """Replace {{score}} and {{cta_url}} placeholders with investor-specific values."""
+    """Replace {{score}}, {{cta_url}}, {{unsubscribe_url}}, and {{company_address}}
+    placeholders with investor-specific values."""
+    from app.services.email_verification import generate_unsubscribe_url
+
     score = str(round(investor_ranking.overall_score))
     cta_url = f"{frontend_url}/score/{investor_id}"
+    unsubscribe_url = generate_unsubscribe_url(str(investor_id), frontend_url)
+
     html = html_template.replace("{{score}}", score)
     html = html.replace("{{cta_url}}", cta_url)
+    html = html.replace("{{unsubscribe_url}}", unsubscribe_url)
+    html = html.replace("{{company_address}}", settings.company_address)
     return html
 
 
@@ -107,6 +123,8 @@ async def run_marketing_batch(job_id: str) -> None:
             select(Investor, InvestorRanking)
             .join(InvestorRanking, InvestorRanking.investor_id == Investor.id)
             .where(Investor.email.isnot(None))
+            .where(Investor.email_status != "bounced")
+            .where(Investor.email_unsubscribed != True)
             .order_by(Investor.firm_name.asc(), Investor.partner_name.asc())
         )
         rows = result.all()

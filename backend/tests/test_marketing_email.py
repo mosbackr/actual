@@ -60,29 +60,19 @@ async def test_generate_email_html_calls_anthropic():
 
 
 def test_render_for_recipient_replaces_placeholders():
-    """Verify render_for_recipient replaces {{score}} and {{cta_url}} correctly."""
     from app.services.marketing_email import render_for_recipient
 
-    template = (
-        "<html><body>"
-        "<p>Your score: {{score}}</p>"
-        '<a href="{{cta_url}}">View</a>'
-        "</body></html>"
-    )
-
     class FakeRanking:
-        overall_score = 87.6
+        overall_score = 82.7
 
-    investor_id = uuid.UUID("12345678-1234-5678-1234-567812345678")
-    frontend_url = "https://app.deepthesis.org"
-
-    result = render_for_recipient(template, FakeRanking(), investor_id, frontend_url)
-
-    # Score should be rounded to integer
-    assert "88" in result
-    assert "{{score}}" not in result
-
-    # CTA URL should point to the score page
-    expected_url = f"https://app.deepthesis.org/score/{investor_id}"
-    assert expected_url in result
-    assert "{{cta_url}}" not in result
+    html = render_for_recipient(
+        "<p>Score: {{score}}</p><a href='{{cta_url}}'>CTA</a>"
+        "<a href='{{unsubscribe_url}}'>Unsub</a><p>{{company_address}}</p>",
+        FakeRanking(),
+        uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+        "https://example.com",
+    )
+    assert "Score: 83" in html
+    assert "https://example.com/score/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in html
+    assert "/unsubscribe/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee?token=" in html
+    assert "3965 Lewis Link" in html
