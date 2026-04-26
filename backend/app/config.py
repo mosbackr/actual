@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     email_from: str = "gaius@deepthesis.org"
     marketing_email_from: str = "updates@deepthesis.co"
 
+    # Email verification
+    hunter_api_key: str = ""
+    neverbounce_api_key: str = ""
+
+    # Compliance
+    company_address: str = "3965 Lewis Link, New Albany, OH 43054"
+
     model_config = {"env_prefix": "ACUTAL_"}
 
 
