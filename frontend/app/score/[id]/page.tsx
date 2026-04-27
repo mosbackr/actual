@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { ClaimBanner } from "./claim-banner";
 import { PortfolioSection } from "./portfolio-section";
 
@@ -35,6 +36,47 @@ interface RankingData {
   scored_at: string;
 }
 
+function EditableField({
+  value,
+  onSave,
+  className,
+  tag: Tag = "h1",
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  className?: string;
+  tag?: "h1" | "p";
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <Tag
+        className={`${className} cursor-pointer hover:opacity-70 transition`}
+        onClick={() => { setDraft(value); setEditing(true); }}
+        title="Click to edit"
+      >
+        {value}
+      </Tag>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      className={`${className} bg-transparent border-b border-accent outline-none text-center w-full`}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (draft.trim() && draft !== value) onSave(draft.trim()); setEditing(false); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { if (draft.trim() && draft !== value) onSave(draft.trim()); setEditing(false); }
+        if (e.key === "Escape") setEditing(false);
+      }}
+    />
+  );
+}
+
 export default function ScoreDetailPage() {
   const { data: session, status } = useSession();
   const params = useParams();
@@ -46,6 +88,9 @@ export default function ScoreDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showClaimBanner, setShowClaimBanner] = useState(false);
   const [claimDismissed, setClaimDismissed] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [rescoring, setRescoring] = useState(false);
+  const [rescoreMsg, setRescoreMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -84,7 +129,9 @@ export default function ScoreDetailPage() {
         });
         if (portfolioRes.ok) {
           const portfolioData = await portfolioRes.json();
-          if (!portfolioData.is_owner) {
+          if (portfolioData.is_owner) {
+            setIsOwner(true);
+          } else {
             setShowClaimBanner(true);
           }
         }
@@ -201,10 +248,36 @@ export default function ScoreDetailPage() {
         <p className="text-xs uppercase tracking-widest text-text-tertiary mb-2">
           Investor Score
         </p>
-        <h1 className="font-serif text-3xl text-text-primary mb-1">
-          {data.firm_name}
-        </h1>
-        <p className="text-sm text-text-secondary mb-4">{data.partner_name}</p>
+        {isOwner ? (
+          <EditableField
+            tag="h1"
+            className="font-serif text-3xl text-text-primary mb-1"
+            value={data.firm_name}
+            onSave={async (v) => {
+              const token = (session as any)?.backendToken;
+              if (!token) return;
+              await api.updateInvestorProfile(token, id, { firm_name: v });
+              setData({ ...data, firm_name: v });
+            }}
+          />
+        ) : (
+          <h1 className="font-serif text-3xl text-text-primary mb-1">{data.firm_name}</h1>
+        )}
+        {isOwner ? (
+          <EditableField
+            tag="p"
+            className="text-sm text-text-secondary mb-4"
+            value={data.partner_name}
+            onSave={async (v) => {
+              const token = (session as any)?.backendToken;
+              if (!token) return;
+              await api.updateInvestorProfile(token, id, { partner_name: v });
+              setData({ ...data, partner_name: v });
+            }}
+          />
+        ) : (
+          <p className="text-sm text-text-secondary mb-4">{data.partner_name}</p>
+        )}
         <p
           className="text-6xl font-bold tabular-nums"
           style={{ color: scoreColor(data.overall_score) }}
@@ -275,10 +348,36 @@ export default function ScoreDetailPage() {
           <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
             {data.narrative}
           </p>
-          {data.scored_at && (
-            <p className="text-xs text-text-tertiary mt-4">
-              Scored {new Date(data.scored_at).toLocaleDateString()}
-            </p>
+          <div className="flex items-center justify-between mt-4">
+            {data.scored_at && (
+              <p className="text-xs text-text-tertiary">
+                Scored {new Date(data.scored_at).toLocaleDateString()}
+              </p>
+            )}
+            {isOwner && (
+              <button
+                onClick={async () => {
+                  const token = (session as any)?.backendToken;
+                  if (!token) return;
+                  setRescoring(true);
+                  setRescoreMsg(null);
+                  try {
+                    await api.rescoreInvestor(token, id);
+                    setRescoreMsg("Rescoring started — refresh in a minute to see updated scores.");
+                  } catch {
+                    setRescoreMsg("Failed to start rescore.");
+                  }
+                  setRescoring(false);
+                }}
+                disabled={rescoring}
+                className="text-xs px-3 py-1.5 rounded border border-accent/30 text-accent hover:bg-accent/5 transition disabled:opacity-50"
+              >
+                {rescoring ? "Starting..." : "Re-evaluate Score"}
+              </button>
+            )}
+          </div>
+          {rescoreMsg && (
+            <p className="text-xs text-accent mt-2">{rescoreMsg}</p>
           )}
         </div>
       )}

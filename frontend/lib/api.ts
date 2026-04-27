@@ -688,4 +688,28 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  async updateInvestorProfile(token: string, investorId: string, body: Record<string, string>) {
+    return apiFetch<{
+      id: string;
+      firm_name: string;
+      partner_name: string;
+      title: string | null;
+      website: string | null;
+      location: string | null;
+      stage_focus: string | null;
+      sector_focus: string | null;
+    }>(`/api/investors/${investorId}/profile`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+
+  async rescoreInvestor(token: string, investorId: string) {
+    return apiFetch<{ status: string }>(`/api/investors/${investorId}/rescore`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
 };

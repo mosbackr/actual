@@ -11,7 +11,7 @@ from app.api.deps import get_current_user, get_current_user_or_none
 from app.db.session import get_db
 from app.models.investor import Investor
 from app.models.portfolio import PortfolioCompany
-from app.models.startup import Startup, StartupStage, StartupStatus
+from app.models.startup import EntityType, Startup, StartupStage, StartupStatus
 from app.models.user import User, UserRole
 from app.services.enrichment import run_enrichment_pipeline
 
@@ -183,6 +183,7 @@ async def add_portfolio_company(
                 website_url=body.company_website or None,
                 stage=StartupStage.seed,
                 status=StartupStatus.approved,
+                entity_type=EntityType.startup,
             )
             db.add(new_startup)
             await db.flush()
@@ -381,3 +382,66 @@ async def get_suggested_portfolio(
         })
 
     return {"suggestions": suggestions}
+
+
+# ── Update Investor Profile ───────────────────��───────────────────────────
+
+class InvestorProfileUpdateBody(BaseModel):
+    firm_name: str | None = None
+    partner_name: str | None = None
+    title: str | None = None
+    website: str | None = None
+    location: str | None = None
+    stage_focus: str | None = None
+    sector_focus: str | None = None
+
+
+@router.put("/api/investors/{investor_id}/profile")
+async def update_investor_profile(
+    investor_id: uuid.UUID,
+    body: InvestorProfileUpdateBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    investor = await _get_investor_and_check_owner(investor_id, user, db)
+    update_data = body.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(investor, key, value)
+    await db.commit()
+    await db.refresh(investor)
+    return {
+        "id": str(investor.id),
+        "firm_name": investor.firm_name,
+        "partner_name": investor.partner_name,
+        "title": investor.title,
+        "website": investor.website,
+        "location": investor.location,
+        "stage_focus": investor.stage_focus,
+        "sector_focus": investor.sector_focus,
+    }
+
+
+# ── Rescore Investor ──────────────────────────────────────────────────────
+
+async def _run_rescore(investor_id: str) -> None:
+    """Background task: re-run investor ranking pipeline."""
+    from app.services.investor_ranking import _score_single_investor
+    from app.db.session import async_session
+
+    async with async_session() as db:
+        investor = await db.get(Investor, uuid.UUID(investor_id))
+        if not investor:
+            return
+        await _score_single_investor(db, investor)
+
+
+@router.post("/api/investors/{investor_id}/rescore")
+async def rescore_investor(
+    investor_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_investor_and_check_owner(investor_id, user, db)
+    background_tasks.add_task(_run_rescore, str(investor_id))
+    return {"status": "rescoring"}
