@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +38,9 @@ class Investor(Base):
     email_unsubscribed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    linkedin: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(300), nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     stage_focus: Mapped[str | None] = mapped_column(String(200), nullable=True)
     sector_focus: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -53,6 +56,12 @@ class Investor(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), onupdate=lambda: datetime.now(timezone.utc)
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
     )
 
     __table_args__ = (
