@@ -213,6 +213,24 @@ export default function ScoreDetailPage() {
         </p>
       </div>
 
+      {/* Claim Banner */}
+      {showClaimBanner && !claimDismissed && (
+        <ClaimBanner
+          investorId={id}
+          token={(session as any)?.backendToken}
+          onClaimed={() => {
+            setClaimDismissed(true);
+            setShowClaimBanner(false);
+          }}
+        />
+      )}
+
+      {/* Portfolio */}
+      <PortfolioSection
+        investorId={id}
+        token={(session as any)?.backendToken}
+      />
+
       {/* Dimension Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         {DIMENSIONS.map((dim) => {
@@ -265,23 +283,6 @@ export default function ScoreDetailPage() {
         </div>
       )}
 
-      {/* Claim Banner */}
-      {showClaimBanner && !claimDismissed && (
-        <ClaimBanner
-          investorId={id}
-          token={(session as any)?.backendToken}
-          onClaimed={() => {
-            setClaimDismissed(true);
-            setShowClaimBanner(false);
-          }}
-        />
-      )}
-
-      {/* Portfolio */}
-      <PortfolioSection
-        investorId={id}
-        token={(session as any)?.backendToken}
-      />
     </div>
   );
 }
