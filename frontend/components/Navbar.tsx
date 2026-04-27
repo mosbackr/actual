@@ -7,6 +7,7 @@ import { AuthButton } from "./AuthButton";
 import { NotificationBell } from "./NotificationBell";
 import { WatchlistIcon } from "./WatchlistIcon";
 import { LogoIcon } from "./LogoIcon";
+import { api } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -20,14 +21,20 @@ function scorePillClasses(score: number): string {
 export function Navbar() {
   const { data: session } = useSession();
   const [score, setScore] = useState<{ overall_score: number; investor_id: string } | null>(null);
+  const [zoomConnected, setZoomConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!session) return;
-    if ((session as any).role !== "investor") return;
-
     const token = (session as any)?.backendToken;
     if (!token) return;
 
+    // Fetch Zoom connection status
+    api.getZoomConnection(token).then((data) => {
+      setZoomConnected(data.connected);
+    }).catch(() => {});
+
+    // Fetch investor score
+    if ((session as any).role !== "investor") return;
     fetch(`${API_URL}/api/investors/me/ranking`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -76,11 +83,43 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             {score && (
               <Link
+                href={`/score/${score.investor_id}#portfolio`}
+                className="hidden md:flex text-sm text-text-secondary hover:text-text-primary transition"
+              >
+                Portfolio
+              </Link>
+            )}
+            {score && (
+              <Link
                 href={`/score/${score.investor_id}`}
                 className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition hover:opacity-80 ${scorePillClasses(score.overall_score)}`}
               >
                 <span>Score</span>
                 <span className="tabular-nums">{Math.round(score.overall_score)}</span>
+              </Link>
+            )}
+            {session && zoomConnected === false && (
+              <Link
+                href="/integrations/zoom"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded border border-blue-400 text-xs font-medium text-blue-500 hover:bg-blue-50 transition"
+                title="Connect Zoom to import recordings"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4.585 6.836a1.44 1.44 0 0 0-1.443 1.443v5.3a1.44 1.44 0 0 0 2.163 1.249l3.98-2.65v1.401a1.44 1.44 0 0 0 2.163 1.249l4.432-2.95a1.44 1.44 0 0 0 0-2.497l-4.432-2.95a1.44 1.44 0 0 0-2.163 1.249v1.401l-3.98-2.65a1.44 1.44 0 0 0-.72-.195z"/>
+                </svg>
+                Connect Zoom
+              </Link>
+            )}
+            {session && zoomConnected === true && (
+              <Link
+                href="/integrations/zoom"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded border border-green-400 text-xs font-medium text-green-600 hover:bg-green-50 transition"
+                title="Zoom connected"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4.585 6.836a1.44 1.44 0 0 0-1.443 1.443v5.3a1.44 1.44 0 0 0 2.163 1.249l3.98-2.65v1.401a1.44 1.44 0 0 0 2.163 1.249l4.432-2.95a1.44 1.44 0 0 0 0-2.497l-4.432-2.95a1.44 1.44 0 0 0-2.163 1.249v1.401l-3.98-2.65a1.44 1.44 0 0 0-.72-.195z"/>
+                </svg>
+                Zoom Connected
               </Link>
             )}
             {session && <WatchlistIcon />}
