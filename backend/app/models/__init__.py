@@ -23,6 +23,7 @@ from app.models.investor_ranking import InvestorRanking, InvestorRankingBatchJob
 from app.models.analyst import AnalystAttachment
 from app.models.marketing import MarketingEmailJob, MarketingEmailSent, EmailVerificationJob
 from app.models.portfolio import PortfolioCompany
+from app.models.discovery import DiscoveryBatchJob
 
 __all__ = [
     "User",
@@ -63,4 +64,5 @@ __all__ = [
     "MarketingEmailSent",
     "EmailVerificationJob",
     "PortfolioCompany",
+    "DiscoveryBatchJob",
 ]

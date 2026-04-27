@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.industry import Base
@@ -21,3 +21,11 @@ class StartupFounder(Base):
     prior_experience: Mapped[str | None] = mapped_column(Text, nullable=True)
     education: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Proxycurl enrichment fields
+    headline: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    profile_photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    work_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    education_history: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    proxycurl_raw: Mapped[dict | None] = mapped_column(JSON, nullable=True)

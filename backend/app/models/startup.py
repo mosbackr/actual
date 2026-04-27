@@ -24,6 +24,7 @@ class StartupStatus(str, enum.Enum):
     approved = "approved"
     rejected = "rejected"
     featured = "featured"
+    discovered = "discovered"
 
 
 class CompanyStatus(str, enum.Enum):
@@ -46,6 +47,13 @@ class EnrichmentStatus(str, enum.Enum):
     running = "running"
     complete = "complete"
     failed = "failed"
+
+
+class ClassificationStatus(str, enum.Enum):
+    unclassified = "unclassified"
+    startup = "startup"
+    not_startup = "not_startup"
+    uncertain = "uncertain"
 
 
 startup_industries = Table(
@@ -113,5 +121,13 @@ class Startup(Base):
     data_sources: Mapped[dict] = mapped_column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
+    discovery_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    delaware_corp_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    delaware_file_number: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
+    delaware_filed_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    classification_status: Mapped[ClassificationStatus] = mapped_column(
+        Enum(ClassificationStatus), nullable=False, default=ClassificationStatus.unclassified, server_default="unclassified"
+    )
+    classification_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     industries = relationship("Industry", secondary=startup_industries)
