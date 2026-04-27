@@ -52,11 +52,33 @@ export function PortfolioSection({
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PortfolioItem | null>(null);
 
+  // Suggested portfolio bootstrap state
+  interface Suggestion {
+    company_name: string;
+    matched_startup: {
+      id: string; slug: string; name: string; logo_url: string | null; stage: string | null;
+    } | null;
+  }
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+
   async function loadPortfolio() {
     try {
       const data = await api.getPortfolio(token, investorId);
       setItems(data.items);
       setIsOwner(data.is_owner);
+
+      // If owner with empty portfolio, auto-fetch suggestions
+      if (data.is_owner && data.items.length === 0 && token) {
+        try {
+          const { suggestions: sugs } = await api.getSuggestedPortfolio(token, investorId);
+          if (sugs.length > 0) {
+            setSuggestions(sugs);
+            setChecked(new Set(sugs.map((s) => s.company_name)));
+          }
+        } catch { /* ignore */ }
+      }
     } catch { /* ignore */ }
     setLoading(false);
   }
@@ -64,6 +86,32 @@ export function PortfolioSection({
   useEffect(() => {
     loadPortfolio();
   }, [investorId, token]);
+
+  async function handleImportSuggestions() {
+    if (!token || !suggestions) return;
+    setImporting(true);
+    for (const sug of suggestions) {
+      if (!checked.has(sug.company_name)) continue;
+      try {
+        await api.addPortfolioCompany(token, investorId, {
+          company_name: sug.matched_startup?.name || sug.company_name,
+          startup_id: sug.matched_startup?.id,
+        });
+      } catch { /* skip duplicates */ }
+    }
+    setSuggestions(null);
+    setImporting(false);
+    loadPortfolio();
+  }
+
+  function toggleCheck(name: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   async function handleDelete() {
     if (!deleteTarget || !token) return;
@@ -122,7 +170,70 @@ export function PortfolioSection({
         </p>
       )}
 
-      {items.length === 0 && isOwner && (
+      {items.length === 0 && isOwner && suggestions && suggestions.length > 0 && (
+        <div className="rounded border border-accent/30 bg-accent/5 p-6">
+          <h3 className="font-serif text-lg text-text-primary mb-2">
+            We found these investments — add them to your portfolio?
+          </h3>
+          <p className="text-sm text-text-secondary mb-4">
+            Uncheck any that don&apos;t belong to you.
+          </p>
+          <div className="space-y-2 mb-4">
+            {suggestions.map((sug) => (
+              <label
+                key={sug.company_name}
+                className="flex items-center gap-3 rounded border border-border bg-surface p-3 cursor-pointer hover:border-text-tertiary transition"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked.has(sug.company_name)}
+                  onChange={() => toggleCheck(sug.company_name)}
+                  className="accent-accent"
+                />
+                {sug.matched_startup?.logo_url ? (
+                  <img src={sug.matched_startup.logo_url} alt={sug.company_name} className="h-8 w-8 rounded object-cover" />
+                ) : (
+                  <div className="h-8 w-8 rounded bg-background border border-border flex items-center justify-center font-serif text-sm text-text-tertiary">
+                    {sug.company_name[0]}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text-primary truncate">
+                    {sug.matched_startup?.name || sug.company_name}
+                  </p>
+                  {sug.matched_startup?.stage && (
+                    <p className="text-xs text-text-tertiary">
+                      {stageLabels[sug.matched_startup.stage] || sug.matched_startup.stage}
+                    </p>
+                  )}
+                </div>
+                {sug.matched_startup && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-score-high/10 text-score-high font-medium">
+                    Matched
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleImportSuggestions}
+              disabled={importing || checked.size === 0}
+              className="px-6 py-2.5 bg-accent text-white text-sm font-medium rounded hover:bg-accent-hover disabled:opacity-50 transition"
+            >
+              {importing ? "Importing..." : `Add ${checked.size} Companies`}
+            </button>
+            <button
+              onClick={() => setSuggestions(null)}
+              className="text-sm text-text-tertiary hover:text-text-primary transition"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {items.length === 0 && isOwner && (!suggestions || suggestions.length === 0) && (
         <div className="rounded border border-border bg-surface p-8 text-center">
           <p className="text-sm text-text-tertiary mb-3">No portfolio companies yet.</p>
           <button
