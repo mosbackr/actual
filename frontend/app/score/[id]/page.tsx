@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
+import { ClaimBanner } from "./claim-banner";
+import { PortfolioSection } from "./portfolio-section";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -42,6 +44,8 @@ export default function ScoreDetailPage() {
   const [data, setData] = useState<RankingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showClaimBanner, setShowClaimBanner] = useState(false);
+  const [claimDismissed, setClaimDismissed] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -73,6 +77,17 @@ export default function ScoreDetailPage() {
         if (!res.ok) throw new Error("Failed to load score data");
         const result = await res.json();
         setData(result);
+
+        // Check if this investor profile can be claimed by current user
+        const portfolioRes = await fetch(`${API_URL}/api/investors/${id}/portfolio`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (portfolioRes.ok) {
+          const portfolioData = await portfolioRes.json();
+          if (!portfolioData.is_owner) {
+            setShowClaimBanner(true);
+          }
+        }
       } catch (e: any) {
         setError(e.message || "An error occurred");
       } finally {
@@ -249,6 +264,24 @@ export default function ScoreDetailPage() {
           )}
         </div>
       )}
+
+      {/* Claim Banner */}
+      {showClaimBanner && !claimDismissed && (
+        <ClaimBanner
+          investorId={id}
+          token={(session as any)?.backendToken}
+          onClaimed={() => {
+            setClaimDismissed(true);
+            setShowClaimBanner(false);
+          }}
+        />
+      )}
+
+      {/* Portfolio */}
+      <PortfolioSection
+        investorId={id}
+        token={(session as any)?.backendToken}
+      />
     </div>
   );
 }
