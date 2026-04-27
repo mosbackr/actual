@@ -146,6 +146,16 @@ async def add_portfolio_company(
 ):
     await _get_investor_and_check_owner(investor_id, user, db)
 
+    # Check for duplicate by name first (before creating anything)
+    existing = await db.execute(
+        select(PortfolioCompany).where(
+            PortfolioCompany.investor_id == investor_id,
+            PortfolioCompany.company_name == body.company_name,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Company already in portfolio")
+
     # Validate startup_id if provided, or auto-match by name
     startup_id_val = None
     if body.startup_id:
@@ -167,40 +177,8 @@ async def add_portfolio_company(
         matched = result.scalar_one_or_none()
         if matched:
             startup_id_val = matched.id
-        else:
-            # Create a new startup record and trigger enrichment
-            name = body.company_name.strip()
-            slug = _slugify(name)
-            existing_slug = await db.execute(
-                select(Startup).where(Startup.slug == slug)
-            )
-            if existing_slug.scalar_one_or_none() is not None:
-                slug = f"{slug}-{uuid.uuid4().hex[:6]}"
-            new_startup = Startup(
-                name=name,
-                slug=slug,
-                description=f"{name} — added via investor portfolio",
-                website_url=body.company_website or None,
-                stage=StartupStage.seed,
-                status=StartupStatus.approved,
-                entity_type=EntityType.startup,
-            )
-            db.add(new_startup)
-            await db.flush()
-            startup_id_val = new_startup.id
-            background_tasks.add_task(run_enrichment_pipeline, str(new_startup.id))
 
-    # Check for duplicate by name
-    existing = await db.execute(
-        select(PortfolioCompany).where(
-            PortfolioCompany.investor_id == investor_id,
-            PortfolioCompany.company_name == body.company_name,
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Company already in portfolio")
-
-    # Also check for duplicate by startup_id (different name, same company)
+    # Check for duplicate by startup_id (different name, same company)
     if startup_id_val:
         existing_by_startup = await db.execute(
             select(PortfolioCompany).where(
@@ -210,6 +188,29 @@ async def add_portfolio_company(
         )
         if existing_by_startup.scalar_one_or_none():
             raise HTTPException(status_code=409, detail="Company already in portfolio")
+
+    # No match found — create a new startup and trigger enrichment
+    if not startup_id_val and not body.startup_id:
+        name = body.company_name.strip()
+        slug = _slugify(name)
+        existing_slug = await db.execute(
+            select(Startup).where(Startup.slug == slug)
+        )
+        if existing_slug.scalar_one_or_none() is not None:
+            slug = f"{slug}-{uuid.uuid4().hex[:6]}"
+        new_startup = Startup(
+            name=name,
+            slug=slug,
+            description=f"{name} — added via investor portfolio",
+            website_url=body.company_website or None,
+            stage=StartupStage.seed,
+            status=StartupStatus.approved,
+            entity_type=EntityType.startup,
+        )
+        db.add(new_startup)
+        await db.flush()
+        startup_id_val = new_startup.id
+        background_tasks.add_task(run_enrichment_pipeline, str(new_startup.id))
 
     pc = PortfolioCompany(
         investor_id=investor_id,
