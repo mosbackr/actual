@@ -1,7 +1,8 @@
+import re
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +11,9 @@ from app.api.deps import get_current_user, get_current_user_or_none
 from app.db.session import get_db
 from app.models.investor import Investor
 from app.models.portfolio import PortfolioCompany
-from app.models.startup import Startup
+from app.models.startup import Startup, StartupStage, StartupStatus
 from app.models.user import User, UserRole
+from app.services.enrichment import run_enrichment_pipeline
 
 router = APIRouter()
 
@@ -77,6 +79,13 @@ def _portfolio_response(pc: PortfolioCompany, startup: Startup | None = None) ->
     return result
 
 
+def _slugify(name: str) -> str:
+    slug = name.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[-\s]+", "-", slug)
+    return slug
+
+
 async def _get_investor_and_check_owner(
     investor_id: uuid.UUID, user: User, db: AsyncSession
 ) -> Investor:
@@ -131,6 +140,7 @@ async def list_portfolio(
 async def add_portfolio_company(
     investor_id: uuid.UUID,
     body: PortfolioCreateBody,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -157,6 +167,27 @@ async def add_portfolio_company(
         matched = result.scalar_one_or_none()
         if matched:
             startup_id_val = matched.id
+        else:
+            # Create a new startup record and trigger enrichment
+            name = body.company_name.strip()
+            slug = _slugify(name)
+            existing_slug = await db.execute(
+                select(Startup).where(Startup.slug == slug)
+            )
+            if existing_slug.scalar_one_or_none() is not None:
+                slug = f"{slug}-{uuid.uuid4().hex[:6]}"
+            new_startup = Startup(
+                name=name,
+                slug=slug,
+                description=f"{name} — added via investor portfolio",
+                website_url=body.company_website or None,
+                stage=StartupStage.seed,
+                status=StartupStatus.approved,
+            )
+            db.add(new_startup)
+            await db.flush()
+            startup_id_val = new_startup.id
+            background_tasks.add_task(run_enrichment_pipeline, str(new_startup.id))
 
     # Check for duplicate by name
     existing = await db.execute(
