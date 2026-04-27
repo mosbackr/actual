@@ -75,6 +75,7 @@ from app.api.admin_marketing import router as admin_marketing_router
 from app.api.investor_rankings_public import router as investor_rankings_public_router
 from app.api.unsubscribe import router as unsubscribe_router
 from app.api.zoom import router as zoom_router
+from app.api.investor_portfolio import router as investor_portfolio_router
 
 app = FastAPI(title="Acutal API", version="0.1.0", lifespan=lifespan)
 
@@ -137,6 +138,7 @@ app.include_router(admin_marketing_router)
 app.include_router(investor_rankings_public_router)
 app.include_router(unsubscribe_router)
 app.include_router(zoom_router)
+app.include_router(investor_portfolio_router)
 
 
 @app.get("/api/health")
