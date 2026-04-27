@@ -530,6 +530,13 @@ export const api = {
     );
   },
 
+  async importZoomRecording(token: string, sessionId: string) {
+    return apiFetch<{ ok: boolean; id: string }>(
+      `/api/zoom/import/${sessionId}`,
+      { method: "POST", headers: authHeaders(token) }
+    );
+  },
+
   // ── Feedback ─────────────────────────────────────────────────────────
 
   createFeedbackSession: async (
@@ -571,6 +578,113 @@ export const api = {
   ): Promise<{ id: string; status: string }> => {
     return apiFetch(`/api/feedback/sessions/${sessionId}/abandon`, {
       method: "PATCH",
+      headers: authHeaders(token),
+    });
+  },
+
+  // ── Portfolio ──��──────────────────────────────────────────────────────
+
+  async getPortfolio(token: string | null, investorId: string) {
+    return apiFetch<{
+      items: Array<{
+        id: string;
+        investor_id: string;
+        startup_id: string | null;
+        company_name: string;
+        company_website: string | null;
+        investment_date: string | null;
+        round_stage: string | null;
+        check_size: string | null;
+        is_lead: boolean;
+        board_seat: boolean;
+        status: string;
+        exit_type: string | null;
+        exit_multiple: number | null;
+        is_public: boolean;
+        startup_slug: string | null;
+        startup_logo_url: string | null;
+        startup_stage: string | null;
+      }>;
+      is_owner: boolean;
+    }>(`/api/investors/${investorId}/portfolio`, {
+      headers: token ? authHeaders(token) : {},
+    });
+  },
+
+  async addPortfolioCompany(
+    token: string,
+    investorId: string,
+    body: {
+      company_name: string;
+      startup_id?: string;
+      company_website?: string;
+      investment_date?: string;
+      round_stage?: string;
+      check_size?: string;
+      is_lead?: boolean;
+      board_seat?: boolean;
+      status?: string;
+      is_public?: boolean;
+    }
+  ) {
+    return apiFetch<Record<string, unknown>>(
+      `/api/investors/${investorId}/portfolio`,
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify(body),
+      }
+    );
+  },
+
+  async updatePortfolioCompany(
+    token: string,
+    investorId: string,
+    portfolioId: string,
+    body: Record<string, unknown>
+  ) {
+    return apiFetch<Record<string, unknown>>(
+      `/api/investors/${investorId}/portfolio/${portfolioId}`,
+      {
+        method: "PUT",
+        headers: authHeaders(token),
+        body: JSON.stringify(body),
+      }
+    );
+  },
+
+  async deletePortfolioCompany(token: string, investorId: string, portfolioId: string) {
+    await fetch(`${API_URL}/api/investors/${investorId}/portfolio/${portfolioId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    });
+  },
+
+  async claimInvestorProfile(token: string) {
+    return apiFetch<{
+      investor_id: string;
+      firm_name: string;
+      partner_name: string;
+      already_claimed: boolean;
+    }>("/api/investors/claim", {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  async getSuggestedPortfolio(token: string, investorId: string) {
+    return apiFetch<{
+      suggestions: Array<{
+        company_name: string;
+        matched_startup: {
+          id: string;
+          slug: string;
+          name: string;
+          logo_url: string | null;
+          stage: string | null;
+        } | null;
+      }>;
+    }>(`/api/investors/${investorId}/suggested-portfolio`, {
       headers: authHeaders(token),
     });
   },
