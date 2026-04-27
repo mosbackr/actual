@@ -73,6 +73,13 @@ export function AuthButton() {
             >
               Billing
             </Link>
+            <Link
+              href="/experts/apply"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-alt transition"
+            >
+              Contribute
+            </Link>
             <div className="border-t border-border my-1" />
             <button
               onClick={() => {

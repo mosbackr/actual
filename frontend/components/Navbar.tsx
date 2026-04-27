@@ -71,12 +71,6 @@ export function Navbar() {
                 <Link href="/pitch-intelligence" className="text-sm text-text-secondary hover:text-text-primary transition">
                   Pitch Intel
                 </Link>
-                <Link
-                  href="/experts/apply"
-                  className="text-sm px-3 py-1 rounded border border-accent text-accent hover:bg-accent/5 transition"
-                >
-                  Contribute
-                </Link>
               </div>
             )}
           </div>
