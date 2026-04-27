@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -26,7 +26,7 @@ class PortfolioCompany(Base):
     )
     company_name: Mapped[str] = mapped_column(String(300), nullable=False)
     company_website: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    investment_date: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    investment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     round_stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
     check_size: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_lead: Mapped[bool] = mapped_column(

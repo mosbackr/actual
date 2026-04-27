@@ -22,6 +22,7 @@ from app.models.feedback import FeedbackSession
 from app.models.investor_ranking import InvestorRanking, InvestorRankingBatchJob
 from app.models.analyst import AnalystAttachment
 from app.models.marketing import MarketingEmailJob, MarketingEmailSent, EmailVerificationJob
+from app.models.portfolio import PortfolioCompany
 
 __all__ = [
     "User",
@@ -61,4 +62,5 @@ __all__ = [
     "MarketingEmailJob",
     "MarketingEmailSent",
     "EmailVerificationJob",
+    "PortfolioCompany",
 ]
