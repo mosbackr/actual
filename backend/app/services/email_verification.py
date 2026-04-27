@@ -36,6 +36,10 @@ async def verify_with_hunter(
             },
             timeout=30.0,
         )
+    # 222 = Hunter couldn't reach the mail server; treat as "unknown" not an error
+    if resp.status_code == 222:
+        return {"status": "unknown", "suggested_email": None}
+
     if resp.status_code != 200:
         body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
         detail = body.get("errors", [{}])[0].get("details", resp.text[:200])
@@ -199,7 +203,8 @@ async def run_verification_batch(job_id: str) -> None:
                     logger.info(
                         f"Bounced: {email} ({recipient['firm_name']}) - {nb_status}"
                     )
-                else:
+                elif nb_status == "valid" and hunter_result["status"] in ("valid", "webmail"):
+                    # Only mark as sendable when BOTH APIs confirm
                     if was_corrected:
                         investor.email = email
                         investor.email_status = "corrected"
@@ -214,12 +219,21 @@ async def run_verification_batch(job_id: str) -> None:
                             job.corrected_count += 1
                         job.verified_count += 1
                         await db2.commit()
+                else:
+                    # unknown, catchall, or Hunter didn't confirm — not safe to send
+                    investor.email_status = "undeliverable"
+                    investor.email_verified_at = datetime.now(timezone.utc)
+                    await db.commit()
 
-                    if nb_status == "unknown":
-                        logger.warning(
-                            f"Unknown deliverability for {email} "
-                            f"({recipient['firm_name']}) - proceeding anyway"
-                        )
+                    async with db_factory() as db2:
+                        job = await db2.get(EmailVerificationJob, uuid.UUID(job_id))
+                        job.skipped_count += 1
+                        await db2.commit()
+
+                    logger.info(
+                        f"Undeliverable: {email} ({recipient['firm_name']}) "
+                        f"- hunter={hunter_result['status']}, neverbounce={nb_status}"
+                    )
 
         except Exception as e:
             error_str = str(e)
