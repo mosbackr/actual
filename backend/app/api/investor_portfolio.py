@@ -139,7 +139,11 @@ async def add_portfolio_company(
     # Validate startup_id if provided
     startup_id_val = None
     if body.startup_id:
-        startup = await db.get(Startup, uuid.UUID(body.startup_id))
+        try:
+            sid = uuid.UUID(body.startup_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid startup_id")
+        startup = await db.get(Startup, sid)
         if not startup:
             raise HTTPException(status_code=400, detail="Startup not found")
         startup_id_val = startup.id
@@ -196,11 +200,19 @@ async def update_portfolio_company(
 
     update_data = body.model_dump(exclude_unset=True)
 
-    if "startup_id" in update_data and update_data["startup_id"]:
-        startup = await db.get(Startup, uuid.UUID(update_data["startup_id"]))
-        if not startup:
-            raise HTTPException(status_code=400, detail="Startup not found")
-        update_data["startup_id"] = startup.id
+    if "startup_id" in update_data:
+        sid_str = update_data["startup_id"]
+        if sid_str:
+            try:
+                sid = uuid.UUID(sid_str)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid startup_id")
+            startup = await db.get(Startup, sid)
+            if not startup:
+                raise HTTPException(status_code=400, detail="Startup not found")
+            update_data["startup_id"] = startup.id
+        else:
+            update_data["startup_id"] = None
 
     for key, value in update_data.items():
         setattr(pc, key, value)
@@ -255,16 +267,18 @@ async def claim_investor_profile(
     result = await db.execute(
         select(Investor).where(
             Investor.email.isnot(None),
-            Investor.user_id.is_(None),
             Investor.email.ilike(user.email),
         )
     )
     investor = result.scalar_one_or_none()
     if not investor:
         raise HTTPException(status_code=404, detail="No investor profile matches your email")
+    if investor.user_id is not None:
+        raise HTTPException(status_code=409, detail="This investor profile has already been claimed")
 
     investor.user_id = user.id
-    user.role = UserRole.investor
+    if user.role == UserRole.user:
+        user.role = UserRole.investor
     await db.commit()
 
     return {
