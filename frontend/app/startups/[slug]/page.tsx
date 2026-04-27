@@ -4,8 +4,10 @@ import { ScoreComparison } from "@/components/ScoreComparison";
 import { ScoreTimeline } from "@/components/ScoreTimeline";
 import { DimensionRadar } from "@/components/DimensionRadar";
 import { ReviewSection } from "@/components/ReviewSection";
+import { WatchButton } from "./watch-button";
+import { PortfolioButton } from "./portfolio-button";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXTAUTH_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -163,6 +165,8 @@ export default async function StartupPage({ params }: { params: Promise<{ slug: 
             ))}
           </div>
           <div className="flex flex-wrap gap-3 mt-3 items-center">
+            <WatchButton startupId={startup.id} />
+            <PortfolioButton startupId={startup.id} startupName={startup.name} />
             {startup.website_url && (
               <span className="inline-flex items-center gap-1">
                 <a href={startup.website_url} target="_blank" rel="noopener noreferrer"
