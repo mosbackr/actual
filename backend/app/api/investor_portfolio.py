@@ -136,7 +136,7 @@ async def add_portfolio_company(
 ):
     await _get_investor_and_check_owner(investor_id, user, db)
 
-    # Validate startup_id if provided
+    # Validate startup_id if provided, or auto-match by name
     startup_id_val = None
     if body.startup_id:
         try:
@@ -147,8 +147,18 @@ async def add_portfolio_company(
         if not startup:
             raise HTTPException(status_code=400, detail="Startup not found")
         startup_id_val = startup.id
+    else:
+        # Try to auto-match company name against existing startups
+        result = await db.execute(
+            select(Startup)
+            .where(Startup.name.ilike(body.company_name.strip()))
+            .limit(1)
+        )
+        matched = result.scalar_one_or_none()
+        if matched:
+            startup_id_val = matched.id
 
-    # Check for duplicate
+    # Check for duplicate by name
     existing = await db.execute(
         select(PortfolioCompany).where(
             PortfolioCompany.investor_id == investor_id,
@@ -157,6 +167,17 @@ async def add_portfolio_company(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Company already in portfolio")
+
+    # Also check for duplicate by startup_id (different name, same company)
+    if startup_id_val:
+        existing_by_startup = await db.execute(
+            select(PortfolioCompany).where(
+                PortfolioCompany.investor_id == investor_id,
+                PortfolioCompany.startup_id == startup_id_val,
+            )
+        )
+        if existing_by_startup.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="Company already in portfolio")
 
     pc = PortfolioCompany(
         investor_id=investor_id,
