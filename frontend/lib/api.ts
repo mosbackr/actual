@@ -9,6 +9,66 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
+export interface DataroomListItem {
+  id: string;
+  founder_email: string;
+  founder_name: string | null;
+  company_name: string | null;
+  status: "pending" | "uploading" | "submitted" | "analyzing" | "complete" | "expired";
+  document_count: number;
+  analysis_id: string | null;
+  created_at: string;
+}
+
+export interface DataroomDocument {
+  id: string;
+  section: string;
+  original_filename: string;
+  file_type: string;
+  file_size_bytes: number;
+  created_at?: string;
+}
+
+export interface DataroomSectionReview {
+  id: string;
+  section: string;
+  criteria_description: string | null;
+  score: number | null;
+  summary: string | null;
+  findings: {
+    strengths?: string[];
+    concerns?: string[];
+    missing?: string[];
+    recommendation?: string;
+  } | null;
+  status: "pending" | "complete" | "failed";
+}
+
+export interface DataroomDetail {
+  id: string;
+  investor_id: string;
+  founder_id: string | null;
+  founder_email: string;
+  founder_name: string | null;
+  company_name: string | null;
+  personal_message: string | null;
+  status: string;
+  analysis_id: string | null;
+  custom_criteria: { description: string }[] | null;
+  created_at: string;
+  documents: DataroomDocument[];
+  section_reviews: DataroomSectionReview[];
+}
+
+export interface DataroomFounderView {
+  id: string;
+  investor_name: string;
+  company_name: string | null;
+  personal_message: string | null;
+  status: string;
+  documents: DataroomDocument[];
+}
+
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -712,4 +772,70 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  // ── Datarooms — Investor ────────────────────────────────────────────
+
+  createDataroomRequest: async (token: string, formData: FormData) => {
+    const res = await fetch(`${API_URL}/api/datarooms`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  listDatarooms: (token: string) =>
+    apiFetch<{ items: DataroomListItem[] }>("/api/datarooms", {
+      headers: authHeaders(token),
+    }),
+
+  getDataroom: (token: string, id: string) =>
+    apiFetch<DataroomDetail>(`/api/datarooms/${id}`, {
+      headers: authHeaders(token),
+    }),
+
+  deleteDataroom: (token: string, id: string) =>
+    apiFetch<{ deleted: boolean }>(`/api/datarooms/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
+
+  // ── Datarooms — Founder ─────────────────────────────────────────────
+
+  getDataroomByToken: (token: string, shareToken: string) =>
+    apiFetch<DataroomFounderView>(`/api/datarooms/request/${shareToken}`, {
+      headers: authHeaders(token),
+    }),
+
+  uploadDataroomFile: async (token: string, shareToken: string, section: string, file: File) => {
+    const formData = new FormData();
+    formData.append("section", section);
+    formData.append("file", file);
+    const res = await fetch(`${API_URL}/api/datarooms/request/${shareToken}/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Upload failed: ${res.status}`);
+    }
+    return res.json() as Promise<DataroomDocument>;
+  },
+
+  deleteDataroomDocument: (token: string, shareToken: string, docId: string) =>
+    apiFetch<{ deleted: boolean }>(`/api/datarooms/request/${shareToken}/documents/${docId}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
+
+  submitDataroom: (token: string, shareToken: string) =>
+    apiFetch<{ submitted: boolean; investor_name: string }>(`/api/datarooms/request/${shareToken}/submit`, {
+      method: "POST",
+      headers: authHeaders(token),
+    }),
 };
