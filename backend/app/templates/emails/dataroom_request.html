@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Dataroom Request{% endblock %}
+{% block content %}
+<h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: normal; color: #1A1A1A; margin: 0 0 24px 0;">Dataroom Request</h1>
+
+<p style="font-size: 16px; line-height: 1.6; color: #1A1A1A; margin: 0 0 16px 0;">
+  Hi{% if founder_name %} {{ founder_name }}{% endif %}, <strong>{{ investor_name }}</strong> has requested access to your dataroom{% if company_name %} for <strong>{{ company_name }}</strong>{% endif %}.
+</p>
+
+{% if personal_message %}
+<div style="background-color: #F5F5F0; border-left: 3px solid #F28C28; padding: 16px 20px; margin: 24px 0; border-radius: 0 4px 4px 0;">
+  <p style="font-size: 15px; line-height: 1.6; color: #333; margin: 0; font-style: italic;">
+    "{{ personal_message }}"
+  </p>
+  <p style="font-size: 13px; color: #666; margin: 8px 0 0 0;">— {{ investor_name }}</p>
+</div>
+{% endif %}
+
+<p style="font-size: 16px; line-height: 1.6; color: #1A1A1A; margin: 0 0 16px 0;">
+  Upload your company documents — financials, pitch deck, corporate docs, and more — securely through Deep Thesis.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+  <tr>
+    <td style="background-color: #F28C28; border-radius: 4px;">
+      <a href="{{ cta_url }}" style="display: inline-block; padding: 14px 28px; color: #FFFFFF; text-decoration: none; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 500;">Upload Your Dataroom</a>
+    </td>
+  </tr>
+</table>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Dataroom Submitted{% endblock %}
+{% block content %}
+<h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: normal; color: #1A1A1A; margin: 0 0 24px 0;">Dataroom Received</h1>
+
+<p style="font-size: 16px; line-height: 1.6; color: #1A1A1A; margin: 0 0 16px 0;">
+  Hi {{ investor_name }}, <strong>{{ founder_name }}</strong> has submitted their dataroom{% if company_name %} for <strong>{{ company_name }}</strong>{% endif %}. The AI analysis is now running — you'll be notified when it's ready.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+  <tr>
+    <td style="background-color: #F28C28; border-radius: 4px;">
+      <a href="{{ cta_url }}" style="display: inline-block; padding: 14px 28px; color: #FFFFFF; text-decoration: none; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 500;">View Dataroom</a>
+    </td>
+  </tr>
+</table>
+{% endblock %}

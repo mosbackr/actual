@@ -196,3 +196,72 @@ def send_subscription_cancelled(user_email: str, user_name: str) -> None:
         )
     except Exception:
         logger.warning("Failed to send subscription_cancelled email to %s", user_email, exc_info=True)
+
+
+def send_dataroom_request(
+    founder_email: str,
+    founder_name: str | None,
+    investor_name: str,
+    company_name: str | None,
+    personal_message: str | None,
+    share_token: str,
+) -> None:
+    try:
+        _send(
+            to=founder_email,
+            subject=f"{investor_name} has requested your dataroom",
+            template_name="dataroom_request.html",
+            context={
+                "founder_name": founder_name,
+                "investor_name": investor_name,
+                "company_name": company_name,
+                "personal_message": personal_message,
+                "cta_url": f"{settings.frontend_url}/dataroom/{share_token}",
+            },
+        )
+    except Exception:
+        logger.warning("Failed to send dataroom_request email to %s", founder_email, exc_info=True)
+
+
+def send_dataroom_submitted(
+    investor_email: str,
+    investor_name: str,
+    founder_name: str,
+    company_name: str | None,
+    dataroom_id: str,
+) -> None:
+    try:
+        _send(
+            to=investor_email,
+            subject=f"Dataroom received from {founder_name}",
+            template_name="dataroom_submitted.html",
+            context={
+                "investor_name": investor_name,
+                "founder_name": founder_name,
+                "company_name": company_name or "their company",
+                "cta_url": f"{settings.frontend_url}/datarooms/{dataroom_id}",
+            },
+        )
+    except Exception:
+        logger.warning("Failed to send dataroom_submitted email to %s", investor_email, exc_info=True)
+
+
+def send_dataroom_complete(
+    investor_email: str,
+    investor_name: str,
+    company_name: str | None,
+    dataroom_id: str,
+) -> None:
+    try:
+        _send(
+            to=investor_email,
+            subject="Dataroom analysis is ready",
+            template_name="dataroom_complete.html",
+            context={
+                "investor_name": investor_name,
+                "company_name": company_name or "the company",
+                "cta_url": f"{settings.frontend_url}/datarooms/{dataroom_id}",
+            },
+        )
+    except Exception:
+        logger.warning("Failed to send dataroom_complete email to %s", investor_email, exc_info=True)
