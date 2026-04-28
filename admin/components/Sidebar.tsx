@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/users", label: "Users" },
   { href: "/feedback", label: "Feedback" },
   { href: "/marketing", label: "Marketing" },
+  { href: "/discovery", label: "Discovery" },
 ];
 
 export function Sidebar() {
