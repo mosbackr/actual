@@ -1,7 +1,7 @@
 """add dataroom tables
 
 Revision ID: dr01
-Revises: disc01
+Revises: disc01, h9i0j1k2l3m4
 Create Date: 2026-04-27
 """
 from alembic import op
@@ -9,20 +9,19 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSON, UUID
 
 revision = "dr01"
-down_revision = "disc01"
+down_revision = ("disc01", "h9i0j1k2l3m4")
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # Create DataroomStatus enum
-    dataroomstatus = sa.Enum(
-        "pending", "uploading", "submitted", "analyzing", "complete", "expired",
-        name="dataroomstatus",
+    # Create DataroomStatus enum via raw SQL
+    op.execute(
+        "CREATE TYPE dataroomstatus AS ENUM "
+        "('pending', 'uploading', 'submitted', 'analyzing', 'complete', 'expired')"
     )
-    dataroomstatus.create(op.get_bind(), checkfirst=True)
 
-    # Create dataroom_requests table
+    # Create dataroom_requests table — use sa.String for status to avoid sa.Enum auto-creation
     op.create_table(
         "dataroom_requests",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
@@ -33,7 +32,7 @@ def upgrade() -> None:
         sa.Column("company_name", sa.String(300), nullable=True),
         sa.Column("personal_message", sa.Text, nullable=True),
         sa.Column("share_token", sa.String(64), unique=True, nullable=False),
-        sa.Column("status", dataroomstatus, nullable=False, server_default="pending"),
+        sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
         sa.Column("analysis_id", UUID(as_uuid=True), sa.ForeignKey("pitch_analyses.id"), nullable=True),
         sa.Column("custom_criteria", JSON, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
@@ -41,6 +40,14 @@ def upgrade() -> None:
     )
     op.create_index("ix_dataroom_requests_investor_id", "dataroom_requests", ["investor_id"])
     op.create_index("ix_dataroom_requests_share_token", "dataroom_requests", ["share_token"], unique=True)
+
+    # Set the proper enum type on the status column
+    op.execute("ALTER TABLE dataroom_requests ALTER COLUMN status DROP DEFAULT")
+    op.execute(
+        "ALTER TABLE dataroom_requests "
+        "ALTER COLUMN status TYPE dataroomstatus USING status::dataroomstatus"
+    )
+    op.execute("ALTER TABLE dataroom_requests ALTER COLUMN status SET DEFAULT 'pending'")
 
     # Create dataroom_documents table
     op.create_table(
