@@ -11,10 +11,14 @@ from app.models.industry import Base
 class NotificationType(enum.Enum):
     analysis_complete = "analysis_complete"
     report_ready = "report_ready"
+    memo_complete = "memo_complete"
+    dataroom_submitted = "dataroom_submitted"
+    dataroom_complete = "dataroom_complete"
 
 
 notificationtype_enum = ENUM(
-    "analysis_complete", "report_ready",
+    "analysis_complete", "report_ready", "memo_complete",
+    "dataroom_submitted", "dataroom_complete",
     name="notificationtype", create_type=False,
 )
 

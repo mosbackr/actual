@@ -24,6 +24,7 @@ from app.models.analyst import AnalystAttachment
 from app.models.marketing import MarketingEmailJob, MarketingEmailSent, EmailVerificationJob
 from app.models.portfolio import PortfolioCompany
 from app.models.discovery import DiscoveryBatchJob
+from app.models.dataroom import DataroomRequest, DataroomDocument, DataroomSectionReview
 
 __all__ = [
     "User",
@@ -65,4 +66,7 @@ __all__ = [
     "EmailVerificationJob",
     "PortfolioCompany",
     "DiscoveryBatchJob",
+    "DataroomRequest",
+    "DataroomDocument",
+    "DataroomSectionReview",
 ]
