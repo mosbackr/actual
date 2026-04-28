@@ -406,3 +406,72 @@ export interface VerificationJob {
   completed_at: string | null;
   created_at: string | null;
 }
+
+// ── Discovery ─────────────────────────────────────────────────────────
+
+export interface DiscoveryFounder {
+  id: string;
+  name: string;
+  title: string | null;
+  headline: string | null;
+  location: string | null;
+  linkedin_url: string | null;
+  profile_photo_url: string | null;
+  work_history: { company: string; title: string; start_date: string; end_date: string; description: string }[] | null;
+  education_history: { school: string; degree: string; field: string; start_year: number | null; end_year: number | null }[] | null;
+}
+
+export interface DiscoveredStartupItem {
+  id: string;
+  name: string;
+  delaware_corp_name: string | null;
+  delaware_file_number: string | null;
+  delaware_filed_at: string | null;
+  status: string;
+  classification_status: string;
+  classification_metadata: { classification?: string; confidence?: number; reasoning?: string } | null;
+  enrichment_status: string;
+  description: string | null;
+  tagline: string | null;
+  website_url: string | null;
+  stage: string;
+  total_funding: string | null;
+  employee_count: string | null;
+  location_city: string | null;
+  location_state: string | null;
+  founders: DiscoveryFounder[];
+  created_at: string;
+}
+
+export interface DiscoveredStartupListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+  items: DiscoveredStartupItem[];
+}
+
+export interface DiscoveryBatchJob {
+  id: string;
+  status: "pending" | "running" | "paused" | "completed" | "failed";
+  job_type: string;
+  total_items: number;
+  processed_items: number;
+  current_item_name: string | null;
+  items_created: number;
+  error: string | null;
+  started_at: string | null;
+  paused_at: string | null;
+  completed_at: string | null;
+}
+
+export interface DiscoveryStatusResponse {
+  import_job: DiscoveryBatchJob | null;
+  pipeline_job: DiscoveryBatchJob | null;
+  stats: {
+    total_imported: number;
+    classified_startup: number;
+    enriched: number;
+    promoted: number;
+  };
+}

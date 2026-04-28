@@ -23,6 +23,8 @@ import type {
   StartupCandidate,
   StartupDetail,
   StartupFullDetail,
+  DiscoveredStartupListResponse,
+  DiscoveryStatusResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -410,4 +412,49 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ email, subject, html_template: htmlTemplate }),
     }),
+
+  // Discovery
+  importDiscoveryCSV: async (token: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_URL}/api/admin/discovery/import`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+    return res.json();
+  },
+
+  startDiscoveryPipeline: (token: string) =>
+    apiFetch<{ id: string; status: string }>("/api/admin/discovery/batch", token, { method: "POST" }),
+
+  pauseDiscoveryBatch: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/discovery/batch/${jobId}/pause`, token, { method: "PUT" }),
+
+  resumeDiscoveryBatch: (token: string, jobId: string) =>
+    apiFetch<{ id: string; status: string }>(`/api/admin/discovery/batch/${jobId}/resume`, token, { method: "PUT" }),
+
+  getDiscoveryStatus: (token: string) =>
+    apiFetch<DiscoveryStatusResponse>("/api/admin/discovery/batch/status", token),
+
+  getDiscoveredStartups: (token: string, params: {
+    classification?: string;
+    enrichment?: string;
+    q?: string;
+    sort?: string;
+    order?: string;
+    page?: number;
+    per_page?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v !== undefined) qs.set(k, String(v)); });
+    return apiFetch<DiscoveredStartupListResponse>(`/api/admin/discovery/startups?${qs}`, token);
+  },
+
+  promoteStartup: (token: string, startupId: string) =>
+    apiFetch<{ ok: boolean }>(`/api/admin/discovery/startups/${startupId}/promote`, token, { method: "PUT" }),
+
+  rejectStartup: (token: string, startupId: string) =>
+    apiFetch<{ ok: boolean }>(`/api/admin/discovery/startups/${startupId}/reject`, token, { method: "PUT" }),
 };
