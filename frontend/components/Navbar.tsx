@@ -71,6 +71,9 @@ export function Navbar() {
                 <Link href="/pitch-intelligence" className="text-sm text-text-secondary hover:text-text-primary transition">
                   Pitch Intel
                 </Link>
+                <Link href="/datarooms" className="text-sm text-text-secondary hover:text-text-primary transition">
+                  Datarooms
+                </Link>
               </div>
             )}
           </div>
