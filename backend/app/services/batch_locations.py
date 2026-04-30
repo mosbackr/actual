@@ -1,5 +1,5 @@
 BATCH_LOCATIONS = [
-    # US Tier 1
+    # US Tier 1 — Major tech/VC hubs
     {"city": "San Francisco", "state": "CA", "country": "US"},
     {"city": "New York", "state": "NY", "country": "US"},
     {"city": "Boston", "state": "MA", "country": "US"},
@@ -10,7 +10,8 @@ BATCH_LOCATIONS = [
     {"city": "Miami", "state": "FL", "country": "US"},
     {"city": "Denver", "state": "CO", "country": "US"},
     {"city": "Washington", "state": "DC", "country": "US"},
-    # US Tier 2
+    {"city": "San Jose", "state": "CA", "country": "US"},
+    # US Tier 2 — Strong startup ecosystems
     {"city": "San Diego", "state": "CA", "country": "US"},
     {"city": "Atlanta", "state": "GA", "country": "US"},
     {"city": "Dallas", "state": "TX", "country": "US"},
@@ -36,6 +37,35 @@ BATCH_LOCATIONS = [
     {"city": "Birmingham", "state": "AL", "country": "US"},
     {"city": "Madison", "state": "WI", "country": "US"},
     {"city": "Omaha", "state": "NE", "country": "US"},
+    {"city": "Sacramento", "state": "CA", "country": "US"},
+    {"city": "Oakland", "state": "CA", "country": "US"},
+    {"city": "Orlando", "state": "FL", "country": "US"},
+    {"city": "Cleveland", "state": "OH", "country": "US"},
+    {"city": "Irvine", "state": "CA", "country": "US"},
+    # US Tier 3 — 300K+ cities
+    {"city": "San Antonio", "state": "TX", "country": "US"},
+    {"city": "Jacksonville", "state": "FL", "country": "US"},
+    {"city": "Fort Worth", "state": "TX", "country": "US"},
+    {"city": "Oklahoma City", "state": "OK", "country": "US"},
+    {"city": "El Paso", "state": "TX", "country": "US"},
+    {"city": "Memphis", "state": "TN", "country": "US"},
+    {"city": "Louisville", "state": "KY", "country": "US"},
+    {"city": "Milwaukee", "state": "WI", "country": "US"},
+    {"city": "Albuquerque", "state": "NM", "country": "US"},
+    {"city": "Tucson", "state": "AZ", "country": "US"},
+    {"city": "Fresno", "state": "CA", "country": "US"},
+    {"city": "Colorado Springs", "state": "CO", "country": "US"},
+    {"city": "Virginia Beach", "state": "VA", "country": "US"},
+    {"city": "Tulsa", "state": "OK", "country": "US"},
+    {"city": "New Orleans", "state": "LA", "country": "US"},
+    {"city": "Wichita", "state": "KS", "country": "US"},
+    {"city": "Honolulu", "state": "HI", "country": "US"},
+    {"city": "Lexington", "state": "KY", "country": "US"},
+    {"city": "Corpus Christi", "state": "TX", "country": "US"},
+    {"city": "Riverside", "state": "CA", "country": "US"},
+    {"city": "Newark", "state": "NJ", "country": "US"},
+    {"city": "Bakersfield", "state": "CA", "country": "US"},
+    {"city": "Stockton", "state": "CA", "country": "US"},
     # International - North America
     {"city": "Toronto", "state": None, "country": "Canada"},
     {"city": "Vancouver", "state": None, "country": "Canada"},

@@ -172,7 +172,9 @@ export default function ProfilePage() {
     }
   }
 
-  const zoomConnectUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || ""}&redirect_uri=${encodeURIComponent((process.env.NEXT_PUBLIC_API_URL || "") + "/api/zoom/oauth/callback")}`;
+  const zoomRedirectUri = "https://www.deepthesis.co/api/zoom/oauth/callback";
+  const zoomClientId = process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || "upWnGhAuQo6I5hJaEKON1Q";
+  const zoomConnectUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${zoomClientId}&redirect_uri=${encodeURIComponent(zoomRedirectUri)}`;
 
   const initials = (name || session.user?.name || "?")
     .split(" ")

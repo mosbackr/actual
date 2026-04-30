@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { PaginatedStartups, Industry, Stage } from "@/lib/types";
 import FilterBar from "./filter-bar";
+import { WatchlistProvider, CardBookmark } from "./watchlist-overlay";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXTAUTH_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "";
 
 const stageLabels: Record<string, string> = {
   pre_seed: "Pre-Seed", seed: "Seed", series_a: "Series A",
@@ -228,62 +229,68 @@ export default async function StartupsPage({
         </p>
       ) : (
         <>
+          <WatchlistProvider>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {data.items.map((startup) => (
-              <Link
-                key={startup.id}
-                href={`/startups/${startup.slug}`}
-                className="rounded border border-border bg-surface p-5 hover:border-text-tertiary transition block"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  {startup.logo_url ? (
-                    <img src={startup.logo_url} alt={startup.name} className="h-10 w-10 rounded object-cover" />
-                  ) : (
-                    <div className="h-10 w-10 rounded bg-background border border-border flex items-center justify-center font-serif text-lg text-text-tertiary">
-                      {startup.name[0]}
+              <div key={startup.id} className="relative rounded border border-border bg-surface p-5 hover:border-text-tertiary transition">
+                <div className="absolute top-3 right-3 z-10">
+                  <CardBookmark startupId={startup.id} />
+                </div>
+                <Link
+                  href={`/startups/${startup.slug}`}
+                  className="block"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    {startup.logo_url ? (
+                      <img src={startup.logo_url} alt={startup.name} className="h-10 w-10 rounded object-cover" />
+                    ) : (
+                      <div className="h-10 w-10 rounded bg-background border border-border flex items-center justify-center font-serif text-lg text-text-tertiary">
+                        {startup.name[0]}
+                      </div>
+                    )}
+                    <div className="min-w-0 pr-6">
+                      <h3 className="text-sm font-medium text-text-primary truncate">{startup.name}</h3>
+                      {startup.tagline && (
+                        <p className="text-xs text-text-tertiary truncate">{startup.tagline}</p>
+                      )}
                     </div>
-                  )}
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-medium text-text-primary truncate">{startup.name}</h3>
-                    {startup.tagline && (
-                      <p className="text-xs text-text-tertiary truncate">{startup.tagline}</p>
+                  </div>
+                  <p className="text-xs text-text-secondary line-clamp-2 mb-3">{startup.description}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs px-2 py-0.5 rounded border border-border text-text-tertiary">
+                      {stageLabels[startup.stage] || startup.stage}
+                    </span>
+                    {startup.industries.length > 0 && (
+                      <span className="text-xs text-text-tertiary">
+                        {startup.industries[0].name}
+                      </span>
+                    )}
+                    {startup.ai_score != null && (
+                      <span className={`text-xs font-medium tabular-nums ml-auto ${
+                        startup.ai_score >= 70 ? "text-score-high" : startup.ai_score >= 40 ? "text-score-mid" : "text-score-low"
+                      }`}>
+                        AI: {startup.ai_score.toFixed(0)}
+                      </span>
                     )}
                   </div>
-                </div>
-                <p className="text-xs text-text-secondary line-clamp-2 mb-3">{startup.description}</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs px-2 py-0.5 rounded border border-border text-text-tertiary">
-                    {stageLabels[startup.stage] || startup.stage}
-                  </span>
-                  {startup.industries.length > 0 && (
-                    <span className="text-xs text-text-tertiary">
-                      {startup.industries[0].name}
-                    </span>
+                  {startup.form_sources?.length > 0 && (
+                    <div className="flex gap-1 mt-1.5">
+                      {startup.form_sources.map((fs: string) => (
+                        <span
+                          key={fs}
+                          className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent/5 text-text-tertiary"
+                          title={`Data from ${fs}`}
+                        >
+                          {fs}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  {startup.ai_score != null && (
-                    <span className={`text-xs font-medium tabular-nums ml-auto ${
-                      startup.ai_score >= 70 ? "text-score-high" : startup.ai_score >= 40 ? "text-score-mid" : "text-score-low"
-                    }`}>
-                      AI: {startup.ai_score.toFixed(0)}
-                    </span>
-                  )}
-                </div>
-                {startup.form_sources?.length > 0 && (
-                  <div className="flex gap-1 mt-1.5">
-                    {startup.form_sources.map((fs: string) => (
-                      <span
-                        key={fs}
-                        className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent/5 text-text-tertiary"
-                        title={`Data from ${fs}`}
-                      >
-                        {fs}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
+          </WatchlistProvider>
 
           {data.pages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-10">

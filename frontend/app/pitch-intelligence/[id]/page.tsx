@@ -99,7 +99,7 @@ function PitchSessionContent() {
 
   // Poll for status updates when transcribing or analyzing
   useEffect(() => {
-    if (!token || !ps || !["transcribing", "analyzing"].includes(ps.status)) return;
+    if (!token || !ps || !["downloading", "transcribing", "analyzing"].includes(ps.status)) return;
     const interval = setInterval(async () => {
       try {
         const data = await api.getPitchSession(token, sessionId);
@@ -162,15 +162,21 @@ function PitchSessionContent() {
   }
 
   // ── Transcribing state ─────────────────────────────────────────────
-  if (ps.status === "uploading" || ps.status === "transcribing") {
+  if (ps.status === "uploading" || ps.status === "downloading" || ps.status === "transcribing") {
     return (
       <div className="mx-auto max-w-4xl px-6 py-16 text-center">
         <div className="animate-pulse text-4xl mb-4">&#127908;</div>
         <h2 className="text-xl font-medium text-text-primary mb-2">
-          {ps.status === "uploading" ? "Processing upload..." : "Transcribing your pitch..."}
+          {ps.status === "uploading"
+            ? "Processing upload..."
+            : ps.status === "downloading"
+              ? "Downloading video..."
+              : "Transcribing your pitch..."}
         </h2>
         <p className="text-text-secondary">
-          This usually takes 1-3 minutes depending on the recording length.
+          {ps.status === "downloading"
+            ? "Fetching audio from the video link. This may take a minute."
+            : "This usually takes 1-3 minutes depending on the recording length."}
         </p>
       </div>
     );

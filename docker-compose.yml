@@ -35,8 +35,8 @@ services:
       ACUTAL_STRIPE_PRICE_PROFESSIONAL: ${STRIPE_PRICE_PROFESSIONAL:-}
       ACUTAL_STRIPE_PRICE_UNLIMITED: ${STRIPE_PRICE_UNLIMITED:-}
       ACUTAL_RESEND_API_KEY: ${RESEND_API_KEY:-}
-      ACUTAL_EMAIL_FROM: ${EMAIL_FROM:-gaius@deepthesis.org}
-      ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://www.deepthesis.org}
+      ACUTAL_EMAIL_FROM: ${EMAIL_FROM:-gaius@deepthesis.co}
+      ACUTAL_FRONTEND_URL: ${FRONTEND_URL:-https://www.deepthesis.co}
       ACUTAL_DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       ACUTAL_HUNTER_API_KEY: ${HUNTER_API_KEY:-}
       ACUTAL_NEVERBOUNCE_API_KEY: ${NEVERBOUNCE_API_KEY:-}
@@ -53,7 +53,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXTAUTH_URL: https://www.deepthesis.org
+      NEXTAUTH_URL: https://www.deepthesis.co
       NEXTAUTH_SECRET: dev-secret-change-in-production
       NEXTAUTH_BACKEND_URL: http://backend:8000
     depends_on:
@@ -67,7 +67,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      NEXTAUTH_URL: https://admin.deepthesis.org
+      NEXTAUTH_URL: https://admin.deepthesis.co
       NEXTAUTH_SECRET: dev-secret-change-in-production
       NEXTAUTH_BACKEND_URL: http://backend:8000
     depends_on:

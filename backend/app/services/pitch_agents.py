@@ -92,11 +92,18 @@ async def run_claim_extraction(transcript_labeled: dict) -> dict:
             "timelines) and every piece of advice or assertion made by investors (market opinions, "
             "valuation benchmarks, strategic suggestions, comparisons to other companies).\n\n"
             "Return a JSON object with two arrays:\n"
-            "- \"founder_claims\": each with {\"speaker\", \"timestamp\", \"quote\", \"category\", \"claim_summary\"}\n"
-            "- \"investor_claims\": each with {\"speaker\", \"timestamp\", \"quote\", \"category\", \"claim_summary\"}\n\n"
+            "- \"founder_claims\": each with {\"speaker\", \"timestamp\", \"quote\", \"category\", \"claim_summary\", \"verifiable\"}\n"
+            "- \"investor_claims\": each with {\"speaker\", \"timestamp\", \"quote\", \"category\", \"claim_summary\", \"verifiable\"}\n\n"
+            "The \"verifiable\" field is a boolean:\n"
+            "- true: The claim contains a specific, checkable fact (a number, date, named entity, "
+            "market stat, funding round, partnership, or comparable deal). Examples: "
+            "\"We have 50k users\", \"The TAM is $4B\", \"We raised a seed from Sequoia\".\n"
+            "- false: The claim is a subjective opinion, general knowledge truism, or vague assertion "
+            "that cannot be meaningfully verified via web search. Examples: "
+            "\"Our team is very experienced\", \"AI is transforming healthcare\", \"We move fast\".\n\n"
             "Categories for founders: revenue, growth, market_size, users, competitive, timeline, team, technology, unit_economics, other\n"
             "Categories for investors: market_opinion, valuation, strategy, comparison, risk, other\n\n"
-            "Be thorough — extract every verifiable claim. Return valid JSON only."
+            "Be thorough — extract every claim. Return valid JSON only."
         ),
         messages=[{"role": "user", "content": f"Transcript:\n\n{transcript_text}"}],
     )
@@ -118,10 +125,11 @@ async def run_claim_extraction(transcript_labeled: dict) -> dict:
 # ── Phase 2: Fact-Checking ────────────────────────────────────────────
 
 
-async def run_fact_check(claims: dict, claim_type: str) -> dict:
+async def run_fact_check(claims: dict, claim_type: str, pitch_context: dict | None = None) -> dict:
     """
     Fact-check a set of claims using Perplexity search.
     claim_type: "founder" or "investor"
+    pitch_context: optional dict with "company_name", "founder_names", "investor_names"
     """
     key = "founder_claims" if claim_type == "founder" else "investor_claims"
     claim_list = claims.get(key, [])
@@ -129,26 +137,68 @@ async def run_fact_check(claims: dict, claim_type: str) -> dict:
     if not claim_list:
         return {"claims": [], "summary": f"No {claim_type} claims to verify."}
 
-    # Search for verification data on each claim (batch similar ones)
+    # Filter to only verifiable claims
+    verifiable_claims = [c for c in claim_list if c.get("verifiable", True)]
+    skipped_claims = [c for c in claim_list if not c.get("verifiable", True)]
+
+    if not verifiable_claims:
+        return {
+            "checked_claims": [
+                {"verdict": "skipped", "confidence": 0, "explanation": "General knowledge / not verifiable", "sources": [], "original_claim": c}
+                for c in skipped_claims
+            ],
+            "summary": f"All {len(skipped_claims)} {claim_type} claims were general knowledge or opinions — nothing to fact-check.",
+            "verified_count": 0, "disputed_count": 0, "unverifiable_count": 0,
+        }
+
+    # Build context prefix for search queries
+    ctx_parts = []
+    if pitch_context:
+        if pitch_context.get("company_name"):
+            ctx_parts.append(pitch_context["company_name"])
+        names = pitch_context.get("founder_names", []) if claim_type == "founder" else pitch_context.get("investor_names", [])
+        if names:
+            ctx_parts.append(" ".join(names[:2]))  # top 2 names max
+    ctx_prefix = " ".join(ctx_parts).strip()
+
+    # Batch claims by category to reduce API calls
+    batches: dict[str, list[tuple[int, dict]]] = {}
+    for i, claim in enumerate(verifiable_claims):
+        cat = claim.get("category", "other")
+        batches.setdefault(cat, []).append((i, claim))
+
     verification_data = {}
-    for i, claim in enumerate(claim_list):
-        summary = claim.get("claim_summary", claim.get("quote", ""))
-        if summary:
-            search_result = await _perplexity_search(
-                f"Verify: {summary}"
-            )
-            verification_data[i] = search_result
+    for category, batch in batches.items():
+        if len(batch) == 1:
+            # Single claim — direct search
+            idx, claim = batch[0]
+            summary = claim.get("claim_summary", claim.get("quote", ""))
+            query = f"{ctx_prefix} {summary}".strip() if ctx_prefix else summary
+            verification_data[idx] = await _perplexity_search(query)
+        else:
+            # Multiple claims in same category — batch into one search
+            summaries = [c.get("claim_summary", c.get("quote", "")) for _, c in batch]
+            combined = "; ".join(s for s in summaries if s)
+            query = f"{ctx_prefix} Verify these {category} claims: {combined}".strip()
+            result = await _perplexity_search(query)
+            for idx, _ in batch:
+                verification_data[idx] = result
 
     # Now have Claude evaluate each claim against the search results
-    claims_text = json.dumps(claim_list, indent=2)
+    claims_text = json.dumps(verifiable_claims, indent=2)
     verification_text = json.dumps(verification_data, indent=2)
+
+    context_note = ""
+    if ctx_prefix:
+        context_note = f"Company/people context: {ctx_prefix}. "
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     response = await client.messages.create(
         model=SONNET_MODEL,
         max_tokens=8192,
         system=(
-            f"You are a fact-checking analyst. Evaluate each {claim_type} claim against the "
+            f"You are a fact-checking analyst. {context_note}"
+            f"Evaluate each {claim_type} claim against the "
             "verification data provided from web searches.\n\n"
             "For each claim, provide:\n"
             "- \"verdict\": one of \"verified\", \"disputed\", \"unverifiable\"\n"
@@ -156,6 +206,9 @@ async def run_fact_check(claims: dict, claim_type: str) -> dict:
             "- \"explanation\": why you reached this verdict\n"
             "- \"sources\": relevant sources from the verification data\n"
             "- \"original_claim\": the original claim object\n\n"
+            "Be rigorous: only mark a claim \"unverifiable\" if the search results genuinely contain "
+            "no relevant information. If the search results provide data that contradicts or supports "
+            "the claim, use \"verified\" or \"disputed\" accordingly.\n\n"
             "Return a JSON object with:\n"
             "- \"checked_claims\": array of evaluated claims\n"
             "- \"summary\": overall assessment paragraph\n"
@@ -180,9 +233,20 @@ async def run_fact_check(claims: dict, claim_type: str) -> dict:
         text = text.split("```")[1].split("```")[0]
 
     try:
-        return json.loads(text)
+        result = json.loads(text)
     except json.JSONDecodeError:
         return {"checked_claims": [], "summary": text, "raw_text": text}
+
+    # Append skipped (non-verifiable) claims to the result
+    if skipped_claims:
+        skipped_entries = [
+            {"verdict": "skipped", "confidence": 0, "explanation": "General knowledge or opinion — not fact-checkable", "sources": [], "original_claim": c}
+            for c in skipped_claims
+        ]
+        result.setdefault("checked_claims", []).extend(skipped_entries)
+        result["skipped_count"] = len(skipped_claims)
+
+    return result
 
 
 # ── Phase 3: Conversation Analysis ───────────────────────────────────

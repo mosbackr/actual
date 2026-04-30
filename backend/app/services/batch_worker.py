@@ -33,14 +33,14 @@ from app.services.scout import (
 logger = logging.getLogger(__name__)
 
 # Number of concurrent workers
-CONCURRENCY = 6
+CONCURRENCY = 4
 
 # Delays in seconds after each step type
 STEP_DELAYS = {
     BatchStepType.discover_investors: 2,
     BatchStepType.find_startups: 2,
     BatchStepType.add_to_triage: 2,
-    BatchStepType.enrich: 2,
+    BatchStepType.enrich: 1,
 }
 
 # System prompt for investor discovery (no startup JSON needed)
@@ -476,12 +476,10 @@ async def _claim_next_step(db: AsyncSession, job_id: str, preferred_type: BatchS
 
 # 2 workers per pipeline stage
 WORKER_PREFERENCES = {
-    0: BatchStepType.find_startups,
-    1: BatchStepType.find_startups,
-    2: BatchStepType.add_to_triage,
-    3: BatchStepType.add_to_triage,
-    4: BatchStepType.enrich,
-    5: BatchStepType.enrich,
+    0: BatchStepType.add_to_triage,
+    1: BatchStepType.add_to_triage,
+    2: BatchStepType.enrich,
+    3: BatchStepType.enrich,
 }
 
 

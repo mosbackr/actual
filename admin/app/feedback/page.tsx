@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { adminApi } from "@/lib/api";
+import { Sidebar } from "@/components/Sidebar";
+import { AccessDenied } from "@/components/AccessDenied";
 import type { FeedbackItem, FeedbackListResponse } from "@/lib/types";
 
 const CATEGORIES = ["bug", "feature_request", "ux_issue", "performance", "general"];
@@ -64,9 +66,13 @@ export default function FeedbackPage() {
     }
   };
 
+  if (!session || (session as any).role !== "superadmin") return <AccessDenied />;
+
   if (selected) {
     return (
-      <div className="p-6">
+      <div className="flex">
+        <Sidebar />
+        <main className="ml-56 flex-1 p-6">
         <button
           onClick={() => setSelected(null)}
           className="mb-4 text-sm text-text-secondary hover:text-text-primary transition"
@@ -182,12 +188,15 @@ export default function FeedbackPage() {
             </div>
           )}
         </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="flex">
+      <Sidebar />
+      <main className="ml-56 flex-1 p-6">
       <h1 className="text-xl font-serif text-text-primary mb-6">User Feedback</h1>
 
       {/* Filters */}
@@ -195,9 +204,9 @@ export default function FeedbackPage() {
         <select
           value={filters.status || ""}
           onChange={(e) => { setFilters((f) => ({ ...f, status: e.target.value || undefined })); setPage(1); }}
-          className="rounded border border-border bg-surface px-3 py-1.5 text-sm text-text-primary"
+          className="bg-surface border border-border rounded px-3 py-1.5 text-sm text-text-secondary focus:border-accent outline-none"
         >
-          <option value="">All Statuses</option>
+          <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
@@ -205,9 +214,9 @@ export default function FeedbackPage() {
         <select
           value={filters.category || ""}
           onChange={(e) => { setFilters((f) => ({ ...f, category: e.target.value || undefined })); setPage(1); }}
-          className="rounded border border-border bg-surface px-3 py-1.5 text-sm text-text-primary"
+          className="bg-surface border border-border rounded px-3 py-1.5 text-sm text-text-secondary focus:border-accent outline-none"
         >
-          <option value="">All Categories</option>
+          <option value="">All categories</option>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{CATEGORY_LABELS[c] || c}</option>
           ))}
@@ -215,9 +224,9 @@ export default function FeedbackPage() {
         <select
           value={filters.severity || ""}
           onChange={(e) => { setFilters((f) => ({ ...f, severity: e.target.value || undefined })); setPage(1); }}
-          className="rounded border border-border bg-surface px-3 py-1.5 text-sm text-text-primary"
+          className="bg-surface border border-border rounded px-3 py-1.5 text-sm text-text-secondary focus:border-accent outline-none"
         >
-          <option value="">All Severities</option>
+          <option value="">All severities</option>
           {SEVERITIES.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
@@ -318,6 +327,7 @@ export default function FeedbackPage() {
           )}
         </>
       )}
+      </main>
     </div>
   );
 }

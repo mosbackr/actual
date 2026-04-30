@@ -263,9 +263,9 @@ async def run_marketing_batch(job_id: str) -> None:
                 ))
                 await db.commit()
 
-        # Rate limit: 1 email per minute
+        # Rate limit: 2 emails per second
         if idx < len(recipients) - 1:
-            await asyncio.sleep(60)
+            await asyncio.sleep(0.5)
 
     # ── 6. Mark job as completed ────────────────────────────────────────
     async with db_factory() as db:

@@ -19,12 +19,12 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
   },
-  metadataBase: new URL("https://www.deepthesis.org"),
+  metadataBase: new URL("https://www.deepthesis.co"),
   openGraph: {
     title: "Deep Thesis — Startup Investment Intelligence",
     description:
       "1,000+ buy-side VC transactions, secondaries data, Crunchbase, PitchBook, and AI agents — so you can make quantitative investment decisions without a $20K/yr data subscription.",
-    url: "https://www.deepthesis.org",
+    url: "https://www.deepthesis.co",
     siteName: "Deep Thesis",
     type: "website",
   },
@@ -39,6 +39,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <meta name="zoom-domain-verification" content="ZOOM_verify_22c0a210dfec49529f865c046d7a99b0" />
+      </head>
       <body className={`${inter.variable} ${instrumentSerif.variable} font-sans`}>
         <Providers>
           <Navbar />

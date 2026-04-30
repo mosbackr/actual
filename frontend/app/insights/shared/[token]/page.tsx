@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { AnalystMessage } from "@/components/analyst/AnalystMessage";
 import type { AnalystSharedConversation } from "@/lib/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function SharedConversationPage() {
   const params = useParams();

@@ -60,43 +60,24 @@ def is_heuristic_not_startup(name: str) -> bool:
     return bool(_NOT_STARTUP_RE.search(name))
 
 
-# ── Proxycurl ────────────────────────────────────────────────────────────
+# ── Scrapin.io ────────────────────────────────────────────────────────────
 
-async def _proxycurl_company_search(company_name: str) -> dict | None:
-    """Search for a company's LinkedIn page via Proxycurl."""
-    if not settings.proxycurl_api_key:
+async def _scrapin_person_profile(linkedin_url: str) -> dict | None:
+    """Fetch a person's LinkedIn profile via Scrapin.io."""
+    if not settings.scrapin_api_key:
         return None
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(
-                "https://nubela.co/proxycurl/api/linkedin/company/resolve",
-                params={"company_name": company_name, "enrich_profile": "skip"},
-                headers={"Authorization": f"Bearer {settings.proxycurl_api_key}"},
+                "https://api.scrapin.io/enrichment/profile",
+                params={"apikey": settings.scrapin_api_key, "linkedInUrl": linkedin_url},
             )
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("url"):
-                    return data
+                if data.get("success"):
+                    return data.get("person")
     except Exception as e:
-        logger.warning(f"Proxycurl company search failed for {company_name}: {e}")
-    return None
-
-
-async def _proxycurl_person_profile(linkedin_url: str) -> dict | None:
-    """Fetch a person's LinkedIn profile via Proxycurl."""
-    if not settings.proxycurl_api_key:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                "https://nubela.co/proxycurl/api/v2/linkedin",
-                params={"url": linkedin_url, "skills": "exclude", "inferred_salary": "exclude"},
-                headers={"Authorization": f"Bearer {settings.proxycurl_api_key}"},
-            )
-            if resp.status_code == 200:
-                return resp.json()
-    except Exception as e:
-        logger.warning(f"Proxycurl person profile failed for {linkedin_url}: {e}")
+        logger.warning(f"Scrapin.io person profile failed for {linkedin_url}: {e}")
     return None
 
 
@@ -129,66 +110,62 @@ async def _search_founder_linkedin(company_name: str) -> list[str]:
 
 
 def _extract_work_history(profile: dict) -> list[dict]:
-    """Extract structured work history from Proxycurl profile."""
-    experiences = profile.get("experiences") or []
+    """Extract structured work history from Scrapin.io profile."""
+    positions = profile.get("positions") or {}
+    history = positions.get("positionHistory") or []
     return [
         {
-            "company": exp.get("company") or "",
-            "title": exp.get("title") or "",
-            "start_date": exp.get("starts_at", {}).get("month", "") if exp.get("starts_at") else "",
-            "end_date": exp.get("ends_at", {}).get("month", "") if exp.get("ends_at") else "",
-            "description": (exp.get("description") or "")[:500],
+            "company": pos.get("companyName") or "",
+            "title": pos.get("title") or "",
+            "start_date": pos.get("startEndDate", {}).get("start", {}).get("month", "") if pos.get("startEndDate") else "",
+            "end_date": pos.get("startEndDate", {}).get("end", {}).get("month", "") if pos.get("startEndDate") else "",
+            "description": (pos.get("description") or "")[:500],
         }
-        for exp in experiences[:10]
+        for pos in history[:10]
     ]
 
 
 def _extract_education(profile: dict) -> list[dict]:
-    """Extract structured education from Proxycurl profile."""
-    education = profile.get("education") or []
+    """Extract structured education from Scrapin.io profile."""
+    schools = profile.get("schools") or {}
+    history = schools.get("educationHistory") or []
     return [
         {
-            "school": edu.get("school") or "",
-            "degree": edu.get("degree_name") or "",
-            "field": edu.get("field_of_study") or "",
-            "start_year": edu.get("starts_at", {}).get("year") if edu.get("starts_at") else None,
-            "end_year": edu.get("ends_at", {}).get("year") if edu.get("ends_at") else None,
+            "school": edu.get("schoolName") or "",
+            "degree": edu.get("degreeName") or "",
+            "field": edu.get("fieldOfStudy") or "",
+            "start_year": edu.get("startEndDate", {}).get("start", {}).get("year") if edu.get("startEndDate") else None,
+            "end_year": edu.get("startEndDate", {}).get("end", {}).get("year") if edu.get("startEndDate") else None,
         }
-        for edu in education[:5]
+        for edu in history[:5]
     ]
 
 
 def _detect_brand_name(founder_profile: dict, corp_name: str) -> str | None:
     """If the founder's current company differs from corp name, return the brand name."""
-    experiences = founder_profile.get("experiences") or []
-    if not experiences:
+    positions = founder_profile.get("positions") or {}
+    history = positions.get("positionHistory") or []
+    if not history:
         return None
-    current = experiences[0]
-    if not current.get("ends_at"):  # currently employed
-        company = current.get("company", "")
+    current = history[0]
+    end_date = current.get("startEndDate", {}).get("end") if current.get("startEndDate") else None
+    if not end_date:  # currently employed (no end date)
+        company = current.get("companyName", "")
         if company and company.lower().strip() != corp_name.lower().strip():
             return company
     return None
 
 
 async def _enrich_founders(db: AsyncSession, startup: Startup) -> list[StartupFounder]:
-    """Find and enrich founders for a startup via Proxycurl + SerpAPI."""
+    """Find and enrich founders for a startup via Scrapin.io + SerpAPI."""
     corp_name = startup.delaware_corp_name or startup.name
     brand_name = startup.name if startup.name != corp_name else None
     search_name = brand_name or corp_name
 
-    linkedin_urls: list[str] = []
-
-    # Method 1: Proxycurl company search
-    company_data = await _proxycurl_company_search(search_name)
-    if not company_data and brand_name:
-        company_data = await _proxycurl_company_search(corp_name)
-
-    # Method 2: SerpAPI fallback
-    if not linkedin_urls:
-        linkedin_urls = await _search_founder_linkedin(search_name)
-        if not linkedin_urls and brand_name:
-            linkedin_urls.extend(await _search_founder_linkedin(corp_name))
+    # Find founder LinkedIn URLs via SerpAPI
+    linkedin_urls = await _search_founder_linkedin(search_name)
+    if not linkedin_urls and brand_name:
+        linkedin_urls.extend(await _search_founder_linkedin(corp_name))
 
     # Deduplicate URLs
     seen = set()
@@ -202,11 +179,11 @@ async def _enrich_founders(db: AsyncSession, startup: Startup) -> list[StartupFo
     founders: list[StartupFounder] = []
 
     for url in unique_urls[:3]:
-        profile = await _proxycurl_person_profile(url)
+        profile = await _scrapin_person_profile(url)
         if not profile:
             continue
 
-        full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+        full_name = f"{profile.get('firstName', '')} {profile.get('lastName', '')}".strip()
         if not full_name:
             continue
 
@@ -226,8 +203,8 @@ async def _enrich_founders(db: AsyncSession, startup: Startup) -> list[StartupFo
             linkedin_url=url,
             is_founder=True,
             headline=profile.get("headline"),
-            location=profile.get("city") or profile.get("country_full_name"),
-            profile_photo_url=profile.get("profile_pic_url"),
+            location=profile.get("location"),
+            profile_photo_url=profile.get("photoUrl"),
             work_history=work_history,
             education_history=education_history,
             proxycurl_raw=profile,

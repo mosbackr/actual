@@ -201,8 +201,24 @@ function PitchIntelligenceContent() {
     }
   };
 
+  const [importingId, setImportingId] = useState<string | null>(null);
+
+  const handleImportZoom = async (sessionId: string) => {
+    if (!token) return;
+    setImportingId(sessionId);
+    try {
+      await api.importZoomRecording(token, sessionId);
+      await loadSessions();
+    } catch (e: any) {
+      setError(e.message || "Failed to import recording");
+    } finally {
+      setImportingId(null);
+    }
+  };
+
   const statusLabel = (status: string) => {
     const map: Record<string, { text: string; color: string }> = {
+      zoom_available: { text: "Available", color: "text-blue-500" },
       downloading: { text: "Downloading", color: "text-blue-600" },
       uploading: { text: "Uploading", color: "text-yellow-600" },
       transcribing: { text: "Transcribing", color: "text-blue-600" },
@@ -398,16 +414,59 @@ function PitchIntelligenceContent() {
         </div>
       )}
 
+      {/* Zoom Available Recordings */}
+      {sessions.filter((s) => s.status === "zoom_available").length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-medium text-text-primary mb-4">
+            <span className="inline-flex items-center gap-2">
+              <svg className="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4.585 6.836a1.44 1.44 0 0 0-1.443 1.443v5.3a1.44 1.44 0 0 0 2.163 1.249l3.98-2.65v1.401a1.44 1.44 0 0 0 2.163 1.249l4.432-2.95a1.44 1.44 0 0 0 0-2.497l-4.432-2.95a1.44 1.44 0 0 0-2.163 1.249v1.401l-3.98-2.65a1.44 1.44 0 0 0-.72-.195z"/>
+              </svg>
+              Zoom Recordings
+            </span>
+          </h2>
+          <div className="space-y-3">
+            {sessions.filter((s) => s.status === "zoom_available").map((s) => (
+              <div
+                key={s.id}
+                className="rounded-lg border border-blue-200 bg-blue-50/50 p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      {s.title || "Zoom Recording"}
+                      <span className="ml-2 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                        Zoom
+                      </span>
+                    </p>
+                    <p className="text-sm text-text-tertiary mt-0.5">
+                      {s.created_at ? new Date(s.created_at).toLocaleDateString() : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleImportZoom(s.id)}
+                    disabled={importingId === s.id}
+                    className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition disabled:opacity-50"
+                  >
+                    {importingId === s.id ? "Importing..." : "Import & Analyze"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Session List */}
       <div>
         <h2 className="text-lg font-medium text-text-primary mb-4">Your Pitch Sessions</h2>
         {loading ? (
           <p className="text-text-tertiary text-sm">Loading...</p>
-        ) : sessions.length === 0 ? (
+        ) : sessions.filter((s) => s.status !== "zoom_available").length === 0 ? (
           <p className="text-text-tertiary text-sm">No pitch sessions yet. Upload your first recording above.</p>
         ) : (
           <div className="space-y-3">
-            {sessions.map((s) => (
+            {sessions.filter((s) => s.status !== "zoom_available").map((s) => (
               <Link
                 key={s.id}
                 href={`/pitch-intelligence/${s.id}`}

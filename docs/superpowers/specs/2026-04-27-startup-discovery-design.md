@@ -2,11 +2,11 @@
 
 ## Overview
 
-Build a startup discovery pipeline that sources companies from Delaware C-corp filings, enriches founders via Proxycurl (work history, education, location from LinkedIn), classifies real startups vs noise using Claude, and enriches qualified startups via Perplexity. Admin-only batch process with pause/resume support. Discovered startups feed into the existing startup model and analysis infrastructure.
+Build a startup discovery pipeline that sources companies from Delaware C-corp filings, enriches founders via Scrapin.io (work history, education, location from LinkedIn), classifies real startups vs noise using Claude, and enriches qualified startups via Perplexity. Admin-only batch process with pause/resume support. Discovered startups feed into the existing startup model and analysis infrastructure.
 
 ## Rationale
 
-~90%+ of VC-backable startups incorporate as Delaware C-corps. A Delaware filing is one of the earliest detectable signals that someone is starting a fundable company. Combined with Proxycurl for founder enrichment and Claude for classification, this pipeline can identify ~70-75% of new venture-targetable startups within days of formation.
+~90%+ of VC-backable startups incorporate as Delaware C-corps. A Delaware filing is one of the earliest detectable signals that someone is starting a fundable company. Combined with Scrapin.io for founder enrichment and Claude for classification, this pipeline can identify ~70-75% of new venture-targetable startups within days of formation.
 
 The target dataset is ~250K startups from the last 3-5 years — the entire addressable universe of early-stage venture.
 
@@ -26,7 +26,7 @@ The target dataset is ~250K startups from the last 3-5 years — the entire addr
 | `work_history` | JSONB | Array of `{company, title, start_date, end_date, description}` |
 | `education` | JSONB | Array of `{school, degree, field, start_year, end_year}` |
 | `profile_photo_url` | String(500) | LinkedIn photo URL |
-| `proxycurl_raw` | JSONB | Full Proxycurl response for auditability |
+| `proxycurl_raw` | JSONB | Full enrichment API response for auditability |
 | `created_at` | DateTime(tz) | Record creation |
 | `updated_at` | DateTime(tz) | Last update |
 
@@ -112,23 +112,20 @@ Regex/keyword pass on `unclassified` records. Marks obvious non-startups as `cla
 
 Records that pass the heuristic filter remain `unclassified` and proceed to Step 4.
 
-### Step 4: Founder Discovery + Proxycurl Enrichment
+### Step 4: Founder Discovery + Scrapin.io Enrichment
 
 For each `unclassified` startup (those that passed the heuristic filter):
 
-**4a. Find founder LinkedIn URLs (two methods, try both):**
+**4a. Find founder LinkedIn URLs via SerpAPI:**
 
-1. **Proxycurl Company API** — Look up company LinkedIn page by name. If found, get employee list to identify founders/C-suite.
-2. **Google Search fallback** — Search `"Corp Name" founder OR CEO site:linkedin.com/in`. Parse search results for LinkedIn profile URLs.
+Search `"Corp Name" founder OR CEO site:linkedin.com/in` via SerpAPI. Parse search results for LinkedIn profile URLs. Take top 3 results.
 
-Use Google Custom Search API or SerpAPI for the search step.
-
-**4b. Enrich founder profiles via Proxycurl Person API:**
+**4b. Enrich founder profiles via Scrapin.io:**
 
 For each discovered founder LinkedIn URL:
-- Call Proxycurl Person Profile API (~$0.01/lookup)
+- Call Scrapin.io Profile Enrichment API (`GET https://api.scrapin.io/enrichment/profile`)
 - Extract: full name, headline, title, location, work history, education, profile photo
-- Insert into `founders` table with full `proxycurl_raw` response
+- Insert into `startup_founders` table with full raw response
 
 **4c. Brand name resolution:**
 
@@ -137,7 +134,7 @@ If the founder's LinkedIn shows a current company name different from the Delawa
 - Keep `delaware_corp_name` as the filing name
 - Update slug
 
-**Cost:** ~$0.02-0.04 per startup (company lookup + 1-2 person lookups).
+**Cost:** ~$0.02-0.04 per startup (1-3 person lookups + SerpAPI search).
 
 ### Step 5: Claude Classification
 
@@ -203,7 +200,7 @@ Steps 3-6 run as a single admin-triggered batch with pause/resume:
 ### Cost Estimates
 
 For 50K startups passing the heuristic filter:
-- Proxycurl: ~$1,000-2,000 (company + person lookups)
+- Scrapin.io: ~$1,000-2,000 (person profile lookups)
 - Claude classification: ~$500-1,000
 - Perplexity enrichment (assuming ~15-20K classified as startup): ~$1,000-2,000
 - **Total initial backfill: ~$2,500-5,000**
@@ -270,13 +267,13 @@ New page at `/admin/discovery` with sidebar link.
 
 | Service | Purpose | Auth |
 |---------|---------|------|
-| Proxycurl | Company lookup + person profiles | API key (new config: `proxycurl_api_key`) |
-| Google Custom Search / SerpAPI | Find founder LinkedIn URLs | API key (new config: `google_search_api_key` or `serp_api_key`) |
+| Scrapin.io | Person profile enrichment from LinkedIn | API key (new config: `scrapin_api_key`) |
+| SerpAPI | Find founder LinkedIn URLs via Google search | API key (new config: `serp_api_key`) |
 | Anthropic Claude | Classification | Existing `anthropic_api_key` |
 | Perplexity | Startup enrichment | Existing `perplexity_api_key` |
 
 Two new config entries in `Settings`:
-- `proxycurl_api_key: str = ""`
+- `scrapin_api_key: str = ""`
 - `serp_api_key: str = ""`
 
 ## Out of Scope (Future Phases)

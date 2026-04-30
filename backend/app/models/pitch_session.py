@@ -10,6 +10,7 @@ from app.models.industry import Base
 
 
 class PitchSessionStatus(str, enum.Enum):
+    zoom_available = "zoom_available"
     downloading = "downloading"
     uploading = "uploading"
     transcribing = "transcribing"

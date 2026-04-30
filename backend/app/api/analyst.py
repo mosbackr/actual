@@ -23,7 +23,7 @@ from app.models.analyst import (
     ReportFormat,
     ReportGenStatus,
 )
-from app.models.user import SubscriptionStatus, User
+from app.models.user import SubscriptionStatus, User, UserRole
 from app.services.analyst_agent import run_agent
 from app.services.analyst_reports import generate_report
 from app.services.document_extractor import extract_text
@@ -412,6 +412,8 @@ async def send_message(
 
     # Capture IDs needed for the streaming closure
     conv_id = conversation.id
+    agent_user_id = user.id
+    agent_is_admin = user.role == UserRole.superadmin
 
     async def event_stream():
         full_text = ""
@@ -419,7 +421,12 @@ async def send_message(
         citations = []
 
         try:
-            async for event in run_agent(history, image_blocks=image_blocks if image_blocks else None):
+            async for event in run_agent(
+                history,
+                image_blocks=image_blocks if image_blocks else None,
+                user_id=agent_user_id,
+                is_admin=agent_is_admin,
+            ):
                 etype = event["type"]
 
                 if etype == "text":

@@ -360,7 +360,7 @@ export interface PitchSessionSummary {
   id: string;
   startup_id: string | null;
   title: string | null;
-  status: "downloading" | "uploading" | "transcribing" | "labeling" | "analyzing" | "complete" | "failed";
+  status: "zoom_available" | "downloading" | "uploading" | "transcribing" | "labeling" | "analyzing" | "complete" | "failed";
   source: string | null;
   file_duration_seconds: number | null;
   scores: Record<string, number> | null;

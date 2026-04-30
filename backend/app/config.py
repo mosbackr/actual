@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Email (Resend)
     resend_api_key: str = ""
-    email_from: str = "gaius@deepthesis.co"
+    email_from: str = "Deep Thesis <noreply@deepthesis.co>"
     marketing_email_from: str = "updates@deepthesis.co"
 
     # Email verification
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     company_address: str = "3965 Lewis Link, New Albany, OH 43054"
 
     # Startup discovery
-    proxycurl_api_key: str = ""
+    scrapin_api_key: str = ""
     serp_api_key: str = ""
 
     model_config = {"env_prefix": "ACUTAL_"}

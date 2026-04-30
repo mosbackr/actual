@@ -100,7 +100,7 @@ def test_generate_unsubscribe_url():
     from app.services.email_verification import generate_unsubscribe_url
 
     investor_id = "550e8400-e29b-41d4-a716-446655440000"
-    url = generate_unsubscribe_url(investor_id, "https://www.deepthesis.org")
+    url = generate_unsubscribe_url(investor_id, "https://www.deepthesis.co")
 
     assert f"/unsubscribe/{investor_id}" in url
     assert "token=" in url

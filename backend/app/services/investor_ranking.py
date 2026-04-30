@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -14,6 +15,9 @@ from app.models.funding_round import StartupFundingRound
 from app.models.investor import BatchJobStatus, Investor
 from app.models.investor_ranking import InvestorRanking, InvestorRankingBatchJob
 from app.models.startup import CompanyStatus, Startup
+
+CONCURRENCY = 10  # parallel API workers
+DB_SEMAPHORE = asyncio.Semaphore(2)  # limit DB connections
 
 logger = logging.getLogger(__name__)
 
@@ -444,18 +448,33 @@ async def run_ranking_batch(job_id: str) -> None:
         job.started_at = datetime.now(timezone.utc)
         await db.commit()
 
+    # Prioritize unscored investors with emails (ready for verification/marketing)
     async with db_factory() as db:
+        scored_ids_result = await db.execute(
+            select(InvestorRanking.investor_id)
+        )
+        scored_ids = {row[0] for row in scored_ids_result.all()}
+
         result = await db.execute(
-            select(Investor).order_by(Investor.firm_name.asc(), Investor.partner_name.asc())
+            select(Investor).order_by(
+                # Unscored with email first, then unscored without, then already scored
+                Investor.email.is_(None).asc(),
+                Investor.firm_name.asc(),
+                Investor.partner_name.asc(),
+            )
         )
         all_investors = result.scalars().all()
+        # Put unscored investors first
+        unscored = [inv for inv in all_investors if inv.id not in scored_ids]
+        scored = [inv for inv in all_investors if inv.id in scored_ids]
+        ordered = unscored + scored
         investor_data = [
             {
                 "id": inv.id,
                 "firm_name": inv.firm_name,
                 "partner_name": inv.partner_name,
             }
-            for inv in all_investors
+            for inv in ordered
         ]
 
     async with db_factory() as db:
@@ -463,53 +482,156 @@ async def run_ranking_batch(job_id: str) -> None:
         job.total_investors = len(investor_data)
         await db.commit()
 
-    for idx, inv_data in enumerate(investor_data):
-        async with db_factory() as db:
-            job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
-            if job.status == BatchJobStatus.paused.value:
-                logger.info(f"Ranking batch {job_id} paused at investor {idx}")
-                return
-            if idx < job.processed_investors:
-                continue
+    # Skip already-processed investors
+    async with db_factory() as db:
+        job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
+        start_idx = job.processed_investors or 0
+    investor_data = investor_data[start_idx:]
 
-        async with db_factory() as db:
-            job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
-            job.current_investor_id = inv_data["id"]
-            job.current_investor_name = f"{inv_data['firm_name']} ({inv_data['partner_name']})"
-            await db.commit()
+    api_sem = asyncio.Semaphore(CONCURRENCY)
+    processed_count = start_idx
+    scored_count = 0
+    paused = False
+
+    async def score_one(inv_data: dict, idx: int) -> None:
+        nonlocal processed_count, scored_count, paused
+        if paused:
+            return
 
         scored = 0
         try:
-            async with db_factory() as db:
-                investor = await db.get(Investor, inv_data["id"])
-                if investor:
-                    await _score_single_investor(db, investor)
-                    scored = 1
+            # API calls (Perplexity + Claude) — limited by api_sem
+            async with api_sem:
+                if paused:
+                    return
+                async with DB_SEMAPHORE:
+                    async with db_factory() as db:
+                        investor = await db.get(Investor, inv_data["id"])
+                if not investor:
+                    return
+                # Do the expensive API work outside DB semaphore
+                portfolio_research = {}
+                network_research = {}
+                messages = _build_portfolio_prompt(investor)
+                for attempt in range(2):
+                    try:
+                        raw = await _call_perplexity(messages)
+                        portfolio_research = _extract_json_object(raw)
+                        break
+                    except (json.JSONDecodeError, ValueError) as e:
+                        if attempt == 0:
+                            messages.append({"role": "assistant", "content": raw})
+                            messages.append({"role": "user", "content": "Your response was not valid JSON. Return ONLY a JSON object, no other text."})
+                        else:
+                            logger.warning(f"Portfolio research JSON parse failed for {inv_data['firm_name']}: {e}")
+
+                messages = _build_network_prompt(investor)
+                for attempt in range(2):
+                    try:
+                        raw = await _call_perplexity(messages)
+                        network_research = _extract_json_object(raw)
+                        break
+                    except (json.JSONDecodeError, ValueError) as e:
+                        if attempt == 0:
+                            messages.append({"role": "assistant", "content": raw})
+                            messages.append({"role": "user", "content": "Your response was not valid JSON. Return ONLY a JSON object, no other text."})
+                        else:
+                            logger.warning(f"Network research JSON parse failed for {inv_data['firm_name']}: {e}")
+
+                # Score with Claude
+                async with DB_SEMAPHORE:
+                    async with db_factory() as db:
+                        investor = await db.get(Investor, inv_data["id"])
+                        internal_data = await _get_internal_data(db, investor)
+
+                scores = await _score_with_claude(investor, portfolio_research, network_research, internal_data)
+
+                # Save to DB
+                dimension_scores = {}
+                for dim in DIMENSION_NAMES:
+                    val = scores.get(dim, 50)
+                    if not isinstance(val, (int, float)):
+                        val = 50
+                    dimension_scores[dim] = max(0.0, min(100.0, float(val)))
+                overall = round(sum(dimension_scores.values()) / len(DIMENSION_NAMES), 1)
+                narrative = scores.get("narrative", "No narrative generated.")
+
+                async with DB_SEMAPHORE:
+                    async with db_factory() as db:
+                        investor = await db.get(Investor, inv_data["id"])
+                        result = await db.execute(
+                            select(InvestorRanking).where(InvestorRanking.investor_id == investor.id)
+                        )
+                        existing = result.scalar_one_or_none()
+                        now = datetime.now(timezone.utc)
+                        if existing:
+                            existing.overall_score = overall
+                            for dim in DIMENSION_NAMES:
+                                setattr(existing, dim, dimension_scores[dim])
+                            existing.narrative = narrative
+                            existing.perplexity_research = {"portfolio": portfolio_research, "network": network_research}
+                            existing.scoring_metadata = {"internal_data": internal_data, "raw_scores": scores}
+                            existing.scored_at = now
+                            existing.updated_at = now
+                        else:
+                            ranking = InvestorRanking(
+                                investor_id=investor.id,
+                                overall_score=overall,
+                                narrative=narrative,
+                                perplexity_research={"portfolio": portfolio_research, "network": network_research},
+                                scoring_metadata={"internal_data": internal_data, "raw_scores": scores},
+                                scored_at=now,
+                                **dimension_scores,
+                            )
+                            db.add(ranking)
+                        await db.commit()
+                scored = 1
         except Exception as e:
             logger.error(f"Failed scoring {inv_data['firm_name']}: {e}")
+            async with DB_SEMAPHORE:
+                async with db_factory() as db:
+                    job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
+                    errors = job.error or ""
+                    job.error = f"{errors}\n{inv_data['firm_name']}: {e}".strip()
+                    await db.commit()
+
+        processed_count += 1
+        scored_count += scored
+        logger.info(f"Scored {processed_count}/{start_idx + len(investor_data)}: {inv_data['firm_name']} ({inv_data['partner_name']})")
+
+    # Process in batches of CONCURRENCY
+    for batch_start in range(0, len(investor_data), CONCURRENCY):
+        # Check for pause
+        async with DB_SEMAPHORE:
             async with db_factory() as db:
                 job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
-                errors = job.error or ""
-                job.error = f"{errors}\n{inv_data['firm_name']}: {e}".strip()
+                if job.status == BatchJobStatus.paused.value:
+                    logger.info(f"Ranking batch {job_id} paused at {processed_count}")
+                    paused = True
+                    return
+
+        batch = investor_data[batch_start:batch_start + CONCURRENCY]
+        tasks = [score_one(inv_data, start_idx + batch_start + i) for i, inv_data in enumerate(batch)]
+        await asyncio.gather(*tasks)
+
+        # Update job progress
+        async with DB_SEMAPHORE:
+            async with db_factory() as db:
+                job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
+                job.processed_investors = processed_count
+                job.investors_scored = (job.investors_scored or 0) + scored_count
+                scored_count = 0  # reset for next batch
+                job.current_investor_name = f"Batch {batch_start + CONCURRENCY}/{len(investor_data)}"
                 await db.commit()
 
+    async with DB_SEMAPHORE:
         async with db_factory() as db:
             job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
-            job.processed_investors = idx + 1
-            job.investors_scored = (job.investors_scored or 0) + scored
+            job.status = BatchJobStatus.completed.value
+            job.current_investor_id = None
+            job.current_investor_name = None
+            job.completed_at = datetime.now(timezone.utc)
             await db.commit()
-
-        logger.info(
-            f"Scored {idx + 1}/{len(investor_data)}: {inv_data['firm_name']} ({inv_data['partner_name']})"
-        )
-
-    async with db_factory() as db:
-        job = await db.get(InvestorRankingBatchJob, uuid.UUID(job_id))
-        job.status = BatchJobStatus.completed.value
-        job.current_investor_id = None
-        job.current_investor_name = None
-        job.completed_at = datetime.now(timezone.utc)
-        await db.commit()
 
     logger.info(f"Ranking batch {job_id} complete")
 

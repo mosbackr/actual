@@ -90,7 +90,7 @@ export function NotificationBell() {
 
     // Handle report downloads (link starts with /api/)
     if (notification.link.startsWith("/api/")) {
-      const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${notification.link}`;
+      const url = `${notification.link}`;
       try {
         const resp = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },

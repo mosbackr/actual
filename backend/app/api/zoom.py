@@ -43,7 +43,9 @@ async def zoom_oauth_callback(code: str | None = None, error: str | None = None)
     try:
         token_data = await zoom_client.exchange_code_for_tokens(code, redirect_uri)
     except Exception as e:
-        logger.error("Zoom OAuth token exchange failed: %s", e)
+        logger.error("Zoom OAuth token exchange failed: %s (redirect_uri=%s, client_id=%s)", e, redirect_uri, settings.zoom_client_id)
+        if hasattr(e, 'response'):
+            logger.error("Zoom response body: %s", e.response.text)
         return RedirectResponse(
             url=f"{settings.frontend_url}/profile?zoom_error=token_exchange_failed",
             status_code=302,
@@ -174,6 +176,34 @@ async def disconnect_zoom(
     return {"ok": True}
 
 
+# -- Import Recording --
+
+
+@router.post("/api/zoom/import/{session_id}")
+async def import_zoom_recording(
+    session_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Import a Zoom recording that is in zoom_available status."""
+    result = await db.execute(
+        select(PitchSession).where(
+            PitchSession.id == session_id,
+            PitchSession.user_id == user.id,
+        )
+    )
+    ps = result.scalar_one_or_none()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if ps.status != PitchSessionStatus.zoom_available:
+        raise HTTPException(status_code=400, detail="Recording is not available for import")
+
+    ps.status = PitchSessionStatus.downloading
+    await db.commit()
+
+    return {"ok": True, "id": str(ps.id)}
+
+
 # -- Webhook --
 
 
@@ -253,7 +283,7 @@ async def _handle_recording_completed(payload: dict) -> None:
         ps = PitchSession(
             user_id=conn.user_id,
             title=meeting_topic[:500],
-            status=PitchSessionStatus.downloading,
+            status=PitchSessionStatus.zoom_available,
             source="zoom",
             zoom_meeting_id=meeting_uuid,
             video_url=download_url,

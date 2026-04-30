@@ -113,7 +113,7 @@ export default function ExpertApplyPage() {
   useEffect(() => {
     api.getIndustries().then(setIndustries).catch(() => {});
     fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/skills`
+      `${process.env.NEXT_PUBLIC_API_URL || ""}/api/skills`
     )
       .then((r) => r.json())
       .then(setSkills)

@@ -18,7 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
 function previewHtml(html: string): string {
   const replacements: Record<string, string> = {
     score: "85",
-    cta_url: "https://www.deepthesis.org/score/example",
+    cta_url: "https://www.deepthesis.co/score/example",
     unsubscribe_url: "#",
     company_address: "3965 Lewis Link, New Albany, OH 43054",
     deal_activity: "78",

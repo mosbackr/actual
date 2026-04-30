@@ -5,15 +5,6 @@ import { useSession } from "next-auth/react";
 import { api } from "@/lib/api";
 import type { AnalystConversationSummary, ReportListItem } from "@/lib/types";
 
-const SUGGESTED_ANALYSES = [
-  "Portfolio sector breakdown",
-  "Score distribution analysis",
-  "Funding stage pipeline",
-  "Top performers deep dive",
-  "Market trend comparison",
-  "Competitive landscape overview",
-  "Due diligence checklist template",
-];
 
 interface Props {
   conversations: AnalystConversationSummary[];
@@ -21,6 +12,7 @@ interface Props {
   onSelect: (id: string) => void;
   onNew: () => void;
   onSuggestion: (prompt: string) => void;
+  onOpenPrompts: () => void;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -52,6 +44,7 @@ export function AnalystSidebar({
   onSelect,
   onNew,
   onSuggestion,
+  onOpenPrompts,
   isOpen,
   onToggle,
 }: Props) {
@@ -188,18 +181,12 @@ export function AnalystSidebar({
 
               {/* Suggestions */}
               <div className="p-3 border-t border-border">
-                <p className="text-[10px] uppercase tracking-wider text-text-tertiary mb-2">Suggested</p>
-                <div className="space-y-0.5">
-                  {SUGGESTED_ANALYSES.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => onSuggestion(s)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs text-text-tertiary hover:text-text-secondary hover:bg-surface-alt transition truncate"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  onClick={onOpenPrompts}
+                  className="w-full px-3 py-2 text-xs rounded border border-border text-text-tertiary hover:text-text-secondary hover:border-text-tertiary transition"
+                >
+                  Browse Suggested Prompts
+                </button>
               </div>
             </>
           ) : (

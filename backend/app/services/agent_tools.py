@@ -297,39 +297,45 @@ async def execute_tool(
     db: AsyncSession,
 ) -> str:
     """Execute a tool call, persist it to the database, and return the result string."""
+    from app.db.session import async_session
+
     start = time.monotonic()
 
+    # Each tool call gets its own DB session to prevent poisoning across calls
     if tool_name == "perplexity_search":
         result_text = await execute_perplexity_search(tool_input["query"])
     elif tool_name == "db_search_startups":
-        result_text = await execute_db_search_startups(
-            tool_input["query"], tool_input.get("limit", 10), db
-        )
+        async with async_session() as tool_db:
+            result_text = await execute_db_search_startups(
+                tool_input["query"], tool_input.get("limit", 10), tool_db
+            )
     elif tool_name == "db_get_analysis":
-        result_text = await execute_db_get_analysis(tool_input["startup_id"], db)
+        async with async_session() as tool_db:
+            result_text = await execute_db_get_analysis(tool_input["startup_id"], tool_db)
     elif tool_name == "db_list_experts":
-        result_text = await execute_db_list_experts(
-            tool_input.get("industry"), tool_input.get("limit", 10), db
-        )
+        async with async_session() as tool_db:
+            result_text = await execute_db_list_experts(
+                tool_input.get("industry"), tool_input.get("limit", 10), tool_db
+            )
     else:
         result_text = f"Unknown tool: {tool_name}"
 
     duration_ms = int((time.monotonic() - start) * 1000)
 
-    # Persist the tool call — rollback first in case a prior DB error poisoned the session
+    # Persist tool call in its own session too
     try:
-        await db.rollback()
+        async with async_session() as persist_db:
+            tool_call = ToolCall(
+                analysis_id=analysis_id,
+                agent_type=agent_type,
+                tool_name=tool_name,
+                input=tool_input,
+                output={"result": result_text[:10000]},
+                duration_ms=duration_ms,
+            )
+            persist_db.add(tool_call)
+            await persist_db.commit()
     except Exception:
-        pass
-    tool_call = ToolCall(
-        analysis_id=analysis_id,
-        agent_type=agent_type,
-        tool_name=tool_name,
-        input=tool_input,
-        output={"result": result_text[:10000]},  # cap storage at 10k chars
-        duration_ms=duration_ms,
-    )
-    db.add(tool_call)
-    await db.commit()
+        logger.warning("Failed to persist tool call for %s/%s", agent_type, tool_name)
 
     return result_text

@@ -22,7 +22,7 @@ class StartupFounder(Base):
     education: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Proxycurl enrichment fields
+    # LinkedIn enrichment fields (via Scrapin.io)
     headline: Mapped[str | None] = mapped_column(String(500), nullable=True)
     location: Mapped[str | None] = mapped_column(String(300), nullable=True)
     profile_photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

@@ -80,7 +80,7 @@ export default async function OGImage() {
 
         {/* URL */}
         <span style={{ fontSize: "18px", color: "#6B6B6B", fontFamily: "system-ui, sans-serif" }}>
-          deepthesis.org
+          deepthesis.co
         </span>
       </div>
     ),

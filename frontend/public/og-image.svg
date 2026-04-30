@@ -20,5 +20,5 @@
   <!-- Stats -->
   <text x="80" y="490" font-family="system-ui, sans-serif" font-size="22" fill="#9B9B9B">1,000+ transactions  |  2,800+ companies  |  8 AI agents per analysis</text>
   <!-- URL -->
-  <text x="80" y="570" font-family="system-ui, sans-serif" font-size="20" fill="#6B6B6B">deepthesis.org</text>
+  <text x="80" y="570" font-family="system-ui, sans-serif" font-size="20" fill="#6B6B6B">deepthesis.co</text>
 </svg>
